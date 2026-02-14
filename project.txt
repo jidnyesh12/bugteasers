@@ -1,0 +1,22 @@
+2 Overall Description
+2.1 Product Perspective
+The AI Coding Tutor is a standalone, web-based educational platform designed to integrate modern AI capabilities with traditional online judges. While it functions as an
+independent system, it relies on external Large Language Models (LLMs) for hint generation and the Judge0 API for secure code execution. The system follows a client-server
+architecture, where the frontend provides an interactive code editor (Monaco Editor)
+and the backend manages the logic, database, and AI integrations.
+2.2 Product Functions
+• The system’s primary functions are divided into three core modules:
+• Authentication & Role Management: Secure login and routing of users to
+either the Student or Instructor dashboard based on their role.
+• Instructor Tools: Automated generation of coding problems and test cases via
+”Template Injection,” manual problem editing, and a progress analytics dashboard.
+• Student Environment: An interactive IDE for solving problems, receiving Socratic AI hints (logic-based guidance), and obtaining code optimization feedback
+(e.g., Time Complexity analysis).
+• Code Intelligence: Real-time syntax checking, secure code execution in a sandbox, and AST-based similarity detection to identify plagiarism.
+2.3 User Classes and Characteristics
+• Students: Primarily novice to intermediate programmers. They require a userfriendly interface and guided feedback that encourages problem-solving without
+giving away the final answer.
+• Instructors: Educators who need tools to manage large classes. They are technically proficient and require efficient ways to create assignments and monitor
+class-wide performance trends.
+• System Administrators: Individuals responsible for maintaining the server,
+managing database back
