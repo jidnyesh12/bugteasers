@@ -17,7 +17,7 @@ export async function generateProblems(
   try {
     // Use Gemini 1.5 Pro for best results
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-pro',
+      model: 'gemini-pro',
       generationConfig: {
         temperature: 0.7,
         topP: 0.95,
@@ -53,7 +53,7 @@ export async function generateProblems(
       problems: parsedResponse.problems,
       metadata: {
         generated_at: new Date().toISOString(),
-        model: 'gemini-1.5-pro',
+        model: 'gemini-pro',
       },
     };
   } catch (error) {
@@ -130,7 +130,7 @@ export async function regenerateProblemSection(
   problem: GeneratedProblem,
   section: 'hints' | 'test_cases' | 'description' | 'starter_code'
 ): Promise<Partial<GeneratedProblem>> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
   const prompts = {
     hints: `Given this coding problem, generate 3-4 progressive hints that guide students without giving away the solution:
