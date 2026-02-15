@@ -49,21 +49,13 @@ jobs:
         run: pnpm lint
 
       - name: Type check
-        run: pnpm tsc --noEmit
+        run: pnpm exec tsc --noEmit
 
       - name: Build application
         run: pnpm build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        with:
-          name: build-artifacts
-          path: .next/
-          retention-days: 7
 
   # Continuous Deployment Job (runs only on main branch)
   deploy:
@@ -73,15 +65,6 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
-          path: .next/
-
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25
         with:

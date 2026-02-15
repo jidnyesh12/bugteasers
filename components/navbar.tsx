@@ -54,6 +54,7 @@ export function Navbar() {
                   {/* Avatar */}
                   <div className="h-8 w-8 rounded-full bg-[var(--accent-primary)] flex items-center justify-center text-white text-sm font-semibold overflow-hidden">
                     {profile?.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={profile.avatar_url}
                         alt="Avatar"
