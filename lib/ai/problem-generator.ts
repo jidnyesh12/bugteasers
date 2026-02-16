@@ -15,9 +15,9 @@ export async function generateProblems(
   request: ProblemGenerationRequest
 ): Promise<ProblemGenerationResponse> {
   try {
-    // Use Gemini 1.5 Flash (available in current API)
+    // Use Gemini 2.5 Flash
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
     });
 
     // Build the prompt
@@ -47,7 +47,7 @@ export async function generateProblems(
       problems: parsedResponse.problems,
       metadata: {
         generated_at: new Date().toISOString(),
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.5-flash',
       },
     };
   } catch (error) {
@@ -124,7 +124,7 @@ export async function regenerateProblemSection(
   problem: GeneratedProblem,
   section: 'hints' | 'test_cases' | 'description' | 'starter_code'
 ): Promise<Partial<GeneratedProblem>> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
   const prompts = {
     hints: `Given this coding problem, generate 3-4 progressive hints that guide students without giving away the solution:
