@@ -135,6 +135,7 @@ export default function ProfilePage() {
               <div className="relative">
                 <div className="h-20 w-20 rounded-2xl bg-[var(--accent-primary)] flex items-center justify-center text-white text-2xl font-bold overflow-hidden shadow-lg">
                   {profile?.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={profile.avatar_url} alt="Avatar" className="h-full w-full object-cover" />
                   ) : (
                     (profile?.full_name?.[0] || 'U').toUpperCase()

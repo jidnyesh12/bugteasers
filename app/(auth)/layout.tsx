@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 export default function AuthLayout({
   children,
 }: {
@@ -58,7 +60,7 @@ export default function AuthLayout({
         <div className="w-full max-w-md">
           {/* Logo */}
           <div className="mb-8">
-            <a href="/" className="inline-flex items-center gap-3 group">
+            <Link href="/" className="inline-flex items-center gap-3 group">
               <div className="h-10 w-10 rounded-xl bg-[var(--accent-primary)] flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="16 18 22 12 16 6" />
@@ -68,7 +70,7 @@ export default function AuthLayout({
               <span className="text-xl font-bold text-[var(--text-primary)] tracking-tight">
                 Code<span className="text-[var(--accent-primary)]">Guru</span> <span className="text-sm font-medium text-[var(--text-muted)]">AI</span>
               </span>
-            </a>
+            </Link>
           </div>
 
           {/* Card — no animation */}
