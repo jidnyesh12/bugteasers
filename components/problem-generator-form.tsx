@@ -74,7 +74,7 @@ export default function ProblemGeneratorForm({
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
           placeholder="e.g., Binary Search, Dynamic Programming, Arrays"
-          className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+          className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-white text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
           disabled={isLoading}
           required
         />
@@ -89,7 +89,7 @@ export default function ProblemGeneratorForm({
           id="difficulty"
           value={difficulty}
           onChange={(e) => setDifficulty(e.target.value as 'easy' | 'medium' | 'hard')}
-          className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+          className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-white text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
           disabled={isLoading}
         >
           <option value="easy">Easy</option>
@@ -147,7 +147,7 @@ export default function ProblemGeneratorForm({
           max="5"
           value={numProblems}
           onChange={(e) => setNumProblems(parseInt(e.target.value) || 1)}
-          className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+          className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-white text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
           disabled={isLoading}
         />
         <p className="text-xs text-[var(--text-muted)] mt-1">
@@ -166,7 +166,7 @@ export default function ProblemGeneratorForm({
           onChange={(e) => setConstraints(e.target.value)}
           placeholder="e.g., Must use recursion, No built-in sorting functions, Focus on space optimization"
           rows={3}
-          className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] resize-none"
+          className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-white text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] resize-none"
           disabled={isLoading}
         />
       </div>

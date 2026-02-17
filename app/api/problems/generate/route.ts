@@ -1,35 +1,22 @@
 // API route for problem generation
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { generateProblems } from '@/lib/ai/problem-generator';
 import { ProblemGenerationRequest } from '@/lib/ai/types';
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify authentication and instructor role
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    // Verify authentication via NextAuth
+    const session = await getServerSession(authOptions);
 
-    if (authError || !user) {
+    if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check if user is instructor or admin
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (profileError || !profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
-    }
-
-    if (profile.role !== 'instructor' && profile.role !== 'admin') {
+    if (session.user.role !== 'instructor' && session.user.role !== 'admin') {
       return NextResponse.json(
         { error: 'Only instructors can generate problems' },
         { status: 403 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/lib/auth/auth-context';
 
 interface Problem {
   id: string;
@@ -15,30 +15,22 @@ interface Problem {
 
 export default function ProblemsPage() {
   const router = useRouter();
+  const { profile } = useAuth();
   const [problems, setProblems] = useState<Problem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadProblems();
-  }, []);
+    if (profile?.id) {
+      loadProblems();
+    }
+  }, [profile?.id]);
 
   const loadProblems = async () => {
     try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('problems')
-        .select('id, title, difficulty, tags, usage_count, created_at')
-        .eq('created_by', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setProblems(data || []);
+      const res = await fetch('/api/problems?mine=true');
+      if (!res.ok) throw new Error('Failed to load problems');
+      const data = await res.json();
+      setProblems(data.problems || []);
     } catch (error) {
       console.error('Error loading problems:', error);
     } finally {

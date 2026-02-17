@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import ProblemGeneratorForm from '@/components/problem-generator-form';
 import GeneratedProblemPreview from '@/components/generated-problem-preview';
 import { GeneratedProblem } from '@/lib/ai/types';
-import { createClient } from '@/lib/supabase/client';
 
 export default function NewProblemPage() {
   const router = useRouter();
@@ -23,64 +22,23 @@ export default function NewProblemPage() {
   const handleSave = async (problems: GeneratedProblem[]) => {
     setIsSaving(true);
     try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const res = await fetch('/api/problems/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ problems }),
+      });
 
-      if (!user) {
-        throw new Error('Not authenticated');
-      }
-
-      // Save each problem
-      for (const problem of problems) {
-        // Insert problem
-        const { data: insertedProblem, error: problemError } = await supabase
-          .from('problems')
-          .insert({
-            created_by: user.id,
-            title: problem.title,
-            description: problem.description,
-            difficulty: problem.difficulty,
-            tags: problem.tags,
-            constraints: problem.constraints,
-            examples: problem.examples,
-            hints: problem.hints,
-            time_limit: problem.time_limit,
-            memory_limit: problem.memory_limit,
-            starter_code: JSON.stringify(problem.starter_code),
-            solution_code: problem.solution_code,
-          })
-          .select()
-          .single();
-
-        if (problemError) {
-          throw problemError;
-        }
-
-        // Insert test cases
-        const testCasesToInsert = problem.test_cases.map((tc) => ({
-          problem_id: insertedProblem.id,
-          input_data: tc.input_data,
-          expected_output: tc.expected_output,
-          is_sample: tc.is_sample,
-          points: tc.points,
-        }));
-
-        const { error: testCasesError } = await supabase
-          .from('test_cases')
-          .insert(testCasesToInsert);
-
-        if (testCasesError) {
-          throw testCasesError;
-        }
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to save');
       }
 
       // Redirect to problems list
       router.push('/dashboard/instructor/problems');
     } catch (error) {
       console.error('Error saving problems:', error);
-      alert('Failed to save problems. Please try again.');
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to save problems: ${msg}`);
     } finally {
       setIsSaving(false);
     }
