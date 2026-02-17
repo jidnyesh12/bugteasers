@@ -60,19 +60,31 @@ export async function generateProblems(
 
 function parseGeneratedProblems(text: string): { problems: GeneratedProblem[] } {
   try {
-    // Remove markdown code blocks if present
+    // Remove markdown code blocks if present - more robust approach
     let cleanedText = text.trim();
-    if (cleanedText.startsWith('```json')) {
-      cleanedText = cleanedText.replace(/^```json\n/, '').replace(/\n```$/, '');
-    } else if (cleanedText.startsWith('```')) {
-      cleanedText = cleanedText.replace(/^```\n/, '').replace(/\n```$/, '');
-    }
+    
+    // Remove opening code block markers
+    cleanedText = cleanedText.replace(/^```json\s*/i, '');
+    cleanedText = cleanedText.replace(/^```\s*/, '');
+    
+    // Remove closing code block markers
+    cleanedText = cleanedText.replace(/\s*```\s*$/g, '');
+    
+    // Trim again after removing markers
+    cleanedText = cleanedText.trim();
 
     const parsed = JSON.parse(cleanedText);
+    
+    // Validate structure
+    if (!parsed || !parsed.problems || !Array.isArray(parsed.problems)) {
+      throw new Error('Response missing "problems" array');
+    }
+    
     return parsed;
   } catch (error) {
-    console.error('Failed to parse AI response:', text);
-    throw new Error('AI returned invalid JSON format');
+    console.error('Failed to parse AI response. First 500 chars:', text.substring(0, 500));
+    console.error('Parse error:', error);
+    throw new Error(`AI returned invalid JSON format: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -158,12 +170,12 @@ Return only a JSON object: { "starter_code": { "python": "...", "javascript": ".
   const result = await model.generateContent(prompts[section]);
   const text = result.response.text();
   
+  // Clean markdown code blocks
   let cleanedText = text.trim();
-  if (cleanedText.startsWith('```json')) {
-    cleanedText = cleanedText.replace(/^```json\n/, '').replace(/\n```$/, '');
-  } else if (cleanedText.startsWith('```')) {
-    cleanedText = cleanedText.replace(/^```\n/, '').replace(/\n```$/, '');
-  }
+  cleanedText = cleanedText.replace(/^```json\s*/i, '');
+  cleanedText = cleanedText.replace(/^```\s*/, '');
+  cleanedText = cleanedText.replace(/\s*```\s*$/g, '');
+  cleanedText = cleanedText.trim();
 
   return JSON.parse(cleanedText);
 }
