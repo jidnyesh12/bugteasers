@@ -1,153 +1,143 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import type { Profile, AuthState } from '@/lib/types'
+import {
+  SessionProvider,
+  useSession,
+  signIn as nextAuthSignIn,
+  signOut as nextAuthSignOut,
+} from 'next-auth/react'
+import {
+  createContext,
+  useContext,
+  type ReactNode,
+} from 'react'
 
-interface AuthContextType extends AuthState {
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signUp: (email: string, password: string, fullName: string, role: string) => Promise<{ error: string | null }>
-  signOut: () => Promise<void>
-  resetPassword: (email: string) => Promise<{ error: string | null }>
-  updatePassword: (newPassword: string) => Promise<{ error: string | null }>
-  refreshProfile: () => Promise<void>
+// ─── Profile shape exposed to components ───
+interface UserProfile {
+  id: string
+  email: string
+  full_name: string
+  role: 'student' | 'instructor'
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+interface AuthContextValue {
+  /** The raw NextAuth session user (null when signed out) */
+  user: { id: string; email: string; name: string; role: string } | null
+  /** Convenience profile object that mirrors the old API surface */
+  profile: UserProfile | null
+  /** true while the session is being fetched */
+  loading: boolean
+  /** true once the session has been fetched at least once */
+  initialized: boolean
+  /** Sign in with email + password → returns { error?: string } */
+  signIn: (email: string, password: string) => Promise<{ error?: string }>
+  /** Register a new user → returns { error?: string } */
+  signUp: (
+    email: string,
+    password: string,
+    fullName: string,
+    role: 'student' | 'instructor'
+  ) => Promise<{ error?: string }>
+  /** Sign out */
+  signOut: () => Promise<void>
+}
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    profile: null,
-    loading: true,
-    initialized: false,
-  })
+const AuthContext = createContext<AuthContextValue | null>(null)
 
-  const supabase = createClient()
+// ─── Inner provider (needs SessionProvider above it) ───
+function AuthContextInner({ children }: { children: ReactNode }) {
+  const { data: session, status } = useSession()
+  const loading = status === 'loading'
+  const initialized = status !== 'loading'
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-
-    return data as Profile | null
-  }, [supabase])
-
-  const refreshProfile = useCallback(async () => {
-    if (state.user) {
-      const profile = await fetchProfile(state.user.id)
-      setState((prev) => ({ ...prev, profile }))
-    }
-  }, [state.user, fetchProfile])
-
-  useEffect(() => {
-    // Get initial session
-    const initAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      let profile: Profile | null = null
-
-      if (user) {
-        profile = await fetchProfile(user.id)
-      }
-
-      setState({
-        user,
-        profile,
-        loading: false,
-        initialized: true,
-      })
-    }
-
-    initAuth()
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        const user = session?.user ?? null
-        let profile: Profile | null = null
-
-        if (user) {
-          profile = await fetchProfile(user.id)
+  const user =
+    session?.user
+      ? {
+          id: session.user.id,
+          email: session.user.email ?? '',
+          name: session.user.name ?? '',
+          role: session.user.role ?? 'student',
         }
+      : null
 
-        setState({
-          user,
-          profile,
-          loading: false,
-          initialized: true,
-        })
+  const profile: UserProfile | null = user
+    ? {
+        id: user.id,
+        email: user.email,
+        full_name: user.name,
+        role: user.role as 'student' | 'instructor',
       }
-    )
+    : null
 
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [supabase, fetchProfile])
-
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error: error?.message ?? null }
-  }
-
-  const signUp = async (email: string, password: string, fullName: string, role: string) => {
-    const { error } = await supabase.auth.signUp({
+  // ── Sign in ──
+  const signIn = async (
+    email: string,
+    password: string
+  ): Promise<{ error?: string }> => {
+    const res = await nextAuthSignIn('credentials', {
       email,
       password,
-      options: {
-        data: {
-          full_name: fullName,
-          role: role,
-        },
-      },
+      redirect: false,
     })
-    return { error: error?.message ?? null }
+
+    if (res?.error) {
+      return { error: res.error === 'CredentialsSignin' ? 'Invalid email or password' : res.error }
+    }
+    return {}
   }
 
-  const signOut = async () => {
-    await supabase.auth.signOut()
-    setState({
-      user: null,
-      profile: null,
-      loading: false,
-      initialized: true,
-    })
+  // ── Sign up (calls our register API then auto-signs in) ──
+  const signUp = async (
+    email: string,
+    password: string,
+    fullName: string,
+    role: 'student' | 'instructor'
+  ): Promise<{ error?: string }> => {
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, fullName, role }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        return { error: data.error || 'Registration failed' }
+      }
+
+      // Auto sign-in after successful registration
+      return signIn(email, password)
+    } catch {
+      return { error: 'Network error. Please try again.' }
+    }
   }
 
-  const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    })
-    return { error: error?.message ?? null }
-  }
-
-  const updatePassword = async (newPassword: string) => {
-    const { error } = await supabase.auth.updateUser({ password: newPassword })
-    return { error: error?.message ?? null }
+  // ── Sign out ──
+  const signOutHandler = async () => {
+    await nextAuthSignOut({ redirect: false })
   }
 
   return (
     <AuthContext.Provider
-      value={{
-        ...state,
-        signIn,
-        signUp,
-        signOut,
-        resetPassword,
-        updatePassword,
-        refreshProfile,
-      }}
+      value={{ user, profile, loading, initialized, signIn, signUp, signOut: signOutHandler }}
     >
       {children}
     </AuthContext.Provider>
   )
 }
 
+// ─── Public provider (wraps SessionProvider + our context) ───
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return (
+    <SessionProvider>
+      <AuthContextInner>{children}</AuthContextInner>
+    </SessionProvider>
+  )
+}
+
+// ─── Hook ───
 export function useAuth() {
-  const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
-  return context
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>')
+  return ctx
 }

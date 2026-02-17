@@ -60,7 +60,7 @@ export default function GeneratedProblemPreview({
               className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
                 selectedIndex === index
                   ? 'bg-[var(--accent-primary)] text-white'
-                  : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]'
+                  : 'bg-white text-[var(--text-secondary)] border border-[var(--border-primary)] hover:bg-[var(--bg-tertiary)]'
               }`}
             >
               Problem {index + 1}
@@ -70,7 +70,7 @@ export default function GeneratedProblemPreview({
       )}
 
       {/* Preview/Edit Section */}
-      <div className="space-y-6 p-6 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)]">
+      <div className="space-y-6 p-6 rounded-lg border border-[var(--border-primary)] bg-white">
         {/* Title */}
         <div>
           <label className="block text-sm font-medium mb-2">Title</label>
@@ -81,7 +81,7 @@ export default function GeneratedProblemPreview({
               onChange={(e) => updateProblem('title', e.target.value)}
               onBlur={() => setEditMode(null)}
               autoFocus
-              className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+              className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-white text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
             />
           ) : (
             <div
@@ -127,12 +127,12 @@ export default function GeneratedProblemPreview({
               onChange={(e) => updateProblem('description', e.target.value)}
               onBlur={() => setEditMode(null)}
               rows={10}
-              className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] font-mono text-sm"
+              className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-white text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] font-mono text-sm"
             />
           ) : (
             <div
               onClick={() => setEditMode('description')}
-              className="prose prose-invert max-w-none p-4 rounded-lg bg-[var(--bg-primary)] cursor-pointer hover:ring-2 hover:ring-[var(--accent-primary)] transition-all"
+              className="prose max-w-none p-4 rounded-lg bg-[var(--bg-tertiary)] cursor-pointer hover:ring-2 hover:ring-[var(--accent-primary)] transition-all"
             >
               <pre className="whitespace-pre-wrap text-sm">{currentProblem.description}</pre>
             </div>
@@ -144,7 +144,7 @@ export default function GeneratedProblemPreview({
           <label className="block text-sm font-medium mb-2">Hints ({currentProblem.hints.length})</label>
           <div className="space-y-2">
             {currentProblem.hints.map((hint, i) => (
-              <div key={i} className="p-3 rounded-lg bg-[var(--bg-primary)] text-sm">
+              <div key={i} className="p-3 rounded-lg bg-[var(--bg-tertiary)] text-sm">
                 <span className="font-medium text-[var(--accent-primary)]">Hint {i + 1}:</span> {hint}
               </div>
             ))}
@@ -168,7 +168,7 @@ export default function GeneratedProblemPreview({
             {currentProblem.test_cases.map((tc, i) => (
               <div
                 key={i}
-                className="p-4 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-primary)]"
+                className="p-4 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-primary)]"
               >
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex gap-2 items-center">
@@ -188,7 +188,7 @@ export default function GeneratedProblemPreview({
                       onChange={(e) => updateTestCase(i, 'points', parseInt(e.target.value) || 1)}
                       min="1"
                       max="10"
-                      className="w-16 px-2 py-1 text-xs rounded border border-[var(--border-primary)] bg-[var(--bg-secondary)]"
+                      className="w-16 px-2 py-1 text-xs rounded border border-[var(--border-primary)] bg-white"
                     />
                     <span className="text-xs text-[var(--text-muted)]">points</span>
                   </div>
@@ -205,7 +205,7 @@ export default function GeneratedProblemPreview({
                     onChange={(e) => updateTestCase(i, 'input_data', e.target.value)}
                     placeholder="Input data"
                     rows={2}
-                    className="w-full px-3 py-2 text-sm rounded border border-[var(--border-primary)] bg-[var(--bg-secondary)] font-mono"
+                    className="w-full px-3 py-2 text-sm rounded border border-[var(--border-primary)] bg-white font-mono"
                   />
                   <textarea
                     value={tc.expected_output}

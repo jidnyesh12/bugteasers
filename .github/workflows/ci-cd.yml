@@ -54,8 +54,12 @@ jobs:
       - name: Build application
         run: pnpm build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          # Dummy values for build — Supabase client is lazy-initialized
+          # so these are only needed to satisfy Next.js static analysis.
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-key-for-build
+          NEXTAUTH_URL: http://localhost:3000
+          NEXTAUTH_SECRET: ci-build-secret-placeholder
 
   # Continuous Deployment Job (runs only on main branch)
   deploy:
