@@ -61,12 +61,18 @@ export default function ProblemGeneratorForm({
     );
   };
 
+  const difficultyOptions = [
+    { value: 'easy' as const, label: 'Easy', color: 'bg-[#27AE60]' },
+    { value: 'medium' as const, label: 'Medium', color: 'bg-[var(--warning)]' },
+    { value: 'hard' as const, label: 'Hard', color: 'bg-[var(--accent-primary)]' },
+  ];
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Topic */}
       <div>
-        <label htmlFor="topic" className="block text-sm font-medium mb-2">
-          Topic / Concept <span className="text-red-500">*</span>
+        <label htmlFor="topic" className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+          Topic / Concept <span className="text-[var(--accent-primary)]">*</span>
         </label>
         <input
           id="topic"
@@ -74,33 +80,40 @@ export default function ProblemGeneratorForm({
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
           placeholder="e.g., Binary Search, Dynamic Programming, Arrays"
-          className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-white text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+          className="w-full px-4 py-3 rounded-xl border-2 border-[var(--border-primary)] bg-white text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/20 focus:border-[var(--accent-primary)] transition-colors text-sm"
           disabled={isLoading}
           required
         />
       </div>
 
-      {/* Difficulty */}
+      {/* Difficulty — flat colored buttons */}
       <div>
-        <label htmlFor="difficulty" className="block text-sm font-medium mb-2">
-          Difficulty Level <span className="text-red-500">*</span>
+        <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+          Difficulty Level <span className="text-[var(--accent-primary)]">*</span>
         </label>
-        <select
-          id="difficulty"
-          value={difficulty}
-          onChange={(e) => setDifficulty(e.target.value as 'easy' | 'medium' | 'hard')}
-          className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-white text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
-          disabled={isLoading}
-        >
-          <option value="easy">Easy</option>
-          <option value="medium">Medium</option>
-          <option value="hard">Hard</option>
-        </select>
+        <div className="flex gap-3">
+          {difficultyOptions.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setDifficulty(opt.value)}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer
+                ${difficulty === opt.value
+                  ? `${opt.color} text-white`
+                  : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                }
+              `}
+              disabled={isLoading}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tags */}
       <div>
-        <label htmlFor="tags" className="block text-sm font-medium mb-2">
+        <label htmlFor="tags" className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
           Tags (comma-separated)
         </label>
         <input
@@ -109,36 +122,40 @@ export default function ProblemGeneratorForm({
           value={tags}
           onChange={(e) => setTags(e.target.value)}
           placeholder="e.g., arrays, sorting, two-pointers"
-          className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+          className="w-full px-4 py-3 rounded-xl border-2 border-[var(--border-primary)] bg-white text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/20 focus:border-[var(--accent-primary)] transition-colors text-sm"
           disabled={isLoading}
         />
       </div>
 
-      {/* Languages */}
+      {/* Languages — flat pill toggles */}
       <div>
-        <label className="block text-sm font-medium mb-2">
-          Programming Languages (select at least one)
+        <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+          Programming Languages
         </label>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-2">
           {['python', 'javascript', 'typescript', 'java', 'cpp', 'c'].map((lang) => (
-            <label key={lang} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={languages.includes(lang)}
-                onChange={() => toggleLanguage(lang)}
-                disabled={isLoading}
-                className="w-4 h-4 rounded border-[var(--border-primary)] text-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-primary)]"
-              />
-              <span className="text-sm capitalize">{lang === 'cpp' ? 'C++' : lang}</span>
-            </label>
+            <button
+              key={lang}
+              type="button"
+              onClick={() => toggleLanguage(lang)}
+              className={`px-4 py-2 rounded-full text-sm font-semibold border-2 transition-all cursor-pointer
+                ${languages.includes(lang)
+                  ? 'border-[var(--accent-secondary)] bg-[var(--accent-secondary)] text-white'
+                  : 'border-[var(--border-primary)] bg-white text-[var(--text-secondary)] hover:border-[var(--border-secondary)]'
+                }
+              `}
+              disabled={isLoading}
+            >
+              {lang === 'cpp' ? 'C++' : lang.charAt(0).toUpperCase() + lang.slice(1)}
+            </button>
           ))}
         </div>
       </div>
 
       {/* Number of Problems */}
       <div>
-        <label htmlFor="numProblems" className="block text-sm font-medium mb-2">
-          Number of Problems to Generate
+        <label htmlFor="numProblems" className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
+          Number of Problems
         </label>
         <input
           id="numProblems"
@@ -147,33 +164,33 @@ export default function ProblemGeneratorForm({
           max="5"
           value={numProblems}
           onChange={(e) => setNumProblems(parseInt(e.target.value) || 1)}
-          className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-white text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+          className="w-full px-4 py-3 rounded-xl border-2 border-[var(--border-primary)] bg-white text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/20 focus:border-[var(--accent-primary)] transition-colors text-sm"
           disabled={isLoading}
         />
-        <p className="text-xs text-[var(--text-muted)] mt-1">
-          Generate 1-5 problems at once (batch generation)
+        <p className="text-xs text-[var(--text-muted)] mt-1.5">
+          Generate 1-5 problems at once
         </p>
       </div>
 
       {/* Additional Constraints */}
       <div>
-        <label htmlFor="constraints" className="block text-sm font-medium mb-2">
+        <label htmlFor="constraints" className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
           Additional Constraints (optional)
         </label>
         <textarea
           id="constraints"
           value={constraints}
           onChange={(e) => setConstraints(e.target.value)}
-          placeholder="e.g., Must use recursion, No built-in sorting functions, Focus on space optimization"
+          placeholder="e.g., Must use recursion, No built-in sorting functions"
           rows={3}
-          className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-white text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] resize-none"
+          className="w-full px-4 py-3 rounded-xl border-2 border-[var(--border-primary)] bg-white text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/20 focus:border-[var(--accent-primary)] transition-colors text-sm resize-none"
           disabled={isLoading}
         />
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500">
+        <div className="p-4 rounded-xl bg-[var(--error)]/10 border-2 border-[var(--error)]/20 text-[var(--error)] text-sm font-medium">
           {error}
         </div>
       )}
@@ -182,7 +199,7 @@ export default function ProblemGeneratorForm({
       <button
         type="submit"
         disabled={isLoading || languages.length === 0}
-        className="w-full px-6 py-3 rounded-lg bg-[var(--accent-primary)] text-white font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+        className="w-full px-6 py-3.5 rounded-xl bg-[var(--accent-primary)] text-white font-bold hover:bg-[var(--accent-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-base"
       >
         {isLoading ? 'Generating...' : `Generate ${numProblems > 1 ? `${numProblems} Problems` : 'Problem'}`}
       </button>

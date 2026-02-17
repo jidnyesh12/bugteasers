@@ -10,6 +10,12 @@ interface GeneratedProblemPreviewProps {
   isSaving: boolean;
 }
 
+const difficultyBadge: Record<string, string> = {
+  easy: 'flat-badge-green',
+  medium: 'flat-badge-amber',
+  hard: 'flat-badge-red',
+};
+
 export default function GeneratedProblemPreview({
   problems: initialProblems,
   onSave,
@@ -50,17 +56,17 @@ export default function GeneratedProblemPreview({
 
   return (
     <div className="space-y-6">
-      {/* Problem Selector (for batch generation) */}
+      {/* Problem Selector — flat pills */}
       {problems.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-2">
           {problems.map((_, index) => (
             <button
               key={index}
               onClick={() => setSelectedIndex(index)}
-              className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
+              className={`px-5 py-2 rounded-full font-semibold whitespace-nowrap transition-colors text-sm ${
                 selectedIndex === index
                   ? 'bg-[var(--accent-primary)] text-white'
-                  : 'bg-white text-[var(--text-secondary)] border border-[var(--border-primary)] hover:bg-[var(--bg-tertiary)]'
+                  : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] border-2 border-[var(--border-primary)] hover:bg-[var(--bg-hover)]'
               }`}
             >
               Problem {index + 1}
@@ -69,11 +75,11 @@ export default function GeneratedProblemPreview({
         </div>
       )}
 
-      {/* Preview/Edit Section */}
-      <div className="space-y-6 p-6 rounded-lg border border-[var(--border-primary)] bg-white">
+      {/* Preview/Edit Section — flat card */}
+      <div className="space-y-6 p-6 rounded-xl border-2 border-[var(--border-primary)] bg-white">
         {/* Title */}
         <div>
-          <label className="block text-sm font-medium mb-2">Title</label>
+          <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">Title</label>
           {editMode === 'title' ? (
             <input
               type="text"
@@ -81,12 +87,12 @@ export default function GeneratedProblemPreview({
               onChange={(e) => updateProblem('title', e.target.value)}
               onBlur={() => setEditMode(null)}
               autoFocus
-              className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-white text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+              className="w-full px-4 py-3 rounded-xl border-2 border-[var(--accent-primary)] bg-white text-[var(--text-primary)] focus:outline-none text-sm"
             />
           ) : (
             <div
               onClick={() => setEditMode('title')}
-              className="text-xl font-bold cursor-pointer hover:text-[var(--accent-primary)] transition-colors"
+              className="text-xl font-extrabold cursor-pointer hover:text-[var(--accent-primary)] transition-colors"
             >
               {currentProblem.title}
             </div>
@@ -94,58 +100,49 @@ export default function GeneratedProblemPreview({
         </div>
 
         {/* Difficulty & Tags */}
-        <div className="flex gap-4 items-center">
-          <span
-            className={`px-3 py-1 rounded-full text-sm font-medium ${
-              currentProblem.difficulty === 'easy'
-                ? 'bg-green-500/20 text-green-500'
-                : currentProblem.difficulty === 'medium'
-                ? 'bg-yellow-500/20 text-yellow-500'
-                : 'bg-red-500/20 text-red-500'
-            }`}
-          >
+        <div className="flex gap-3 items-center flex-wrap">
+          <span className={`flat-badge ${difficultyBadge[currentProblem.difficulty] || 'flat-badge-blue'}`}>
             {currentProblem.difficulty}
           </span>
-          <div className="flex gap-2 flex-wrap">
-            {currentProblem.tags.map((tag, i) => (
-              <span
-                key={i}
-                className="px-2 py-1 rounded bg-[var(--bg-tertiary)] text-xs text-[var(--text-secondary)]"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
+          {currentProblem.tags.map((tag, i) => (
+            <span
+              key={i}
+              className="px-3 py-1 rounded-full bg-[var(--bg-tertiary)] text-xs font-semibold text-[var(--text-secondary)]"
+            >
+              {tag}
+            </span>
+          ))}
         </div>
 
         {/* Description */}
         <div>
-          <label className="block text-sm font-medium mb-2">Description</label>
+          <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">Description</label>
           {editMode === 'description' ? (
             <textarea
               value={currentProblem.description}
               onChange={(e) => updateProblem('description', e.target.value)}
               onBlur={() => setEditMode(null)}
               rows={10}
-              className="w-full px-4 py-2 rounded-lg border border-[var(--border-primary)] bg-white text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] font-mono text-sm"
+              className="w-full px-4 py-3 rounded-xl border-2 border-[var(--accent-primary)] bg-white text-[var(--text-primary)] focus:outline-none font-mono text-sm"
             />
           ) : (
             <div
               onClick={() => setEditMode('description')}
-              className="prose max-w-none p-4 rounded-lg bg-[var(--bg-tertiary)] cursor-pointer hover:ring-2 hover:ring-[var(--accent-primary)] transition-all"
+              className="p-4 rounded-xl bg-[var(--bg-tertiary)] cursor-pointer hover:border-[var(--accent-primary)] border-2 border-transparent transition-all"
             >
-              <pre className="whitespace-pre-wrap text-sm">{currentProblem.description}</pre>
+              <pre className="whitespace-pre-wrap text-sm text-[var(--text-primary)]">{currentProblem.description}</pre>
             </div>
           )}
         </div>
 
         {/* Hints */}
         <div>
-          <label className="block text-sm font-medium mb-2">Hints ({currentProblem.hints.length})</label>
+          <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">Hints ({currentProblem.hints.length})</label>
           <div className="space-y-2">
             {currentProblem.hints.map((hint, i) => (
-              <div key={i} className="p-3 rounded-lg bg-[var(--bg-tertiary)] text-sm">
-                <span className="font-medium text-[var(--accent-primary)]">Hint {i + 1}:</span> {hint}
+              <div key={i} className="p-3 rounded-xl bg-[var(--accent-tertiary)]/15 text-sm border-2 border-[var(--accent-tertiary)]/30">
+                <span className="font-bold text-[var(--text-primary)]">Hint {i + 1}:</span>{' '}
+                <span className="text-[var(--text-secondary)]">{hint}</span>
               </div>
             ))}
           </div>
@@ -153,13 +150,13 @@ export default function GeneratedProblemPreview({
 
         {/* Test Cases */}
         <div>
-          <div className="flex justify-between items-center mb-2">
-            <label className="block text-sm font-medium">
+          <div className="flex justify-between items-center mb-3">
+            <label className="block text-sm font-semibold text-[var(--text-secondary)]">
               Test Cases ({currentProblem.test_cases.length})
             </label>
             <button
               onClick={addTestCase}
-              className="px-3 py-1 text-sm rounded bg-[var(--accent-primary)] text-white hover:opacity-90"
+              className="px-4 py-1.5 text-sm rounded-full bg-[var(--accent-secondary)] text-white font-semibold hover:opacity-90 transition-opacity"
             >
               + Add Test Case
             </button>
@@ -168,12 +165,12 @@ export default function GeneratedProblemPreview({
             {currentProblem.test_cases.map((tc, i) => (
               <div
                 key={i}
-                className="p-4 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-primary)]"
+                className="p-4 rounded-xl bg-[var(--bg-tertiary)] border-2 border-[var(--border-primary)]"
               >
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex gap-2 items-center">
-                    <span className="text-sm font-medium">Test Case {i + 1}</span>
-                    <label className="flex items-center gap-1 text-xs">
+                    <span className="text-sm font-bold text-[var(--text-primary)]">Test Case {i + 1}</span>
+                    <label className="flex items-center gap-1 text-xs cursor-pointer">
                       <input
                         type="checkbox"
                         checked={tc.is_sample}
@@ -188,13 +185,13 @@ export default function GeneratedProblemPreview({
                       onChange={(e) => updateTestCase(i, 'points', parseInt(e.target.value) || 1)}
                       min="1"
                       max="10"
-                      className="w-16 px-2 py-1 text-xs rounded border border-[var(--border-primary)] bg-white"
+                      className="w-16 px-2 py-1 text-xs rounded-lg border-2 border-[var(--border-primary)] bg-white"
                     />
-                    <span className="text-xs text-[var(--text-muted)]">points</span>
+                    <span className="text-xs text-[var(--text-muted)]">pts</span>
                   </div>
                   <button
                     onClick={() => removeTestCase(i)}
-                    className="text-red-500 hover:text-red-400 text-sm"
+                    className="text-[var(--error)] hover:opacity-70 text-sm font-semibold transition-opacity"
                   >
                     Remove
                   </button>
@@ -205,14 +202,14 @@ export default function GeneratedProblemPreview({
                     onChange={(e) => updateTestCase(i, 'input_data', e.target.value)}
                     placeholder="Input data"
                     rows={2}
-                    className="w-full px-3 py-2 text-sm rounded border border-[var(--border-primary)] bg-white font-mono"
+                    className="w-full px-3 py-2 text-sm rounded-lg border-2 border-[var(--border-primary)] bg-white font-mono placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)]"
                   />
                   <textarea
                     value={tc.expected_output}
                     onChange={(e) => updateTestCase(i, 'expected_output', e.target.value)}
                     placeholder="Expected output"
                     rows={2}
-                    className="w-full px-3 py-2 text-sm rounded border border-[var(--border-primary)] bg-[var(--bg-secondary)] font-mono"
+                    className="w-full px-3 py-2 text-sm rounded-lg border-2 border-[var(--border-primary)] bg-[var(--bg-secondary)] font-mono placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)]"
                   />
                 </div>
               </div>
@@ -226,14 +223,14 @@ export default function GeneratedProblemPreview({
         <button
           onClick={onCancel}
           disabled={isSaving}
-          className="flex-1 px-6 py-3 rounded-lg border border-[var(--border-primary)] text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] disabled:opacity-50 transition-colors"
+          className="flex-1 px-6 py-3.5 rounded-xl border-2 border-[var(--border-primary)] text-[var(--text-primary)] font-semibold hover:bg-[var(--bg-tertiary)] disabled:opacity-50 transition-colors"
         >
           Cancel
         </button>
         <button
           onClick={() => onSave(problems)}
           disabled={isSaving}
-          className="flex-1 px-6 py-3 rounded-lg bg-[var(--accent-primary)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+          className="flex-1 px-6 py-3.5 rounded-xl bg-[var(--accent-primary)] text-white font-bold hover:bg-[var(--accent-primary-hover)] disabled:opacity-50 transition-colors"
         >
           {isSaving ? 'Saving...' : `Save ${problems.length > 1 ? `${problems.length} Problems` : 'Problem'}`}
         </button>

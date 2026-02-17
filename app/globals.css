@@ -1,49 +1,43 @@
 @import "tailwindcss";
 
 /* ============================================================
-   CodeGuru AI — Design System
-   Clean, professional light theme for education
+   CodeGuru AI — Flat Design System
+   Vibrant, clean, shadow-free flat design for education
    ============================================================ */
 
 :root {
   /* Background hierarchy */
   --bg-primary: #ffffff;
-  --bg-secondary: #f8fafc;
-  --bg-tertiary: #f1f5f9;
-  --bg-hover: #e2e8f0;
+  --bg-secondary: #F7F8FC;
+  --bg-tertiary: #EEF0F6;
+  --bg-hover: #E4E7F0;
   --bg-elevated: #ffffff;
+  --bg-dark: #2C3E50;
 
   /* Text hierarchy */
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --text-primary: #2C3E50;
+  --text-secondary: #5D6D7E;
+  --text-muted: #95A5B8;
 
-  /* Accent — Professional Teal (no gradients, no purple) */
-  --accent-primary: #0f766e;
-  --accent-primary-hover: #0d6560;
-  --accent-secondary: #0e7490;
-  --accent-tertiary: #0369a1;
+  /* Accent — Blue & Golden Flat Design Palette */
+  --accent-primary: #2B3F7E;       /* Primary Blue */
+  --accent-primary-hover: #1E2F5B;
+  --accent-secondary: #1E2F5B;     /* Dark Blue (borders) */
+  --accent-tertiary: #FDB714;      /* Golden Yellow */
+  --accent-coral: #FDB714;         /* Golden (alias) */
+  --accent-mint: #7C9CC4;          /* Light Blue */
+  --accent-blue: #2B3F7E;          /* Primary Blue (alias) */
 
-  /* Borders */
-  --border-primary: #e2e8f0;
-  --border-secondary: #cbd5e1;
-  --border-accent: rgba(15, 118, 110, 0.3);
+  /* Borders — flat, no blur */
+  --border-primary: #E5E7EB;
+  --border-secondary: #1E2F5B;
+  --border-accent: #1E2F5B;
 
   /* Semantic */
-  --success: #16a34a;
-  --error: #dc2626;
-  --warning: #d97706;
-  --info: #2563eb;
-
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
-
-  /* Glass */
-  --glass-bg: rgba(255, 255, 255, 0.85);
-  --glass-border: rgba(0, 0, 0, 0.06);
+  --success: #27AE60;
+  --error: #E74C3C;
+  --warning: #F39C12;
+  --info: #3498DB;
 
   /* Radii */
   --radius-sm: 8px;
@@ -86,105 +80,107 @@ body {
 }
 
 ::selection {
-  background: rgba(15, 118, 110, 0.15);
+  background: rgba(255, 107, 107, 0.2);
   color: var(--text-primary);
 }
 
 /* ============================================================
-   Utility Classes
+   Flat Card — No shadows, bold borders
    ============================================================ */
 
-.glass-card {
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--glass-border);
+.flat-card {
+  background: var(--bg-elevated);
+  border: 2px solid var(--border-primary);
   border-radius: var(--radius-lg);
+  transition: border-color 0.2s ease;
 }
 
+.flat-card:hover {
+  border-color: var(--border-secondary);
+}
+
+/* Legacy alias */
 .card {
   background: var(--bg-elevated);
-  border: 1px solid var(--border-primary);
+  border: 2px solid var(--border-primary);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease;
 }
 
 .card:hover {
   border-color: var(--border-secondary);
-  box-shadow: var(--shadow-md);
 }
 
-.gradient-text {
+/* ============================================================
+   Color Block Sections
+   ============================================================ */
+
+.section-coral {
+  background: #2B3F7E;
+  color: white;
+}
+
+.section-dark {
+  background: #1E2F5B;
+  color: white;
+}
+
+.section-mint {
+  background: #7C9CC4;
+  color: white;
+}
+
+.section-light {
+  background: #F7F8FC;
+}
+
+/* ============================================================
+   Flat Badges & Pills
+   ============================================================ */
+
+.flat-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.flat-badge-coral { background: #FDB714; color: #1E2F5B; }
+.flat-badge-turquoise { background: #2B3F7E; color: white; }
+.flat-badge-yellow { background: #FDB714; color: #1E2F5B; }
+.flat-badge-blue { background: #2B3F7E; color: white; }
+.flat-badge-green { background: #27AE60; color: white; }
+.flat-badge-amber { background: #FDB714; color: #1E2F5B; }
+.flat-badge-red { background: #E74C3C; color: white; }
+
+.flat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: var(--radius-full);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 2px solid var(--border-primary);
+  background: white;
+  transition: all 0.2s ease;
+}
+
+.flat-pill-active {
+  border-color: var(--accent-primary);
+  background: rgba(255, 107, 107, 0.08);
   color: var(--accent-primary);
-  font-weight: inherit;
 }
 
 /* ============================================================
-   Animations (Landing page hero only)
-   ============================================================ */
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slideInRight {
-  from { opacity: 0; transform: translateX(16px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-6px); }
-}
-
-.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
-.animate-slide-up { animation: slideUp 0.4s ease-out forwards; }
-.animate-slide-down { animation: slideDown 0.25s ease-out forwards; }
-.animate-slide-in-right { animation: slideInRight 0.4s ease-out forwards; }
-.animate-float { animation: float 3s ease-in-out infinite; }
-
-.animate-delay-100 { animation-delay: 100ms; }
-.animate-delay-200 { animation-delay: 200ms; }
-.animate-delay-300 { animation-delay: 300ms; }
-
-/* Stagger — landing page only */
-.stagger-children > * {
-  opacity: 0;
-  animation: slideUp 0.4s ease-out forwards;
-}
-.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
-.stagger-children > *:nth-child(2) { animation-delay: 80ms; }
-.stagger-children > *:nth-child(3) { animation-delay: 160ms; }
-
-/* ============================================================
-   Background Patterns
-   ============================================================ */
-
-.bg-grid-pattern {
-  background-image:
-    linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
-  background-size: 48px 48px;
-}
-
-/* ============================================================
-   Auth Illustration Panel — Solid professional teal
+   Auth Illustration Panel — Solid Coral
    ============================================================ */
 
 .auth-illustration-panel {
-  background: #0f766e;
+  background: #1E2F5B;
   position: relative;
   overflow: hidden;
 }
@@ -193,8 +189,120 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 40px 40px;
+  background: radial-gradient(circle at 30% 70%, rgba(255,255,255,0.1) 0%, transparent 60%);
 }
+
+/* ============================================================
+   Animations
+   ============================================================ */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-5deg); }
+  75% { transform: rotate(5deg); }
+}
+
+@keyframes popIn {
+  0% { opacity: 0; transform: scale(0.8); }
+  70% { transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes drawPath {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes wave {
+  0% { transform: translateX(0) translateZ(0) scaleY(1); }
+  100% { transform: translateX(-50%) translateZ(0) scaleY(1); }
+}
+
+.wave-container {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.wave {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 200%;
+  height: 100%;
+  background-repeat: repeat-x;
+  animation: wave 10s linear infinite;
+}
+
+.wave:nth-child(2) {
+  animation: wave 15s linear infinite;
+}
+
+.wave:nth-child(3) {
+  animation: wave 20s linear infinite;
+}
+
+@keyframes swell {
+  0%, 100% { transform: translateX(-25%) translateZ(0) scaleY(1); }
+  50% { transform: translateX(-25%) translateZ(0) scaleY(1.1); }
+}
+
+.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+.animate-slide-up { animation: slideUp 0.4s ease-out forwards; }
+.animate-slide-down { animation: slideDown 0.25s ease-out forwards; }
+.animate-slide-in-right { animation: slideInRight 0.4s ease-out forwards; }
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-bounce-slow { animation: bounce 2s ease-in-out infinite; }
+.animate-wiggle { animation: wiggle 2s ease-in-out infinite; }
+.animate-pop-in { animation: popIn 0.4s ease-out forwards; }
+.animate-pulse-slow { animation: pulse 2s ease-in-out infinite; }
+
+.animate-delay-100 { animation-delay: 100ms; }
+.animate-delay-200 { animation-delay: 200ms; }
+.animate-delay-300 { animation-delay: 300ms; }
+.animate-delay-500 { animation-delay: 500ms; }
+
+/* Stagger children */
+.stagger-children > * {
+  opacity: 0;
+  animation: slideUp 0.4s ease-out forwards;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 80ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 160ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 240ms; }

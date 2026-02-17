@@ -17,7 +17,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-secondary)] bg-grid-pattern">
+    <div className="min-h-screen bg-[var(--bg-secondary)]">
       <Navbar />
       <div className="flex">
         <Sidebar />

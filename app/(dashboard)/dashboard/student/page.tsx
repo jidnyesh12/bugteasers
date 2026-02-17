@@ -1,15 +1,51 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth/auth-context'
+import { FullPageLoader } from '@/components/ui/loading'
 
 export default function StudentDashboard() {
-  const { profile } = useAuth()
+  const { profile, loading, initialized } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!initialized || loading) return
+
+    if (!profile) {
+      router.replace('/login')
+      return
+    }
+
+    // CRITICAL: Prevent instructors from accessing student dashboard
+    if (profile.role === 'instructor') {
+      router.replace('/dashboard/instructor')
+      return
+    }
+  }, [profile, loading, initialized, router])
+
+  if (!initialized || loading || !profile || profile.role !== 'student') {
+    return <FullPageLoader />
+  }
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
-      {/* Welcome Banner */}
-      <div className="card p-6 mb-8">
-        <div className="flex items-center justify-between">
+      {/* Welcome Banner with Wave */}
+      <div className="card p-6 mb-8 relative overflow-hidden">
+        {/* Animated Wave Background */}
+        <div className="absolute inset-0 opacity-10 pointer-events-none">
+          <svg className="wave" viewBox="0 0 1440 120" preserveAspectRatio="none" style={{ height: '100%' }}>
+            <path d="M0,64L48,69.3C96,75,192,85,288,80C384,75,480,53,576,48C672,43,768,53,864,69.3C960,85,1056,107,1152,106.7C1248,107,1344,85,1392,74.7L1440,64L1440,120L1392,120C1344,120,1248,120,1152,120C1056,120,960,120,864,120C768,120,672,120,576,120C480,120,384,120,288,120C192,120,96,120,48,120L0,120Z" fill="#2B3F7E" fillOpacity="1"/>
+          </svg>
+          <svg className="wave" viewBox="0 0 1440 120" preserveAspectRatio="none" style={{ height: '100%' }}>
+            <path d="M0,32L48,37.3C96,43,192,53,288,58.7C384,64,480,64,576,58.7C672,53,768,43,864,48C960,53,1056,75,1152,80C1248,85,1344,75,1392,69.3L1440,64L1440,120L1392,120C1344,120,1248,120,1152,120C1056,120,960,120,864,120C768,120,672,120,576,120C480,120,384,120,288,120C192,120,96,120,48,120L0,120Z" fill="#2B3F7E" fillOpacity="1"/>
+          </svg>
+          <svg className="wave" viewBox="0 0 1440 120" preserveAspectRatio="none" style={{ height: '100%' }}>
+            <path d="M0,96L48,90.7C96,85,192,75,288,69.3C384,64,480,64,576,69.3C672,75,768,85,864,85.3C960,85,1056,75,1152,64C1248,53,1344,43,1392,37.3L1440,32L1440,120L1392,120C1344,120,1248,120,1152,120C1056,120,960,120,864,120C768,120,672,120,576,120C480,120,384,120,288,120C192,120,96,120,48,120L0,120Z" fill="#2B3F7E" fillOpacity="1"/>
+          </svg>
+        </div>
+
+        <div className="flex items-center justify-between relative z-10">
           <div>
             <h1 className="text-2xl font-bold text-[var(--text-primary)]">
               Welcome back, {profile?.full_name || 'Student'}
