@@ -11,11 +11,14 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "CodeGuru AI — AI Coding Tutor",
+  title: "CodeGuru AI",
   description:
     "Master coding with AI-powered hints, live code execution, and personalized feedback. The smart way to learn programming.",
   keywords: ["coding tutor", "AI", "programming", "learn to code", "online judge"],
   authors: [{ name: "CodeGuru AI Team" }],
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({
@@ -24,8 +27,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.variable} antialiased`}>
+    <html lang="en">
+      <body className={`${inter.variable} antialiased`} suppressHydrationWarning={true}>
         <AuthProvider>
           <ToastProvider>
             {children}

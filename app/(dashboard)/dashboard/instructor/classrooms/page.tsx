@@ -5,11 +5,28 @@ import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import type { Classroom } from '@/lib/types'
 
 export default function ClassroomsPage() {
-  const { profile } = useAuth()
+  const { profile, loading: authLoading, initialized } = useAuth()
   const { toast } = useToast()
+  const router = useRouter()
+
+  // CRITICAL: Protect route - only instructors can access
+  useEffect(() => {
+    if (!initialized || authLoading) return
+
+    if (!profile) {
+      router.replace('/login')
+      return
+    }
+
+    if (profile.role !== 'instructor') {
+      router.replace('/dashboard/student')
+      return
+    }
+  }, [profile, authLoading, initialized, router])
 
   const [classrooms, setClassrooms] = useState<Classroom[]>([])
   const [loading, setLoading] = useState(true)
@@ -104,48 +121,49 @@ export default function ClassroomsPage() {
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="card p-6 mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-              Classrooms
-            </h1>
-            <p className="text-[var(--text-secondary)] mt-1">
-              Create and manage your class batches. Share join codes with students.
-            </p>
-          </div>
-          <Button onClick={() => setShowModal(true)} id="create-classroom-btn">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            New Classroom
-          </Button>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-extrabold text-[var(--text-primary)]">
+            Classrooms
+          </h1>
+          <p className="text-[var(--text-secondary)] mt-1">
+            Create and manage your class batches. Share join codes with students.
+          </p>
         </div>
+        <Button onClick={() => setShowModal(true)} id="create-classroom-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          New Classroom
+        </Button>
       </div>
 
       {/* Classrooms Grid */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <div className="flex flex-col items-center gap-3">
-            <svg className="animate-spin h-8 w-8 text-[var(--accent-primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
+            <div className="h-10 w-10 rounded-full border-4 border-[var(--bg-tertiary)] border-t-[var(--accent-primary)] animate-spin" />
             <p className="text-sm text-[var(--text-muted)]">Loading classrooms…</p>
           </div>
         </div>
       ) : classrooms.length === 0 ? (
-        <div className="card flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-20 h-20 rounded-2xl bg-[var(--bg-tertiary)] flex items-center justify-center mb-5">
-            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-1">No classrooms yet</h3>
+        <div className="flat-card flex flex-col items-center justify-center py-20 text-center">
+          {/* Animated book SVG */}
+          <svg width="90" height="90" viewBox="0 0 90 90" fill="none" xmlns="http://www.w3.org/2000/svg" className="mb-5 animate-float">
+            <circle cx="45" cy="45" r="40" fill="var(--bg-tertiary)"/>
+            <g transform="translate(22, 25)">
+              <path d="M2 4C2 4 10 0 23 0C36 0 44 4 44 4V36C44 36 36 32 23 32C10 32 2 36 2 36V4Z" fill="var(--accent-secondary)" fillOpacity="0.2" stroke="var(--accent-secondary)" strokeOpacity="0.4" strokeWidth="1.5"/>
+              <path d="M23 0V32" stroke="var(--accent-secondary)" strokeOpacity="0.3" strokeWidth="1"/>
+              <rect x="8" y="10" width="10" height="2" rx="1" fill="var(--accent-secondary)" fillOpacity="0.4"/>
+              <rect x="8" y="15" width="8" height="2" rx="1" fill="var(--accent-secondary)" fillOpacity="0.3"/>
+              <rect x="28" y="10" width="10" height="2" rx="1" fill="var(--accent-secondary)" fillOpacity="0.4"/>
+              <rect x="28" y="15" width="8" height="2" rx="1" fill="var(--accent-secondary)" fillOpacity="0.3"/>
+            </g>
+          </svg>
+          <h3 className="text-lg font-bold text-[var(--text-primary)] mb-1">No classrooms yet</h3>
           <p className="text-sm text-[var(--text-muted)] mb-6 max-w-sm">
-            Create your first classroom and share the join code with your students to get started.
+            Create your first classroom and share the join code with your students.
           </p>
           <Button onClick={() => setShowModal(true)}>
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -157,91 +175,95 @@ export default function ClassroomsPage() {
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {classrooms.map((c, index) => (
+          {classrooms.map((c) => (
             <div
               key={c.id}
-              className="card p-0 overflow-hidden group animate-slide-up"
-              style={{ animationDelay: `${index * 60}ms` }}
-              id={`classroom-card-${c.id}`}
+              onClick={() => router.push(`/dashboard/instructor/classrooms/${c.id}`)}
+              className="group relative bg-white rounded-xl border border-[var(--border-primary)] hover:border-[var(--accent-primary)] hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col cursor-pointer"
             >
-              {/* Color accent bar */}
-              <div className="h-1.5 bg-gradient-to-r from-[var(--accent-primary)] to-[var(--accent-secondary)]" />
-
-              <div className="p-5">
-                {/* Title & date */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-semibold text-[var(--text-primary)] truncate">
+              <div className="p-5 flex-1">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-[var(--text-primary)] group-hover:text-[var(--accent-primary)] transition-colors line-clamp-1">
                       {c.name}
                     </h3>
-                    <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    <p className="text-xs text-[var(--text-muted)] mt-1">
                       Created {formatDate(c.created_at)}
                     </p>
                   </div>
-                  <div className="p-2 rounded-xl bg-purple-50 text-purple-500 ml-3 shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                  <div className="bg-[var(--bg-secondary)] p-2 rounded-lg text-[var(--accent-primary)]">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
                     </svg>
                   </div>
                 </div>
 
-                {/* Join code */}
-                <div className="bg-[var(--bg-tertiary)] rounded-xl p-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-[var(--text-muted)] mb-0.5">
-                      Join Code
-                    </p>
-                    <p className="text-lg font-bold text-[var(--accent-primary)] font-mono tracking-widest">
-                      {c.join_code}
-                    </p>
+                <div className="flex items-center gap-4 text-sm text-[var(--text-secondary)]">
+                  <div className="flex items-center gap-1.5" title="Students Enrolled">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="9" cy="7" r="4"></circle>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <span className="font-semibold">{c.classroom_students?.[0]?.count || 0}</span>
                   </div>
-                  <button
-                    onClick={() => copyJoinCode(c.join_code, c.id)}
-                    className="p-2 rounded-lg hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
-                    title="Copy join code"
-                    id={`copy-code-${c.id}`}
-                  >
+                  <div className="flex items-center gap-1.5" title="Assignments Posted">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                      <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    <span className="font-semibold">{c.classroom_assignments?.[0]?.count || 0}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-5 py-3 bg-[var(--bg-tertiary)]/50 border-t border-[var(--border-primary)] flex items-center justify-between">
+                 <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Join Code:</span>
+                    <span className="text-sm font-mono font-bold text-[var(--text-primary)] tracking-widest">{c.join_code}</span>
+                 </div>
+                 <button
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        copyJoinCode(c.join_code, c.id)
+                    }}
+                    className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                    title="Copy Code"
+                 >
                     {copiedId === c.id ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                     ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                       </svg>
                     )}
-                  </button>
-                </div>
-
-                {/* Instructor info */}
-                <div className="mt-3 flex items-center gap-2 text-xs text-[var(--text-muted)]">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                  {profile?.full_name || 'Instructor'}
-                </div>
+                 </button>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Create Classroom Modal */}
+      {/* Create Classroom Modal — flat design */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Backdrop */}
+          {/* Backdrop — no blur */}
           <div
-            className="absolute inset-0 bg-black/30 backdrop-blur-sm animate-fade-in"
+            className="absolute inset-0 bg-black/40 animate-fade-in"
             onClick={resetForm}
           />
 
-          {/* Modal */}
-          <div className="relative w-full max-w-lg mx-4 bg-white rounded-2xl shadow-xl border border-[var(--border-primary)] animate-slide-up" id="create-classroom-modal">
+          {/* Modal — flat, no shadow */}
+          <div className="relative w-full max-w-lg mx-4 bg-white rounded-2xl border-2 border-[var(--border-primary)] animate-slide-up" id="create-classroom-modal">
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-primary)]">
+            <div className="flex items-center justify-between px-6 py-4 border-b-2 border-[var(--border-primary)]">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]">
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -250,9 +272,9 @@ export default function ClassroomsPage() {
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+                  <h2 className="text-lg font-bold text-[var(--text-primary)]">
                     Create Classroom
-                  </h2>
+               w                         </h2>
                   <p className="text-xs text-[var(--text-muted)]">
                     Set up a new batch for your students
                   </p>
@@ -289,7 +311,7 @@ export default function ClassroomsPage() {
 
               {/* Join Code section */}
               <div>
-                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+                <label className="block text-sm font-semibold text-[var(--text-secondary)] mb-2">
                   Join Code
                 </label>
 
@@ -299,40 +321,29 @@ export default function ClassroomsPage() {
                     type="button"
                     onClick={() => setAutoGenerate(true)}
                     className={`
-                      flex-1 py-2.5 px-4 rounded-xl text-sm font-medium border transition-all duration-200 cursor-pointer
+                      flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold border-2 transition-all duration-200 cursor-pointer
                       ${autoGenerate
-                        ? 'bg-[var(--accent-primary)]/5 border-[var(--accent-primary)]/30 text-[var(--accent-primary)]'
+                        ? 'bg-[var(--accent-primary)]/8 border-[var(--accent-primary)] text-[var(--accent-primary)]'
                         : 'bg-white border-[var(--border-primary)] text-[var(--text-secondary)] hover:border-[var(--border-secondary)]'
                       }
                     `}
                     id="auto-generate-btn"
                   >
-                    <span className="flex items-center justify-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
-                      </svg>
-                      Auto-generate
-                    </span>
+                    Auto-generate
                   </button>
                   <button
                     type="button"
                     onClick={() => setAutoGenerate(false)}
                     className={`
-                      flex-1 py-2.5 px-4 rounded-xl text-sm font-medium border transition-all duration-200 cursor-pointer
+                      flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold border-2 transition-all duration-200 cursor-pointer
                       ${!autoGenerate
-                        ? 'bg-[var(--accent-primary)]/5 border-[var(--accent-primary)]/30 text-[var(--accent-primary)]'
+                        ? 'bg-[var(--accent-primary)]/8 border-[var(--accent-primary)] text-[var(--accent-primary)]'
                         : 'bg-white border-[var(--border-primary)] text-[var(--text-secondary)] hover:border-[var(--border-secondary)]'
                       }
                     `}
                     id="manual-code-btn"
                   >
-                    <span className="flex items-center justify-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
-                      Manual Entry
-                    </span>
+                    Manual Entry
                   </button>
                 </div>
 
@@ -370,9 +381,6 @@ export default function ClassroomsPage() {
                   Cancel
                 </Button>
                 <Button type="submit" loading={creating} id="submit-classroom-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
                   Create Classroom
                 </Button>
               </div>

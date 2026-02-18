@@ -1,55 +1,49 @@
 @import "tailwindcss";
 
 /* ============================================================
-   CodeGuru AI — Design System
-   Clean, professional light theme for education
+   CodeGuru AI — Flat Design System
+   Clean, minimal, professional flat design
    ============================================================ */
 
 :root {
   /* Background hierarchy */
   --bg-primary: #ffffff;
-  --bg-secondary: #f8fafc;
-  --bg-tertiary: #f1f5f9;
-  --bg-hover: #e2e8f0;
+  --bg-secondary: #F7F8FA;
+  --bg-tertiary: #EDEEF2;
+  --bg-hover: #E2E4EC;
   --bg-elevated: #ffffff;
 
   /* Text hierarchy */
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --text-primary: #1A2340;
+  --text-secondary: #4A5568;
+  --text-muted: #8A94A8;
 
-  /* Accent — Professional Teal (no gradients, no purple) */
-  --accent-primary: #0f766e;
-  --accent-primary-hover: #0d6560;
-  --accent-secondary: #0e7490;
-  --accent-tertiary: #0369a1;
+  /* Accent — Navy Blue + Golden palette */
+  --accent-primary: #2B3F7E;
+  --accent-primary-hover: #1E2F5B;
+  --accent-secondary: #1E2F5B;
+  --accent-tertiary: #FDB714;
+  --accent-coral: #FDB714;
+  --accent-mint: #7C9CC4;
+  --accent-blue: #2B3F7E;
+  --accent-green: #1DB97A;
 
   /* Borders */
-  --border-primary: #e2e8f0;
-  --border-secondary: #cbd5e1;
-  --border-accent: rgba(15, 118, 110, 0.3);
+  --border-primary: #E2E4EC;
+  --border-secondary: #C8CBDA;
+  --border-accent: #2B3F7E;
 
   /* Semantic */
-  --success: #16a34a;
-  --error: #dc2626;
-  --warning: #d97706;
-  --info: #2563eb;
-
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
-
-  /* Glass */
-  --glass-bg: rgba(255, 255, 255, 0.85);
-  --glass-border: rgba(0, 0, 0, 0.06);
+  --success: #1DB97A;
+  --error: #E74C3C;
+  --warning: #F39C12;
+  --info: #3498DB;
 
   /* Radii */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
   --radius-full: 9999px;
 }
 
@@ -66,10 +60,10 @@
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--bg-hover) transparent;
+  scrollbar-color: var(--border-secondary) transparent;
 }
 
-*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar { width: 5px; height: 5px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb { background: var(--border-secondary); border-radius: var(--radius-full); }
 *::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
@@ -77,7 +71,7 @@
 html { scroll-behavior: smooth; }
 
 body {
-  background: var(--bg-primary);
+  background: var(--bg-secondary);
   color: var(--text-primary);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -86,42 +80,161 @@ body {
 }
 
 ::selection {
-  background: rgba(15, 118, 110, 0.15);
+  background: rgba(43, 63, 126, 0.12);
   color: var(--text-primary);
 }
 
 /* ============================================================
-   Utility Classes
+   Flat Card — No shadows, clean borders
    ============================================================ */
 
-.glass-card {
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--glass-border);
+.flat-card {
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border-primary);
   border-radius: var(--radius-lg);
+  transition: border-color 0.15s ease;
 }
 
+.flat-card:hover {
+  border-color: var(--border-secondary);
+}
+
+/* Legacy alias */
 .card {
   background: var(--bg-elevated);
-  border: 1px solid var(--border-primary);
+  border: 1.5px solid var(--border-primary);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.15s ease;
 }
 
 .card:hover {
   border-color: var(--border-secondary);
-  box-shadow: var(--shadow-md);
-}
-
-.gradient-text {
-  color: var(--accent-primary);
-  font-weight: inherit;
 }
 
 /* ============================================================
-   Animations (Landing page hero only)
+   Page Header Utility
+   ============================================================ */
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.025em;
+}
+
+.page-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+/* ============================================================
+   Color Block Sections
+   ============================================================ */
+
+.section-coral {
+  background: #2B3F7E;
+  color: white;
+}
+
+.section-dark {
+  background: #1A2340;
+  color: white;
+}
+
+.section-mint {
+  background: #7C9CC4;
+  color: white;
+}
+
+.section-light {
+  background: var(--bg-secondary);
+}
+
+/* ============================================================
+   Flat Badges & Pills
+   ============================================================ */
+
+.flat-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.flat-badge-coral { background: rgba(253, 183, 20, 0.15); color: #A07B00; }
+.flat-badge-turquoise { background: rgba(43, 63, 126, 0.1); color: var(--accent-primary); }
+.flat-badge-yellow { background: rgba(253, 183, 20, 0.15); color: #A07B00; }
+.flat-badge-blue { background: rgba(43, 63, 126, 0.1); color: var(--accent-primary); }
+.flat-badge-green { background: rgba(29, 185, 122, 0.1); color: #0E8A5A; }
+.flat-badge-amber { background: rgba(243, 156, 18, 0.12); color: #B57200; }
+.flat-badge-red { background: rgba(231, 76, 60, 0.1); color: #C0392B; }
+
+.flat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1.5px solid var(--border-primary);
+  background: white;
+  transition: all 0.15s ease;
+}
+
+.flat-pill-active {
+  border-color: var(--accent-primary);
+  background: rgba(43, 63, 126, 0.06);
+  color: var(--accent-primary);
+}
+
+/* ============================================================
+   Auth Illustration Panel
+   ============================================================ */
+
+.auth-illustration-panel {
+  background: #1A2340;
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-illustration-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 70%, rgba(43, 63, 126, 0.4) 0%, transparent 60%);
+}
+
+/* ============================================================
+   Stat Card Utility
+   ============================================================ */
+
+.stat-card {
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  transition: border-color 0.15s ease;
+}
+
+.stat-card:hover {
+  border-color: var(--border-secondary);
+}
+
+/* ============================================================
+   Animations
    ============================================================ */
 
 @keyframes fadeIn {
@@ -146,55 +259,103 @@ body {
 
 @keyframes float {
   0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-6px); }
+  50% { transform: translateY(-8px); }
 }
 
-.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
-.animate-slide-up { animation: slideUp 0.4s ease-out forwards; }
-.animate-slide-down { animation: slideDown 0.25s ease-out forwards; }
-.animate-slide-in-right { animation: slideInRight 0.4s ease-out forwards; }
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-5deg); }
+  75% { transform: rotate(5deg); }
+}
+
+@keyframes popIn {
+  0% { opacity: 0; transform: scale(0.9); }
+  70% { transform: scale(1.03); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes wave {
+  0% { transform: translateX(0) translateZ(0) scaleY(1); }
+  100% { transform: translateX(-50%) translateZ(0) scaleY(1); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.wave-container {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.wave {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 200%;
+  height: 100%;
+  background-repeat: repeat-x;
+  animation: wave 10s linear infinite;
+}
+
+.wave:nth-child(2) {
+  animation: wave 15s linear infinite;
+}
+
+.wave:nth-child(3) {
+  animation: wave 20s linear infinite;
+}
+
+@keyframes swell {
+  0%, 100% { transform: translateX(-25%) translateZ(0) scaleY(1); }
+  50% { transform: translateX(-25%) translateZ(0) scaleY(1.1); }
+}
+
+.animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+.animate-slide-up { animation: slideUp 0.35s ease-out forwards; }
+.animate-slide-down { animation: slideDown 0.2s ease-out forwards; }
+.animate-slide-in-right { animation: slideInRight 0.35s ease-out forwards; }
 .animate-float { animation: float 3s ease-in-out infinite; }
+.animate-bounce-slow { animation: bounce 2s ease-in-out infinite; }
+.animate-wiggle { animation: wiggle 2s ease-in-out infinite; }
+.animate-pop-in { animation: popIn 0.35s ease-out forwards; }
+.animate-pulse-slow { animation: pulse 2s ease-in-out infinite; }
 
 .animate-delay-100 { animation-delay: 100ms; }
 .animate-delay-200 { animation-delay: 200ms; }
 .animate-delay-300 { animation-delay: 300ms; }
+.animate-delay-500 { animation-delay: 500ms; }
 
-/* Stagger — landing page only */
+/* Stagger children */
 .stagger-children > * {
   opacity: 0;
-  animation: slideUp 0.4s ease-out forwards;
+  animation: slideUp 0.35s ease-out forwards;
 }
 .stagger-children > *:nth-child(1) { animation-delay: 0ms; }
-.stagger-children > *:nth-child(2) { animation-delay: 80ms; }
-.stagger-children > *:nth-child(3) { animation-delay: 160ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 70ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 140ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 210ms; }
 
 /* ============================================================
-   Background Patterns
+   Code Editor — CodeMirror Overrides
    ============================================================ */
 
-.bg-grid-pattern {
-  background-image:
-    linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
-  background-size: 48px 48px;
+.cm-editor {
+  height: 100% !important;
 }
 
-/* ============================================================
-   Auth Illustration Panel — Solid professional teal
-   ============================================================ */
-
-.auth-illustration-panel {
-  background: #0f766e;
-  position: relative;
-  overflow: hidden;
+.cm-editor .cm-scroller {
+  font-family: "Fira Code", "Cascadia Code", "JetBrains Mono", Consolas, monospace !important;
 }
 
-.auth-illustration-panel::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
