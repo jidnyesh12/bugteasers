@@ -18,35 +18,35 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  const baseStyles =
-    'inline-flex items-center justify-center font-medium rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer'
+  const base =
+    'inline-flex items-center justify-center font-semibold rounded-xl transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer select-none'
 
   const variants = {
     primary:
-      'bg-[var(--accent-primary)] text-white hover:bg-[var(--accent-primary-hover)] focus:ring-[var(--accent-primary)]/30 font-semibold',
+      'bg-[var(--accent-primary)] text-white hover:bg-[var(--accent-primary-hover)] focus-visible:ring-[var(--accent-primary)]',
     secondary:
-      'bg-white text-[var(--text-primary)] border-2 border-[var(--border-primary)] hover:bg-[var(--bg-tertiary)] hover:border-[var(--border-secondary)] focus:ring-[var(--accent-primary)]/20',
+      'bg-white text-[var(--text-primary)] border border-[var(--border-primary)] hover:bg-[var(--bg-secondary)] hover:border-[var(--border-secondary)] focus-visible:ring-[var(--accent-primary)]',
     danger:
-      'bg-[var(--error)] text-white hover:bg-red-700 focus:ring-[var(--error)]/40',
+      'bg-[var(--error)] text-white hover:bg-red-700 focus-visible:ring-[var(--error)]',
     ghost:
-      'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] focus:ring-[var(--accent-primary)]/20',
+      'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] focus-visible:ring-[var(--accent-primary)]',
   }
 
   const sizes = {
-    sm: 'px-3 py-1.5 text-sm gap-1.5',
+    sm: 'px-3 py-1.5 text-xs gap-1.5',
     md: 'px-4 py-2.5 text-sm gap-2',
-    lg: 'px-6 py-3 text-base gap-2',
+    lg: 'px-6 py-3 text-sm gap-2',
   }
 
   return (
     <button
-      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}
       disabled={disabled || loading}
       {...props}
     >
       {loading && (
         <svg
-          className="animate-spin -ml-1 h-4 w-4"
+          className="animate-spin -ml-0.5 h-3.5 w-3.5"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"

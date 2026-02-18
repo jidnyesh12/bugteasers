@@ -46,13 +46,13 @@ function LoginForm() {
   return (
     <>
       <div className="mb-6">
-        <h1 className="text-2xl font-extrabold text-[var(--text-primary)]">Welcome back</h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">
+        <h1 className="text-2xl font-black tracking-tight text-[var(--text-primary)]">Welcome back</h1>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
           Sign in to continue your learning journey
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <Input
           label="Email"
           type="email"

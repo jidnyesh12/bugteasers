@@ -1,0 +1,42 @@
+[
+    {
+      "table_name": "assignment_problems",
+      "column_name": "id"
+    },
+    {
+      "table_name": "users",
+      "column_name": "id"
+    },
+    {
+      "table_name": "users",
+      "column_name": "id"
+    },
+    {
+      "table_name": "classrooms",
+      "column_name": "id"
+    },
+    {
+      "table_name": "problems",
+      "column_name": "id"
+    },
+    {
+      "table_name": "test_cases",
+      "column_name": "id"
+    },
+    {
+      "table_name": "assignments",
+      "column_name": "id"
+    },
+    {
+      "table_name": "classroom_assignments",
+      "column_name": "id"
+    },
+    {
+      "table_name": "classroom_students",
+      "column_name": "id"
+    },
+    {
+      "table_name": "problem_submissions",
+      "column_name": "id"
+    }
+  ]

@@ -5,6 +5,7 @@ import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FullPageLoader } from '@/components/ui/loading'
 import type { Classroom } from '@/lib/types'
@@ -178,72 +179,76 @@ export default function ClassroomsPage() {
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {classrooms.map((c, index) => (
+          {classrooms.map((c) => (
             <div
               key={c.id}
-              className="flat-card p-0 overflow-hidden animate-slide-up"
-              style={{ animationDelay: `${index * 60}ms` }}
-              id={`classroom-card-${c.id}`}
+              onClick={() => router.push(`/dashboard/instructor/classrooms/${c.id}`)}
+              className="group relative bg-white rounded-xl border border-[var(--border-primary)] hover:border-[var(--accent-primary)] hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col cursor-pointer"
             >
-              {/* Color stripe — rotating colors */}
-              <div className={`h-2 ${STRIPE_COLORS[index % STRIPE_COLORS.length]}`} />
-
-              <div className="p-5">
-                {/* Title & date */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-bold text-[var(--text-primary)] truncate">
+              <div className="p-5 flex-1">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-[var(--text-primary)] group-hover:text-[var(--accent-primary)] transition-colors line-clamp-1">
                       {c.name}
                     </h3>
-                    <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    <p className="text-xs text-[var(--text-muted)] mt-1">
                       Created {formatDate(c.created_at)}
                     </p>
                   </div>
-                  <div className="p-2 rounded-xl bg-[var(--accent-secondary)]/10 text-[var(--accent-secondary)] ml-3 shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                  <div className="bg-[var(--bg-secondary)] p-2 rounded-lg text-[var(--accent-primary)]">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
                     </svg>
                   </div>
                 </div>
 
-                {/* Join code — flat turquoise pill style */}
-                <div className="bg-[var(--bg-tertiary)] rounded-xl p-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider font-bold text-[var(--text-muted)] mb-0.5">
-                      Join Code
-                    </p>
-                    <p className="text-lg font-extrabold text-[var(--accent-secondary)] font-mono tracking-widest">
-                      {c.join_code}
-                    </p>
+                <div className="flex items-center gap-4 text-sm text-[var(--text-secondary)]">
+                  <div className="flex items-center gap-1.5" title="Students Enrolled">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="9" cy="7" r="4"></circle>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <span className="font-semibold">{c.classroom_students?.[0]?.count || 0}</span>
                   </div>
-                  <button
-                    onClick={() => copyJoinCode(c.join_code, c.id)}
-                    className="p-2 rounded-lg hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
-                    title="Copy join code"
-                    id={`copy-code-${c.id}`}
-                  >
+                  <div className="flex items-center gap-1.5" title="Assignments Posted">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                      <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    <span className="font-semibold">{c.classroom_assignments?.[0]?.count || 0}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-5 py-3 bg-[var(--bg-tertiary)]/50 border-t border-[var(--border-primary)] flex items-center justify-between">
+                 <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Join Code:</span>
+                    <span className="text-sm font-mono font-bold text-[var(--text-primary)] tracking-widest">{c.join_code}</span>
+                 </div>
+                 <button
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        copyJoinCode(c.join_code, c.id)
+                    }}
+                    className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                    title="Copy Code"
+                 >
                     {copiedId === c.id ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                     ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                       </svg>
                     )}
-                  </button>
-                </div>
-
-                {/* Instructor info */}
-                <div className="mt-3 flex items-center gap-2 text-xs text-[var(--text-muted)]">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                  {profile?.full_name || 'Instructor'}
-                </div>
+                 </button>
               </div>
             </div>
           ))}
@@ -273,7 +278,7 @@ export default function ClassroomsPage() {
                 <div>
                   <h2 className="text-lg font-bold text-[var(--text-primary)]">
                     Create Classroom
-                  </h2>
+               w                         </h2>
                   <p className="text-xs text-[var(--text-muted)]">
                     Set up a new batch for your students
                   </p>

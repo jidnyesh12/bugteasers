@@ -29,16 +29,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ toast: addToast }}>
       {children}
       {/* Toast Container — flat design */}
-      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+      <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 pointer-events-none">
         {toasts.map((t) => (
           <div
             key={t.id}
             className={`
-              pointer-events-auto flex items-center gap-3 px-5 py-3 rounded-xl max-w-sm
-              border-2 animate-slide-up font-semibold text-sm
+              pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl max-w-sm
+              border animate-slide-up text-sm font-semibold
               ${t.type === 'success' ? 'bg-white border-[var(--success)] text-[var(--success)]' : ''}
               ${t.type === 'error' ? 'bg-white border-[var(--error)] text-[var(--error)]' : ''}
-              ${t.type === 'info' ? 'bg-white border-[var(--accent-blue)] text-[var(--accent-blue)]' : ''}
+              ${t.type === 'info' ? 'bg-white border-[var(--accent-primary)] text-[var(--accent-primary)]' : ''}
               ${t.type === 'warning' ? 'bg-white border-[var(--warning)] text-[var(--warning)]' : ''}
             `}
           >

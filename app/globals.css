@@ -2,48 +2,48 @@
 
 /* ============================================================
    CodeGuru AI — Flat Design System
-   Vibrant, clean, shadow-free flat design for education
+   Clean, minimal, professional flat design
    ============================================================ */
 
 :root {
   /* Background hierarchy */
   --bg-primary: #ffffff;
-  --bg-secondary: #F7F8FC;
-  --bg-tertiary: #EEF0F6;
-  --bg-hover: #E4E7F0;
+  --bg-secondary: #F7F8FA;
+  --bg-tertiary: #EDEEF2;
+  --bg-hover: #E2E4EC;
   --bg-elevated: #ffffff;
-  --bg-dark: #2C3E50;
 
   /* Text hierarchy */
-  --text-primary: #2C3E50;
-  --text-secondary: #5D6D7E;
-  --text-muted: #95A5B8;
+  --text-primary: #1A2340;
+  --text-secondary: #4A5568;
+  --text-muted: #8A94A8;
 
-  /* Accent — Blue & Golden Flat Design Palette */
-  --accent-primary: #2B3F7E;       /* Primary Blue */
+  /* Accent — Navy Blue + Golden palette */
+  --accent-primary: #2B3F7E;
   --accent-primary-hover: #1E2F5B;
-  --accent-secondary: #1E2F5B;     /* Dark Blue (borders) */
-  --accent-tertiary: #FDB714;      /* Golden Yellow */
-  --accent-coral: #FDB714;         /* Golden (alias) */
-  --accent-mint: #7C9CC4;          /* Light Blue */
-  --accent-blue: #2B3F7E;          /* Primary Blue (alias) */
+  --accent-secondary: #1E2F5B;
+  --accent-tertiary: #FDB714;
+  --accent-coral: #FDB714;
+  --accent-mint: #7C9CC4;
+  --accent-blue: #2B3F7E;
+  --accent-green: #1DB97A;
 
-  /* Borders — flat, no blur */
-  --border-primary: #E5E7EB;
-  --border-secondary: #1E2F5B;
-  --border-accent: #1E2F5B;
+  /* Borders */
+  --border-primary: #E2E4EC;
+  --border-secondary: #C8CBDA;
+  --border-accent: #2B3F7E;
 
   /* Semantic */
-  --success: #27AE60;
+  --success: #1DB97A;
   --error: #E74C3C;
   --warning: #F39C12;
   --info: #3498DB;
 
   /* Radii */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
   --radius-full: 9999px;
 }
 
@@ -60,10 +60,10 @@
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--bg-hover) transparent;
+  scrollbar-color: var(--border-secondary) transparent;
 }
 
-*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar { width: 5px; height: 5px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb { background: var(--border-secondary); border-radius: var(--radius-full); }
 *::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
@@ -71,7 +71,7 @@
 html { scroll-behavior: smooth; }
 
 body {
-  background: var(--bg-primary);
+  background: var(--bg-secondary);
   color: var(--text-primary);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -80,19 +80,19 @@ body {
 }
 
 ::selection {
-  background: rgba(255, 107, 107, 0.2);
+  background: rgba(43, 63, 126, 0.12);
   color: var(--text-primary);
 }
 
 /* ============================================================
-   Flat Card — No shadows, bold borders
+   Flat Card — No shadows, clean borders
    ============================================================ */
 
 .flat-card {
   background: var(--bg-elevated);
-  border: 2px solid var(--border-primary);
+  border: 1.5px solid var(--border-primary);
   border-radius: var(--radius-lg);
-  transition: border-color 0.2s ease;
+  transition: border-color 0.15s ease;
 }
 
 .flat-card:hover {
@@ -102,13 +102,37 @@ body {
 /* Legacy alias */
 .card {
   background: var(--bg-elevated);
-  border: 2px solid var(--border-primary);
+  border: 1.5px solid var(--border-primary);
   border-radius: var(--radius-lg);
-  transition: border-color 0.2s ease;
+  transition: border-color 0.15s ease;
 }
 
 .card:hover {
   border-color: var(--border-secondary);
+}
+
+/* ============================================================
+   Page Header Utility
+   ============================================================ */
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.025em;
+}
+
+.page-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
 }
 
 /* ============================================================
@@ -121,7 +145,7 @@ body {
 }
 
 .section-dark {
-  background: #1E2F5B;
+  background: #1A2340;
   color: white;
 }
 
@@ -131,7 +155,7 @@ body {
 }
 
 .section-light {
-  background: #F7F8FC;
+  background: var(--bg-secondary);
 }
 
 /* ============================================================
@@ -141,46 +165,47 @@ body {
 .flat-badge {
   display: inline-flex;
   align-items: center;
-  padding: 4px 12px;
+  padding: 3px 10px;
   border-radius: var(--radius-full);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.flat-badge-coral { background: #FDB714; color: #1E2F5B; }
-.flat-badge-turquoise { background: #2B3F7E; color: white; }
-.flat-badge-yellow { background: #FDB714; color: #1E2F5B; }
-.flat-badge-blue { background: #2B3F7E; color: white; }
-.flat-badge-green { background: #27AE60; color: white; }
-.flat-badge-amber { background: #FDB714; color: #1E2F5B; }
-.flat-badge-red { background: #E74C3C; color: white; }
+.flat-badge-coral { background: rgba(253, 183, 20, 0.15); color: #A07B00; }
+.flat-badge-turquoise { background: rgba(43, 63, 126, 0.1); color: var(--accent-primary); }
+.flat-badge-yellow { background: rgba(253, 183, 20, 0.15); color: #A07B00; }
+.flat-badge-blue { background: rgba(43, 63, 126, 0.1); color: var(--accent-primary); }
+.flat-badge-green { background: rgba(29, 185, 122, 0.1); color: #0E8A5A; }
+.flat-badge-amber { background: rgba(243, 156, 18, 0.12); color: #B57200; }
+.flat-badge-red { background: rgba(231, 76, 60, 0.1); color: #C0392B; }
 
 .flat-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 16px;
+  padding: 5px 14px;
   border-radius: var(--radius-full);
   font-size: 0.875rem;
   font-weight: 500;
-  border: 2px solid var(--border-primary);
+  border: 1.5px solid var(--border-primary);
   background: white;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .flat-pill-active {
   border-color: var(--accent-primary);
-  background: rgba(255, 107, 107, 0.08);
+  background: rgba(43, 63, 126, 0.06);
   color: var(--accent-primary);
 }
 
 /* ============================================================
-   Auth Illustration Panel — Solid Coral
+   Auth Illustration Panel
    ============================================================ */
 
 .auth-illustration-panel {
-  background: #1E2F5B;
+  background: #1A2340;
   position: relative;
   overflow: hidden;
 }
@@ -189,7 +214,23 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 30% 70%, rgba(255,255,255,0.1) 0%, transparent 60%);
+  background: radial-gradient(circle at 30% 70%, rgba(43, 63, 126, 0.4) 0%, transparent 60%);
+}
+
+/* ============================================================
+   Stat Card Utility
+   ============================================================ */
+
+.stat-card {
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  transition: border-color 0.15s ease;
+}
+
+.stat-card:hover {
+  border-color: var(--border-secondary);
 }
 
 /* ============================================================
@@ -202,17 +243,17 @@ body {
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
+  from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideDown {
-  from { opacity: 0; transform: translateY(-10px); }
+  from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideInRight {
-  from { opacity: 0; transform: translateX(20px); }
+  from { opacity: 0; transform: translateX(16px); }
   to { opacity: 1; transform: translateX(0); }
 }
 
@@ -233,14 +274,9 @@ body {
 }
 
 @keyframes popIn {
-  0% { opacity: 0; transform: scale(0.8); }
-  70% { transform: scale(1.05); }
+  0% { opacity: 0; transform: scale(0.9); }
+  70% { transform: scale(1.03); }
   100% { opacity: 1; transform: scale(1); }
-}
-
-@keyframes drawPath {
-  from { stroke-dashoffset: 100; }
-  to { stroke-dashoffset: 0; }
 }
 
 @keyframes pulse {
@@ -251,6 +287,10 @@ body {
 @keyframes wave {
   0% { transform: translateX(0) translateZ(0) scaleY(1); }
   100% { transform: translateX(-50%) translateZ(0) scaleY(1); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .wave-container {
@@ -282,14 +322,14 @@ body {
   50% { transform: translateX(-25%) translateZ(0) scaleY(1.1); }
 }
 
-.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
-.animate-slide-up { animation: slideUp 0.4s ease-out forwards; }
-.animate-slide-down { animation: slideDown 0.25s ease-out forwards; }
-.animate-slide-in-right { animation: slideInRight 0.4s ease-out forwards; }
+.animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+.animate-slide-up { animation: slideUp 0.35s ease-out forwards; }
+.animate-slide-down { animation: slideDown 0.2s ease-out forwards; }
+.animate-slide-in-right { animation: slideInRight 0.35s ease-out forwards; }
 .animate-float { animation: float 3s ease-in-out infinite; }
 .animate-bounce-slow { animation: bounce 2s ease-in-out infinite; }
 .animate-wiggle { animation: wiggle 2s ease-in-out infinite; }
-.animate-pop-in { animation: popIn 0.4s ease-out forwards; }
+.animate-pop-in { animation: popIn 0.35s ease-out forwards; }
 .animate-pulse-slow { animation: pulse 2s ease-in-out infinite; }
 
 .animate-delay-100 { animation-delay: 100ms; }
@@ -300,9 +340,9 @@ body {
 /* Stagger children */
 .stagger-children > * {
   opacity: 0;
-  animation: slideUp 0.4s ease-out forwards;
+  animation: slideUp 0.35s ease-out forwards;
 }
 .stagger-children > *:nth-child(1) { animation-delay: 0ms; }
-.stagger-children > *:nth-child(2) { animation-delay: 80ms; }
-.stagger-children > *:nth-child(3) { animation-delay: 160ms; }
-.stagger-children > *:nth-child(4) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 70ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 140ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 210ms; }
