@@ -10,7 +10,8 @@ Guidelines:
 - Ensure test cases cover edge cases, boundary conditions, and typical scenarios
 - Provide starter code that gives students a clear starting point
 - Write reference solutions that are clean and well-commented
-- Use markdown formatting for descriptions`;
+- Use markdown formatting for descriptions
+- IMPORTANT: Use LaTeX formatting for all mathematical expressions, variables, and complexities. Wrap them in single dollar signs $. Example: $n$, $10^5$, $O(n^2)$, $nums[i]$.`;
 
 export function buildProblemGenerationPrompt(
   topic: string,
@@ -21,8 +22,8 @@ export function buildProblemGenerationPrompt(
   languages: string[] = ['python', 'javascript']
 ): string {
   const difficultyGuidelines = {
-    easy: 'Suitable for beginners. Focus on basic concepts, simple logic, and straightforward implementations. Time complexity: O(n) or better.',
-    medium: 'Intermediate level. Requires understanding of data structures, algorithms, and problem-solving strategies. Time complexity: O(n log n) or better.',
+    easy: 'Suitable for beginners. Focus on basic concepts, simple logic, and straightforward implementations. Time complexity: $O(n)$ or better.',
+    medium: 'Intermediate level. Requires understanding of data structures, algorithms, and problem-solving strategies. Time complexity: $O(n \\log n)$ or better.',
     hard: 'Advanced level. Complex algorithms, optimization techniques, or multiple concepts combined. May require dynamic programming, graph algorithms, or advanced data structures.'
   };
 
@@ -44,6 +45,7 @@ For each problem, provide:
    - Input/output format specifications
    - Constraints and limitations
    - Use code blocks for examples
+   - **CRITICAL**: Use LaTeX for ALL math, numbers, variables, and complexities. Wrap them in $. E.g. "Given an integer $n$" instead of "Given an integer n".
 
 3. **Examples**: 
    - Provide 2-3 sample input/output pairs
@@ -71,7 +73,7 @@ For each problem, provide:
 7. **Solution Code**:
    - Provide a complete, well-commented reference solution in Python
    - Use clean, readable code with proper variable names
-   - Include time and space complexity analysis in comments
+   - Include time and space complexity analysis in comments (use LaTeX for big-O)
 
 8. **Metadata**:
    - Time limit: ${difficulty === 'easy' ? '1000-2000' : difficulty === 'medium' ? '2000-3000' : '3000-5000'}ms
@@ -83,15 +85,15 @@ Return the response as a valid JSON object matching this structure:
   "problems": [
     {
       "title": "string",
-      "description": "string (markdown)",
+      "description": "string (markdown with LaTeX)",
       "difficulty": "${difficulty}",
       "tags": ["array of strings"],
-      "constraints": "string",
+      "constraints": "string (LaTeX enabled)",
       "examples": [
         {
           "input": "string",
           "output": "string",
-          "explanation": "string"
+          "explanation": "string (LaTeX enabled)"
         }
       ],
       "hints": ["array of strings"],
@@ -120,30 +122,30 @@ Example of a well-structured problem:
 **Title**: Two Sum
 
 **Description**:
-Given an array of integers \`nums\` and an integer \`target\`, return indices of the two numbers such that they add up to \`target\`.
+Given an array of integers $nums$ and an integer $target$, return indices of the two numbers such that they add up to $target$.
 
 You may assume that each input would have exactly one solution, and you may not use the same element twice.
 
 **Input Format**:
-- First line: integer \`n\` (length of array)
-- Second line: \`n\` space-separated integers
-- Third line: integer \`target\`
+- First line: integer $n$ (length of array)
+- Second line: $n$ space-separated integers
+- Third line: integer $target$
 
 **Output Format**:
 - Two space-separated integers representing the indices (0-indexed)
 
 **Constraints**:
-- 2 ≤ n ≤ 10^4
-- -10^9 ≤ nums[i] ≤ 10^9
-- -10^9 ≤ target ≤ 10^9
+- $2 \\le n \\le 10^4$
+- $-10^9 \\le nums[i] \\le 10^9$
+- $-10^9 \\le target \\le 10^9$
 
 **Examples**:
 Input: [2, 7, 11, 15], target = 9
 Output: 0 1
-Explanation: nums[0] + nums[1] = 2 + 7 = 9
+Explanation: $nums[0] + nums[1] = 2 + 7 = 9$
 
 **Hints**:
-1. Think about what data structure allows O(1) lookup time
+1. Think about what data structure allows $O(1)$ lookup time
 2. Consider storing elements you've seen along with their indices
-3. For each element, check if (target - element) exists in your data structure
+3. For each element, check if $(target - element)$ exists in your data structure
 `;
