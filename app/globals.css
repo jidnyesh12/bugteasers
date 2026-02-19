@@ -169,6 +169,25 @@ body {
 }
 
 /* ============================================================
+   Global Button Reset — cursor + press feedback for ALL buttons
+   ============================================================ */
+
+button,
+[role="button"] {
+    cursor: pointer;
+    transition: transform 0.1s ease, opacity 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+button:not(:disabled):active,
+[role="button"]:not(:disabled):active {
+    transform: scale(0.97);
+}
+
+button:disabled {
+    cursor: not-allowed;
+}
+
+/* ============================================================
    Flat Card — No shadows, clean borders
    ============================================================ */
 

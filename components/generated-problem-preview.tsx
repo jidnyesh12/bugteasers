@@ -150,7 +150,6 @@ export default function GeneratedProblemPreview({
 
         {/* Description */}
         <div>
-        <div>
           <div className="flex justify-between items-center mb-1.5">
             <label className={`${LABEL_CLASS} mb-0`}>Description</label>
             {editMode === 'description' ? (
@@ -191,7 +190,6 @@ export default function GeneratedProblemPreview({
             </div>
           )}
         </div>
-        </div>
 
         {/* Examples */}
         <div>
@@ -226,8 +224,8 @@ export default function GeneratedProblemPreview({
                       value={ex.input}
                       onChange={(e) => updateExample(i, 'input', e.target.value)}
                       placeholder="Example input"
-                      rows={2}
-                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-primary)] bg-white font-mono placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] resize-none"
+                      rows={3}
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-primary)] bg-white font-mono placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] resize-y"
                     />
                   </div>
                   <div>
@@ -246,8 +244,8 @@ export default function GeneratedProblemPreview({
                       value={ex.explanation || ''}
                       onChange={(e) => updateExample(i, 'explanation', e.target.value)}
                       placeholder="Explanation (optional, supports markdown)"
-                      rows={2}
-                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-primary)] bg-white font-sans placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] resize-none"
+                      rows={3}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--border-primary)] bg-white font-sans placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] resize-y"
                     />
                   </div>
                   {ex.explanation && (
@@ -262,8 +260,6 @@ export default function GeneratedProblemPreview({
           </div>
         </div>
 
-        {/* Hints */}
-        <div>
         {/* Hints */}
         <div>
           <div className="flex justify-between items-center mb-3">
@@ -294,8 +290,8 @@ export default function GeneratedProblemPreview({
                   value={hint}
                   onChange={(e) => updateHint(i, e.target.value)}
                   placeholder={`Hint ${i + 1} (supports markdown)`}
-                  rows={2}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-primary)] bg-white font-sans placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] resize-none mb-2"
+                  rows={4}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--border-primary)] bg-white font-sans placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] resize-y mb-2"
                 />
                 {hint && (
                   <div className="p-3 rounded-lg bg-white border border-dashed border-[var(--border-primary)]">
@@ -311,7 +307,6 @@ export default function GeneratedProblemPreview({
               </div>
             )}
           </div>
-        </div>
         </div>
 
         {/* Test Cases */}
@@ -370,7 +365,7 @@ export default function GeneratedProblemPreview({
                       onChange={(e) => updateTestCase(i, 'input_data', e.target.value)}
                       placeholder="Input data"
                       rows={2}
-                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-primary)] bg-white font-mono placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] resize-none"
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-primary)] bg-white font-mono placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] resize-y whitespace-pre overflow-x-auto"
                     />
                   </div>
                   <div>
@@ -380,7 +375,7 @@ export default function GeneratedProblemPreview({
                       onChange={(e) => updateTestCase(i, 'expected_output', e.target.value)}
                       placeholder="Expected output"
                       rows={2}
-                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-primary)] bg-white font-mono placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] resize-none"
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-primary)] bg-white font-mono placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] resize-y whitespace-pre overflow-x-auto"
                     />
                   </div>
                 </div>

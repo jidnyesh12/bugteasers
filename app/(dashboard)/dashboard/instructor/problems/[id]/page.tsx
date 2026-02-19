@@ -292,11 +292,11 @@ export default function ProblemDetailPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Input</p>
-                    <pre className="text-xs font-mono text-[var(--text-primary)] bg-white p-2.5 rounded-lg border border-[var(--border-primary)] whitespace-pre-wrap">{tc.input_data}</pre>
+                    <pre className="text-xs font-mono text-[var(--text-primary)] bg-white p-2.5 rounded-lg border border-[var(--border-primary)] whitespace-pre overflow-x-auto">{tc.input_data}</pre>
                   </div>
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Expected Output</p>
-                    <pre className="text-xs font-mono text-[var(--text-primary)] bg-white p-2.5 rounded-lg border border-[var(--border-primary)] whitespace-pre-wrap">{tc.expected_output}</pre>
+                    <pre className="text-xs font-mono text-[var(--text-primary)] bg-white p-2.5 rounded-lg border border-[var(--border-primary)] whitespace-pre overflow-x-auto">{tc.expected_output}</pre>
                   </div>
                 </div>
               </div>
@@ -315,7 +315,7 @@ export default function ProblemDetailPage() {
             <h2 className="text-base font-black tracking-tight text-amber-900">Solution (Instructor Only)</h2>
           </div>
           <pre className="bg-white p-4 rounded-xl overflow-x-auto border border-amber-200">
-            <code className="text-sm text-gray-800 whitespace-pre-wrap">{problem.solution_code}</code>
+            <code className="text-sm text-gray-800 whitespace-pre">{problem.solution_code}</code>
           </pre>
         </div>
       )}
