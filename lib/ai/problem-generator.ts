@@ -139,7 +139,9 @@ export async function regenerateProblemSection(
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
   const prompts = {
-    hints: `Given this coding problem, generate 3-4 progressive hints that guide students without giving away the solution:
+    hints: `Given this coding problem, generate 3-4 progressive hints that guide students without giving away the solution.
+    - Use LaTeX for math expressions (wrap in $).
+    - CRITICAL: Escape bitwise operators (e.g., use '\\&' for AND, '\\ll' for shifts). Do NOT use unescaped '&'.:
 
 Title: ${problem.title}
 Description: ${problem.description}
@@ -154,6 +156,9 @@ Description: ${problem.description}
 Return only a JSON object: { "test_cases": [{ "input_data": "...", "expected_output": "...", "is_sample": true/false, "points": 1-3 }] }`,
 
     description: `Rewrite this problem description to be clearer and more detailed. Use markdown formatting.
+    - Use LaTeX for ALL math, numbers, variables, and complexities. Wrap them in $.
+    - CRITICAL: Escape bitwise operators (Use '\\&' for AND, '\\ll' for shifts). Do NOT use unescaped '&', '#', or '%'.
+    - **IMPORTANT**: Do NOT include an "Examples" section in the description. Examples must ONLY be provided in the 'examples' array field.
 
 Current description: ${problem.description}
 

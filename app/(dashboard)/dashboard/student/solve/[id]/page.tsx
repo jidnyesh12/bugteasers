@@ -36,6 +36,11 @@ interface Problem {
   constraints: string;
   time_limit: number;
   memory_limit: number;
+  examples?: {
+    input: string;
+    output: string;
+    explanation?: string;
+  }[];
 }
 
 const difficultyColor = {
@@ -56,7 +61,7 @@ export default function SolveProblemPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'description' | 'hints' | 'testcases'>('description');
+  const [activeTab, setActiveTab] = useState<'description' | 'hints' | 'submissions'>('description');
   const [output, setOutput] = useState<string | null>(null);
   const [showOutput, setShowOutput] = useState(false);
   const [revealedHints, setRevealedHints] = useState<number[]>([]);
@@ -165,22 +170,45 @@ export default function SolveProblemPage() {
       <div className="w-full lg:w-[45%] h-full flex flex-col border-r border-[var(--border-primary)] bg-white overflow-hidden">
         {/* Tab Bar */}
         <div className="flex items-center gap-0 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 shrink-0">
-          {(['description', 'hints', 'testcases'] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-3 text-xs font-bold uppercase tracking-wider transition-colors relative cursor-pointer ${
-                activeTab === tab
-                  ? 'text-[var(--accent-primary)]'
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              {tab === 'testcases' ? 'Test Cases' : tab.charAt(0).toUpperCase() + tab.slice(1)}
-              {activeTab === tab && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent-primary)]" />
-              )}
-            </button>
-          ))}
+          <button
+            onClick={() => setActiveTab('description')}
+            className={`px-4 py-3 text-xs font-bold uppercase tracking-wider transition-colors relative cursor-pointer ${
+              activeTab === 'description'
+                ? 'text-[var(--accent-primary)]'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            Description
+            {activeTab === 'description' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent-primary)]" />
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('hints')}
+            className={`px-4 py-3 text-xs font-bold uppercase tracking-wider transition-colors relative cursor-pointer ${
+              activeTab === 'hints'
+                ? 'text-[var(--accent-primary)]'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            Hints
+            {activeTab === 'hints' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent-primary)]" />
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('submissions')}
+            className={`px-4 py-3 text-xs font-bold uppercase tracking-wider transition-colors relative cursor-pointer ${
+              activeTab === 'submissions'
+                ? 'text-[var(--accent-primary)]'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            Submissions
+            {activeTab === 'submissions' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent-primary)]" />
+            )}
+          </button>
           <div className="ml-auto pr-2">
             <button
               onClick={() => router.back()}
@@ -203,6 +231,10 @@ export default function SolveProblemPage() {
                 <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${dc.bg} ${dc.text} ${dc.border} border`}>
                   {problem.difficulty}
                 </span>
+                <div className="flex items-center gap-3 text-xs text-[var(--text-muted)] ml-auto">
+                  {problem.time_limit && <span>Time: {problem.time_limit}ms</span>}
+                  {problem.memory_limit && <span>Mem: {problem.memory_limit}MB</span>}
+                </div>
               </div>
 
               {/* Tags */}
@@ -217,19 +249,38 @@ export default function SolveProblemPage() {
               {/* Description */}
               <MarkdownRenderer content={problem.description} />
 
-              {/* Constraints */}
-              {problem.constraints && (
-                <div className="mt-6 p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-primary)]">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-primary)] mb-2">Constraints</h3>
-                  <MarkdownRenderer content={problem.constraints} className="text-sm font-mono" />
+
+
+              {problem.examples && problem.examples.length > 0 && (
+                <div className="mt-8 space-y-6">
+                  {problem.examples.map((example, i) => (
+                    <div key={i} className="rounded-md border border-[var(--border-primary)] overflow-hidden text-sm">
+                      <div className="grid grid-cols-2 bg-[var(--bg-secondary)] border-b border-[var(--border-primary)]">
+                        <div className="px-4 py-2 font-bold text-[var(--text-primary)] border-r border-[var(--border-primary)]">Input</div>
+                        <div className="px-4 py-2 font-bold text-[var(--text-primary)]">Output</div>
+                      </div>
+                      <div className="grid grid-cols-2">
+                        <div className="p-4 font-mono whitespace-pre-wrap text-[var(--text-secondary)] border-r border-[var(--border-primary)]">
+                          {example.input}
+                        </div>
+                        <div className="p-4 font-mono whitespace-pre-wrap text-[var(--text-secondary)]">
+                          {example.output}
+                        </div>
+                      </div>
+                      {example.explanation && (
+                        <>
+                          <div className="bg-[var(--bg-secondary)] px-4 py-2 border-y border-[var(--border-primary)] font-bold text-[var(--text-primary)]">
+                            Explanation
+                          </div>
+                          <div className="p-4 bg-[var(--bg-secondary)]/10">
+                            <MarkdownRenderer content={example.explanation} className="text-[var(--text-secondary)]" />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
-
-              {/* Limits */}
-              <div className="mt-4 flex items-center gap-4 text-xs text-[var(--text-muted)]">
-                {problem.time_limit && <span>Time Limit: {problem.time_limit}s</span>}
-                {problem.memory_limit && <span>Memory: {problem.memory_limit}MB</span>}
-              </div>
             </div>
           )}
 
@@ -247,7 +298,7 @@ export default function SolveProblemPage() {
                       {revealedHints.includes(i) ? (
                         <div className="p-4 bg-amber-50/50">
                           <p className="text-xs font-bold text-amber-700 mb-1">Hint {i + 1}</p>
-                          <p className="text-sm text-[var(--text-secondary)]">{hint}</p>
+                          <MarkdownRenderer content={hint} className="text-sm text-[var(--text-secondary)]" />
                         </div>
                       ) : (
                         <button
@@ -265,36 +316,7 @@ export default function SolveProblemPage() {
             </div>
           )}
 
-          {activeTab === 'testcases' && (
-            <div>
-              <h2 className="text-base font-bold text-[var(--text-primary)] mb-4">Sample Test Cases</h2>
-              {(!problem.test_cases || problem.test_cases.length === 0) ? (
-                <div className="text-center py-10">
-                  <p className="text-sm text-[var(--text-muted)]">No sample test cases available.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {problem.test_cases.filter(tc => tc.is_sample).map((tc, i) => (
-                    <div key={tc.id} className="rounded-xl border border-[var(--border-primary)] overflow-hidden">
-                      <div className="px-4 py-2 bg-[var(--bg-secondary)] border-b border-[var(--border-primary)]">
-                        <span className="text-xs font-bold text-[var(--text-primary)]">Example {i + 1}</span>
-                      </div>
-                      <div className="p-4 space-y-3">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Input</p>
-                          <pre className="bg-[#1e1e1e] text-gray-300 text-sm font-mono p-3 rounded-lg overflow-x-auto">{tc.input_data}</pre>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Expected Output</p>
-                          <pre className="bg-[#1e1e1e] text-gray-300 text-sm font-mono p-3 rounded-lg overflow-x-auto">{tc.expected_output}</pre>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+
         </div>
       </div>
 

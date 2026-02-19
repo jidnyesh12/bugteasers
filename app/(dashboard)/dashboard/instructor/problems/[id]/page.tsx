@@ -241,9 +241,11 @@ export default function ProblemDetailPage() {
           <h2 className="text-base font-black tracking-tight text-[var(--text-primary)] mb-4">Hints ({problem.hints.length})</h2>
           <div className="space-y-2">
             {problem.hints.map((hint, i) => (
-              <div key={i} className="p-3.5 rounded-xl bg-[rgba(253,183,20,0.07)] border border-[rgba(253,183,20,0.2)] text-sm">
-                <span className="font-bold text-[var(--text-primary)]">Hint {i + 1}:</span>{' '}
-                <span className="text-[var(--text-secondary)]">{hint}</span>
+              <div key={i} className="p-3.5 rounded-xl bg-[rgba(253,183,20,0.07)] border border-[rgba(253,183,20,0.2)]">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-bold text-[var(--text-primary)] text-sm">Hint {i + 1}</span>
+                </div>
+                <MarkdownRenderer content={hint} className="text-sm text-[var(--text-secondary)]" />
               </div>
             ))}
           </div>

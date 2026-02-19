@@ -11,7 +11,15 @@ Guidelines:
 - Provide starter code that gives students a clear starting point
 - Write reference solutions that are clean and well-commented
 - Use markdown formatting for descriptions
-- IMPORTANT: Use LaTeX formatting for all mathematical expressions, variables, and complexities. Wrap them in single dollar signs $. Example: $n$, $10^5$, $O(n^2)$, $nums[i]$.`;
+- IMPORTANT: Use LaTeX formatting for all mathematical expressions, variables, and complexities. Wrap them in single dollar signs $. Example: $n$, $10^5$, $O(n^2)$, $nums[i]$.
+- CRITICAL LATEX RULES:
+  - Escape bitwise operators and special characters within LaTeX math mode:
+    - Bitwise AND: Use '\\&' or '\\text{ AND }' (e.g., $a \\& b$)
+    - Bitwise OR: Use '|' (e.g., $a | b$)
+    - Bitwise XOR: Use '\\oplus' (e.g., $a \\oplus b$)
+    - Bitwise Shifts: Use '\\ll' and '\\gg' (e.g., $a \\ll 1$)
+    - Modulo: Use '\\%' or '\\pmod{n}'
+  - Do NOT use unescaped '&', '#', or '%' inside $...$ blocks.`;
 
 export function buildProblemGenerationPrompt(
   topic: string,
@@ -43,9 +51,8 @@ For each problem, provide:
 2. **Description**: 
    - Clear problem statement in markdown format
    - Input/output format specifications
-   - Constraints and limitations
-   - Use code blocks for examples
-   - **CRITICAL**: Use LaTeX for ALL math, numbers, variables, and complexities. Wrap them in $. E.g. "Given an integer $n$" instead of "Given an integer n".
+   - Use LaTeX for ALL math, numbers, variables, and complexities. Wrap them in $. E.g. "Given an integer $n$" instead of "Given an integer n".
+   - **IMPORTANT**: Do NOT include an "Examples" section in the description. Examples must ONLY be provided in the 'examples' array field.
 
 3. **Examples**: 
    - Provide 2-3 sample input/output pairs
