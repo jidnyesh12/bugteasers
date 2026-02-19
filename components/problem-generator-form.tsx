@@ -15,7 +15,7 @@ const LABEL_CLASS = 'block text-xs font-semibold uppercase tracking-wide text-[v
 
 export default function ProblemGeneratorForm({
   onGenerate,
-  isLoading,
+  isLoading: externalLoading,
 }: ProblemGeneratorFormProps) {
   const [topic, setTopic] = useState('');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('easy');
@@ -24,12 +24,16 @@ export default function ProblemGeneratorForm({
   const [numProblems, setNumProblems] = useState(1);
   const [languages, setLanguages] = useState<string[]>(['python', 'javascript']);
   const [error, setError] = useState('');
+  const [internalLoading, setInternalLoading] = useState(false);
+
+  const isLoading = externalLoading || internalLoading;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!topic.trim()) { setError('Please enter a topic'); return; }
 
+    setInternalLoading(true);
     try {
       const response = await fetch('/api/problems/generate', {
         method: 'POST',
@@ -52,7 +56,15 @@ export default function ProblemGeneratorForm({
       const data = await response.json();
       onGenerate(data.problems);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      const rawMsg = err instanceof Error ? err.message : 'An error occurred';
+      // Make AI failures more user-friendly
+      if (rawMsg.includes('invalid JSON') || rawMsg.includes('parse') || rawMsg.includes('Failed to generate')) {
+        setError('AI_RETRY');
+      } else {
+        setError(rawMsg);
+      }
+    } finally {
+      setInternalLoading(false);
     }
   };
 
@@ -187,11 +199,27 @@ export default function ProblemGeneratorForm({
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-2 p-3.5 rounded-xl bg-red-50 border border-red-100 text-[var(--error)] text-sm font-medium">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          {error}
+        <div className="p-4 rounded-xl bg-red-50 border border-red-100 animate-fade-in">
+          {error === 'AI_RETRY' ? (
+            <div className="flex flex-col items-center text-center gap-1">
+              <div className="flex items-center gap-2 text-[var(--text-primary)] font-semibold text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                  <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                The AI got a little confused this time
+              </div>
+              <p className="text-xs text-[var(--text-secondary)]">
+                This happens occasionally — the AI produced an improperly formatted response. Just hit try again!
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-[var(--error)] text-sm font-medium">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              {error}
+            </div>
+          )}
         </div>
       )}
 
@@ -212,12 +240,24 @@ export default function ProblemGeneratorForm({
         ) : (
           <>
             <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              {error === 'AI_RETRY' ? (
+                <><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></>
+              ) : (
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              )}
             </svg>
-            Generate {numProblems > 1 ? `${numProblems} Problems` : 'Problem'}
+            {error === 'AI_RETRY' ? 'Try Again' : `Generate ${numProblems > 1 ? `${numProblems} Problems` : 'Problem'}`}
           </>
         )}
       </button>
+
+      {isLoading && (
+        <div className="text-center py-4 animate-fade-in">
+          <p className="text-sm text-[var(--text-secondary)] font-medium">
+            ☕ This may take 1–2 minutes. Grab a coffee while the AI works its magic!
+          </p>
+        </div>
+      )}
     </form>
   );
 }

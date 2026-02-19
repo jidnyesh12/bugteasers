@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import type { Assignment, Classroom } from '@/lib/types';
 
+import { MarkdownRenderer } from '@/components/markdown-renderer';
+
 interface Problem {
   id: string;
   title: string;
@@ -206,9 +208,7 @@ export default function AssignmentDetailsPage() {
         {assignment.description && (
           <div className="bg-white border border-[var(--border-primary)] rounded-2xl p-6">
             <h3 className="text-sm font-bold text-[var(--text-primary)] mb-3">Description</h3>
-            <p className="text-sm text-[var(--text-secondary)] whitespace-pre-wrap">
-              {assignment.description}
-            </p>
+            <MarkdownRenderer content={assignment.description} className="text-sm" />
           </div>
         )}
 
