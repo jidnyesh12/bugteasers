@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
 import CodeMirror from '@uiw/react-codemirror';
+import { MarkdownRenderer } from '@/components/markdown-renderer';
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
 import { java } from '@codemirror/lang-java';
@@ -214,15 +215,13 @@ export default function SolveProblemPage() {
               </div>
 
               {/* Description */}
-              <div className="prose prose-sm max-w-none text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">
-                {problem.description}
-              </div>
+              <MarkdownRenderer content={problem.description} />
 
               {/* Constraints */}
               {problem.constraints && (
                 <div className="mt-6 p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-primary)]">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-primary)] mb-2">Constraints</h3>
-                  <p className="text-sm text-[var(--text-secondary)] font-mono whitespace-pre-wrap">{problem.constraints}</p>
+                  <MarkdownRenderer content={problem.constraints} className="text-sm font-mono" />
                 </div>
               )}
 

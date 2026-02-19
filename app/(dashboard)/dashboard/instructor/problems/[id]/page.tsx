@@ -7,6 +7,8 @@ import { FullPageLoader } from '@/components/ui/loading';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 
+import { MarkdownRenderer } from '@/components/markdown-renderer';
+
 interface TestCase {
   id: string;
   input_data: string;
@@ -230,9 +232,7 @@ export default function ProblemDetailPage() {
       {/* Description */}
       <div className="bg-white border border-[var(--border-primary)] rounded-2xl p-6 mb-6">
         <h2 className="text-base font-black tracking-tight text-[var(--text-primary)] mb-4">Description</h2>
-        <div className="text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed">
-          {problem.description}
-        </div>
+        <MarkdownRenderer content={problem.description} />
       </div>
 
       {/* Hints */}

@@ -7,6 +7,8 @@ import { FullPageLoader } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
 import type { Assignment } from '@/lib/types';
 
+import { MarkdownRenderer } from '@/components/markdown-renderer';
+
 interface Problem {
   id: string;
   title: string;
@@ -107,9 +109,7 @@ export default function StudentAssignmentDetailsPage() {
         {assignment.description && (
           <div className="bg-white border border-[var(--border-primary)] rounded-2xl p-6">
             <h3 className="text-sm font-bold text-[var(--text-primary)] mb-3">Instructions</h3>
-            <p className="text-sm text-[var(--text-secondary)] whitespace-pre-wrap">
-              {assignment.description}
-            </p>
+            <MarkdownRenderer content={assignment.description} className="text-sm" />
           </div>
         )}
 

@@ -10,6 +10,8 @@ interface GeneratedProblemPreviewProps {
   isSaving: boolean;
 }
 
+import { MarkdownRenderer } from '@/components/markdown-renderer';
+
 const difficultyBadge: Record<string, string> = {
   easy: 'flat-badge-green',
   medium: 'flat-badge-amber',
@@ -131,7 +133,7 @@ export default function GeneratedProblemPreview({
               onClick={() => setEditMode('description')}
               className="p-4 rounded-xl bg-[var(--bg-secondary)] border border-transparent hover:border-[var(--accent-primary)] cursor-pointer transition-all"
             >
-              <pre className="whitespace-pre-wrap text-sm text-[var(--text-primary)] font-sans leading-relaxed">{currentProblem.description}</pre>
+              <MarkdownRenderer content={currentProblem.description} />
             </div>
           )}
         </div>
