@@ -15,9 +15,9 @@ export async function generateProblems(
   request: ProblemGenerationRequest
 ): Promise<ProblemGenerationResponse> {
   try {
-    // Use Gemini 2.5 Flash
+    // Use Gemini 3 Flash
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
     });
 
     // Build the prompt
