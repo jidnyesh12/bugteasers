@@ -110,3 +110,34 @@ export interface TestCaseEvaluator {
   ): TestResult;
   calculateScore(results: TestResult[]): ScoreResult;
 }
+
+// Execution service types
+
+export interface RunRequest {
+  code: string;
+  language: SupportedLanguage;
+  problemId: string;
+}
+
+export interface SubmitRequest {
+  code: string;
+  language: SupportedLanguage;
+  problemId: string;
+  assignmentId?: string;
+}
+
+export interface RunResponse {
+  results: TestResult[];
+  score: ScoreResult;
+}
+
+export interface SubmitResponse {
+  submissionId: string;
+  results: TestResult[];
+  score: ScoreResult;
+}
+
+export interface ExecutionService {
+  runCode(request: RunRequest): Promise<RunResponse>;
+  submitCode(request: SubmitRequest, userId: string): Promise<SubmitResponse>;
+}
