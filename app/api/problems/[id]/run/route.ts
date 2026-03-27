@@ -5,8 +5,14 @@ import { supabase } from '@/lib/supabase/client';
 import { createExecutionService } from '@/lib/execution';
 import { PistonClientImpl } from '@/lib/execution/client';
 import { TestCaseEvaluatorImpl } from '@/lib/execution/evaluator';
+import { ExecutionAuthorizationError } from '@/lib/execution/errors';
+import { mapExecutionErrorToHttp } from '@/lib/execution/error-mapping';
+import { createExecutionLogger } from '@/lib/execution/logging';
+import { checkExecutionRateLimit } from '@/lib/execution/rate-limiter';
+import { assertExecutionAccess } from '@/lib/execution/access';
+import { parseJsonBody, validateRunPayload } from '@/lib/execution/request-validation';
 
-const SUPPORTED_LANGUAGES = ['python', 'java', 'cpp', 'c'] as const;
+const logger = createExecutionLogger();
 
 export async function POST(
   request: NextRequest,
@@ -18,56 +24,34 @@ export async function POST(
     // Verify authentication
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      throw new ExecutionAuthorizationError('Unauthorized');
     }
 
-    // Parse request body
-    let body;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json(
-        { error: 'Invalid request: body must be valid JSON' },
-        { status: 400 }
-      );
-    }
-    const { code, language } = body;
+    const rateLimit = checkExecutionRateLimit({
+      userId: session.user.id,
+      mode: 'run',
+    });
 
-    // Validate inputs
-    if (!code || typeof code !== 'string' || code.trim().length === 0) {
+    if (!rateLimit.allowed) {
       return NextResponse.json(
-        { error: 'Invalid request: code is required and must be a non-empty string' },
-        { status: 400 }
+        { error: 'Too Many Requests' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfterSeconds),
+          },
+        }
       );
     }
 
-    if (!language || typeof language !== 'string') {
-      return NextResponse.json(
-        { error: 'Invalid request: language is required and must be a string' },
-        { status: 400 }
-      );
-    }
+    const payload = validateRunPayload(await parseJsonBody(request));
 
-    if (!SUPPORTED_LANGUAGES.includes(language as typeof SUPPORTED_LANGUAGES[number])) {
-      return NextResponse.json(
-        { error: `Invalid request: language must be one of ${SUPPORTED_LANGUAGES.join(', ')}` },
-        { status: 400 }
-      );
-    }
-
-    // Validate problem exists
-    const { data: problem, error: problemError } = await supabase
-      .from('problems')
-      .select('id')
-      .eq('id', problemId)
-      .single();
-
-    if (problemError || !problem) {
-      return NextResponse.json(
-        { error: 'Problem not found' },
-        { status: 404 }
-      );
-    }
+    await assertExecutionAccess({
+      supabase,
+      problemId,
+      userId: session.user.id,
+      userRole: session.user.role,
+    });
 
     // Create execution service
     const pistonClient = new PistonClientImpl();
@@ -80,17 +64,15 @@ export async function POST(
 
     // Execute code in Run mode
     const result = await executionService.runCode({
-      code,
-      language: language as typeof SUPPORTED_LANGUAGES[number],
+      code: payload.code,
+      language: payload.language,
       problemId,
     });
 
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
-    console.error('Error in run endpoint:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    );
+    logger.logExecutionFailed({ mode: 'run' }, error);
+    const mapped = mapExecutionErrorToHttp(error);
+    return NextResponse.json({ error: mapped.message }, { status: mapped.status });
   }
 }

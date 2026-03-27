@@ -5,8 +5,14 @@ import { supabase } from '@/lib/supabase/client';
 import { createExecutionService } from '@/lib/execution';
 import { PistonClientImpl } from '@/lib/execution/client';
 import { TestCaseEvaluatorImpl } from '@/lib/execution/evaluator';
+import { ExecutionAuthorizationError } from '@/lib/execution/errors';
+import { mapExecutionErrorToHttp } from '@/lib/execution/error-mapping';
+import { createExecutionLogger } from '@/lib/execution/logging';
+import { checkExecutionRateLimit } from '@/lib/execution/rate-limiter';
+import { assertExecutionAccess } from '@/lib/execution/access';
+import { parseJsonBody, validateSubmitPayload } from '@/lib/execution/request-validation';
 
-const SUPPORTED_LANGUAGES = ['python', 'java', 'cpp', 'c'] as const;
+const logger = createExecutionLogger();
 
 export async function POST(
   request: NextRequest,
@@ -18,63 +24,35 @@ export async function POST(
     // Verify authentication
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      throw new ExecutionAuthorizationError('Unauthorized');
     }
 
-    // Parse request body
-    let body;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json(
-        { error: 'Invalid request: body must be valid JSON' },
-        { status: 400 }
-      );
-    }
-    const { code, language, assignmentId } = body;
+    const rateLimit = checkExecutionRateLimit({
+      userId: session.user.id,
+      mode: 'submit',
+    });
 
-    // Validate inputs
-    if (!code || typeof code !== 'string' || code.trim().length === 0) {
+    if (!rateLimit.allowed) {
       return NextResponse.json(
-        { error: 'Invalid request: code is required and must be a non-empty string' },
-        { status: 400 }
+        { error: 'Too Many Requests' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfterSeconds),
+          },
+        }
       );
     }
 
-    if (!language || typeof language !== 'string') {
-      return NextResponse.json(
-        { error: 'Invalid request: language is required and must be a string' },
-        { status: 400 }
-      );
-    }
+    const payload = validateSubmitPayload(await parseJsonBody(request));
 
-    if (!SUPPORTED_LANGUAGES.includes(language as typeof SUPPORTED_LANGUAGES[number])) {
-      return NextResponse.json(
-        { error: `Invalid request: language must be one of ${SUPPORTED_LANGUAGES.join(', ')}` },
-        { status: 400 }
-      );
-    }
-
-    if (assignmentId !== undefined && typeof assignmentId !== 'string') {
-      return NextResponse.json(
-        { error: 'Invalid request: assignmentId must be a string' },
-        { status: 400 }
-      );
-    }
-
-    // Validate problem exists
-    const { data: problem, error: problemError } = await supabase
-      .from('problems')
-      .select('id')
-      .eq('id', problemId)
-      .single();
-
-    if (problemError || !problem) {
-      return NextResponse.json(
-        { error: 'Problem not found' },
-        { status: 404 }
-      );
-    }
+    await assertExecutionAccess({
+      supabase,
+      problemId,
+      userId: session.user.id,
+      userRole: session.user.role,
+      assignmentId: payload.assignmentId,
+    });
 
     // Create execution service
     const pistonClient = new PistonClientImpl();
@@ -88,20 +66,18 @@ export async function POST(
     // Execute code in Submit mode
     const result = await executionService.submitCode(
       {
-        code,
-        language: language as typeof SUPPORTED_LANGUAGES[number],
+        code: payload.code,
+        language: payload.language,
         problemId,
-        assignmentId,
+        assignmentId: payload.assignmentId,
       },
       session.user.id
     );
 
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
-    console.error('Error in submit endpoint:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    );
+    logger.logExecutionFailed({ mode: 'submit' }, error);
+    const mapped = mapExecutionErrorToHttp(error);
+    return NextResponse.json({ error: mapped.message }, { status: mapped.status });
   }
 }
