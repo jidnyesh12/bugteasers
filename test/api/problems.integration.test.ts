@@ -115,15 +115,53 @@ describe('POST /api/problems/[id]/run', () => {
       expires: '2024-12-31',
     });
 
-    // Mock problem validation
-    const mockSingle = vi.fn().mockResolvedValue({
-      data: { id: 'test-id' },
-      error: null,
+    const mockFrom = vi.fn((table: string) => {
+      if (table === 'problems') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { id: 'test-id' },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'assignment_problems') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({ data: [{ id: 'ap-1' }], error: null }),
+              }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'classroom_assignments') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [{ classroom_id: 'classroom-1' }], error: null }),
+            }),
+          }),
+        };
+      }
+
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [{ id: 'enrollment-1' }], error: null }),
+            }),
+          }),
+        }),
+      };
     });
-    const mockEq = vi.fn().mockReturnValue({ single: mockSingle });
-    const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
-    const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
-    vi.mocked(supabase.from).mockImplementation(mockFrom);
+    vi.mocked(supabase.from).mockImplementation(mockFrom as unknown as typeof supabase.from);
 
     const mockRunCode = vi.fn().mockResolvedValue({
       results: [
@@ -284,15 +322,60 @@ describe('POST /api/problems/[id]/submit', () => {
       expires: '2024-12-31',
     });
 
-    // Mock problem validation
-    const mockSingle = vi.fn().mockResolvedValue({
-      data: { id: 'test-id' },
-      error: null,
+    const mockFrom = vi.fn((table: string) => {
+      if (table === 'problems') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { id: 'test-id' }, error: null }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'assignment_problems') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({ data: [{ id: 'ap-1' }], error: null }),
+              }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'classroom_assignments') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [{ classroom_id: 'classroom-1' }], error: null }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'classroom_students') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({ data: [{ id: 'enrollment-1' }], error: null }),
+              }),
+            }),
+          }),
+        };
+      }
+
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      };
     });
-    const mockEq = vi.fn().mockReturnValue({ single: mockSingle });
-    const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
-    const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
-    vi.mocked(supabase.from).mockImplementation(mockFrom);
+    vi.mocked(supabase.from).mockImplementation(mockFrom as unknown as typeof supabase.from);
 
     const mockSubmitCode = vi.fn().mockResolvedValue({
       submissionId: 'submission-123',
@@ -351,15 +434,60 @@ describe('POST /api/problems/[id]/submit', () => {
       expires: '2024-12-31',
     });
 
-    // Mock problem validation
-    const mockSingle = vi.fn().mockResolvedValue({
-      data: { id: 'test-id' },
-      error: null,
+    const mockFrom = vi.fn((table: string) => {
+      if (table === 'problems') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { id: 'test-id' }, error: null }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'assignment_problems') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({ data: [{ id: 'ap-1' }], error: null }),
+              }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'classroom_assignments') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [{ classroom_id: 'classroom-1' }], error: null }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'classroom_students') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({ data: [{ id: 'enrollment-1' }], error: null }),
+              }),
+            }),
+          }),
+        };
+      }
+
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      };
     });
-    const mockEq = vi.fn().mockReturnValue({ single: mockSingle });
-    const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
-    const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
-    vi.mocked(supabase.from).mockImplementation(mockFrom);
+    vi.mocked(supabase.from).mockImplementation(mockFrom as unknown as typeof supabase.from);
 
     const mockSubmitCode = vi.fn().mockResolvedValue({
       submissionId: 'submission-123',
@@ -504,7 +632,7 @@ describe('POST /api/problems/[id]/run - Edge Cases', () => {
     const mockEq = vi.fn().mockReturnValue({ single: mockSingle });
     const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
     const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
-    vi.mocked(supabase.from).mockImplementation(mockFrom);
+    vi.mocked(supabase.from).mockImplementation(mockFrom as unknown as typeof supabase.from);
 
     const request = new NextRequest('http://localhost:3000/api/problems/nonexistent/run', {
       method: 'POST',
@@ -616,7 +744,7 @@ describe('POST /api/problems/[id]/submit - Edge Cases', () => {
     const mockEq = vi.fn().mockReturnValue({ single: mockSingle });
     const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
     const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
-    vi.mocked(supabase.from).mockImplementation(mockFrom);
+    vi.mocked(supabase.from).mockImplementation(mockFrom as unknown as typeof supabase.from);
 
     const request = new NextRequest('http://localhost:3000/api/problems/nonexistent/submit', {
       method: 'POST',
