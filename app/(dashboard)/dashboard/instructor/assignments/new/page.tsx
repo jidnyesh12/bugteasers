@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
@@ -43,13 +43,7 @@ export default function NewAssignmentPage() {
     if (profile.role !== 'instructor') { router.replace('/dashboard/student'); return; }
   }, [profile, authLoading, initialized, router]);
 
-  useEffect(() => {
-    if (profile?.role === 'instructor') {
-      loadData();
-    }
-  }, [profile?.role]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
       const [problemsRes, classroomsRes] = await Promise.all([
@@ -72,7 +66,13 @@ export default function NewAssignmentPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    if (profile?.role === 'instructor') {
+      loadData();
+    }
+  }, [profile?.role, loadData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
@@ -41,13 +41,7 @@ export default function ClassroomDetailsPage() {
     if (profile.role !== 'instructor') { router.replace('/dashboard/student'); return; }
   }, [profile, authLoading, initialized, router]);
 
-  useEffect(() => {
-    if (profile?.role === 'instructor') {
-      loadClassroomData();
-    }
-  }, [profile?.role, params.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadClassroomData = async () => {
+  const loadClassroomData = useCallback(async () => {
     try {
       setIsLoading(true);
       
@@ -80,7 +74,13 @@ export default function ClassroomDetailsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [params.id, router, toast]);
+
+  useEffect(() => {
+    if (profile?.role === 'instructor') {
+      loadClassroomData();
+    }
+  }, [profile?.role, loadClassroomData]);
 
   const handleCopyCode = () => {
     if (classroom?.join_code) {

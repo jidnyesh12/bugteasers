@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
@@ -42,13 +42,7 @@ export default function StudentAssignmentDetailsPage() {
     if (profile.role !== 'student') { router.replace('/dashboard/instructor'); return; }
   }, [profile, authLoading, initialized, router]);
 
-  useEffect(() => {
-    if (profile?.role === 'student') {
-      loadAssignment();
-    }
-  }, [profile?.role, params.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadAssignment = async () => {
+  const loadAssignment = useCallback(async () => {
     try {
       setIsLoading(true);
       const res = await fetch(`/api/assignments/${params.id}`);
@@ -66,7 +60,13 @@ export default function StudentAssignmentDetailsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [params.id, router, toast]);
+
+  useEffect(() => {
+    if (profile?.role === 'student') {
+      loadAssignment();
+    }
+  }, [profile?.role, loadAssignment]);
 
   if (!initialized || authLoading || !profile || isLoading) return <FullPageLoader />;
   if (!assignment) return null;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
@@ -72,13 +72,7 @@ export default function ProblemDetailPage() {
     }
   }, [profile, authLoading, initialized, router]);
 
-  useEffect(() => {
-    if (params.id && profile?.role === 'instructor') {
-      loadProblem();
-    }
-  }, [params.id, profile?.role]); // eslint-disable-line react-hooks/exhaustive-deps -- loadProblem depends on params.id
-
-  const loadProblem = async () => {
+  const loadProblem = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -103,7 +97,13 @@ export default function ProblemDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [params.id]);
+
+  useEffect(() => {
+    if (params.id && profile?.role === 'instructor') {
+      loadProblem();
+    }
+  }, [params.id, profile?.role, loadProblem]);
 
   const loadAssignments = async () => {
     try {

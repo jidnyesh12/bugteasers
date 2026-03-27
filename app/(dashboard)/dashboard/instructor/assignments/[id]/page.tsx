@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
@@ -50,13 +50,7 @@ export default function AssignmentDetailsPage() {
     if (profile.role !== 'instructor') { router.replace('/dashboard/student'); return; }
   }, [profile, authLoading, initialized, router]);
 
-  useEffect(() => {
-    if (profile?.role === 'instructor') {
-      loadAssignment();
-    }
-  }, [profile?.role, params.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadAssignment = async () => {
+  const loadAssignment = useCallback(async () => {
     try {
       setIsLoading(true);
       const res = await fetch(`/api/assignments/${params.id}`);
@@ -74,7 +68,13 @@ export default function AssignmentDetailsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [params.id, router, toast]);
+
+  useEffect(() => {
+    if (profile?.role === 'instructor') {
+      loadAssignment();
+    }
+  }, [profile?.role, loadAssignment]);
 
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this assignment? This cannot be undone.')) return;

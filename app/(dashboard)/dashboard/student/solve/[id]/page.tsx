@@ -72,12 +72,6 @@ export default function SolveProblemPage() {
     if (profile.role !== 'student') { router.replace('/dashboard/instructor'); return; }
   }, [profile, authLoading, initialized, router]);
 
-  useEffect(() => {
-    if (profile?.role === 'student') {
-      loadProblem();
-    }
-  }, [profile?.role, params.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const getDefaultStarter = useCallback((lang: string) => {
     switch (lang) {
       case 'python': return '# Write your solution here\n\ndef solve():\n    pass\n';
@@ -88,7 +82,7 @@ export default function SolveProblemPage() {
     }
   }, []);
 
-  const loadProblem = async () => {
+  const loadProblem = useCallback(async () => {
     try {
       setIsLoading(true);
       const res = await fetch(`/api/problems/${params.id}`);
@@ -105,7 +99,13 @@ export default function SolveProblemPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [getDefaultStarter, language, params.id, toast]);
+
+  useEffect(() => {
+    if (profile?.role === 'student') {
+      loadProblem();
+    }
+  }, [profile?.role, loadProblem]);
 
   // CodeMirror language extensions
   const languageExtension = useMemo(() => {
