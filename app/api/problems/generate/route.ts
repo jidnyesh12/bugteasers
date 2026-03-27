@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { generateProblems } from '@/lib/ai/problem-generator';
 import { ProblemGenerationRequest } from '@/lib/ai/types';
+import { GEMINI_API_KEY } from '@/lib/env';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if Gemini API key is configured
-    if (!process.env.GEMINI_API_KEY) {
+    if (!GEMINI_API_KEY) {
       return NextResponse.json(
         { error: 'AI service not configured. Please add GEMINI_API_KEY to environment variables.' },
         { status: 500 }

@@ -2,6 +2,7 @@ import NextAuth, { type NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { supabase } from '@/lib/supabase/client'
+import { NEXTAUTH_SECRET } from '@/lib/env'
 
 export const authOptions: NextAuthOptions = {
     providers: [
@@ -80,7 +81,7 @@ export const authOptions: NextAuthOptions = {
         },
     },
 
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: NEXTAUTH_SECRET,
 }
 
 const handler = NextAuth(authOptions)

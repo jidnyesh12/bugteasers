@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from '@/lib/env'
 
 // Lazy singleton — only created when first accessed at runtime,
 // NOT at module-load / build time. This prevents CI builds from
@@ -7,8 +8,8 @@ let _supabase: SupabaseClient | null = null
 
 export function getSupabase(): SupabaseClient {
     if (!_supabase) {
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-        const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+        const url = SUPABASE_URL
+        const key = SUPABASE_SERVICE_ROLE_KEY
 
         if (!url || !key) {
             throw new Error(

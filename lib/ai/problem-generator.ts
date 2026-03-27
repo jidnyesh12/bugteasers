@@ -7,9 +7,10 @@ import {
   GeneratedProblem,
 } from './types';
 import { SYSTEM_PROMPT, buildProblemGenerationPrompt } from './prompt-templates';
+import { GEMINI_API_KEY } from '@/lib/env';
 
 // Initialize Gemini with API key
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 export async function generateProblems(
   request: ProblemGenerationRequest
