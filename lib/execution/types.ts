@@ -72,3 +72,41 @@ export class ExecutionTimeoutError extends Error {
     this.name = 'ExecutionTimeoutError';
   }
 }
+
+// Test case evaluation types
+
+export interface TestCase {
+  id: string;
+  input: string;
+  expectedOutput: string;
+  points: number;
+  isSample?: boolean;
+}
+
+export interface TestResult {
+  testCaseId: string;
+  passed: boolean;
+  actualOutput: string;
+  expectedOutput: string;
+  executionTime?: number;
+  memoryUsed?: number;
+  pointsEarned: number;
+  pointsAvailable: number;
+  error?: string;
+}
+
+export interface ScoreResult {
+  totalPoints: number;
+  earnedPoints: number;
+  percentage: number;
+  status: 'passed' | 'failed' | 'partial';
+}
+
+export interface TestCaseEvaluator {
+  normalizeOutput(output: string): string;
+  evaluateTestCase(
+    executionResponse: ExecutionResponse,
+    testCase: TestCase
+  ): TestResult;
+  calculateScore(results: TestResult[]): ScoreResult;
+}
