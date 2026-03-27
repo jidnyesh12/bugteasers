@@ -273,6 +273,30 @@
     },
     {
       "table_schema": "public",
+      "table_name": "problem_submissions",
+      "column_name": "score",
+      "data_type": "numeric",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "problem_submissions",
+      "column_name": "total_points",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "problem_submissions",
+      "column_name": "earned_points",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_schema": "public",
       "table_name": "problems",
       "column_name": "id",
       "data_type": "uuid",
