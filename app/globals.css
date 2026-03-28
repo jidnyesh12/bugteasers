@@ -168,6 +168,16 @@ body {
     color: var(--text-primary);
 }
 
+.leetcode-output-panel ::selection {
+    background: #facc15;
+    color: #111827;
+}
+
+.leetcode-output-panel ::-moz-selection {
+    background: #facc15;
+    color: #111827;
+}
+
 /* ============================================================
    Global Button Reset — cursor + press feedback for ALL buttons
    ============================================================ */
