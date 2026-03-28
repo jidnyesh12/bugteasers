@@ -120,7 +120,7 @@ export default function StudentAssignmentDetailsPage() {
             {assignment.problems.map((problem, index) => (
               <div
                 key={problem.id}
-                onClick={() => router.push(`/dashboard/student/solve/${problem.id}`)}
+                onClick={() => router.push(`/dashboard/student/solve/${problem.id}?assignmentId=${assignment.id}`)}
                 className="flex items-center gap-4 p-4 rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] hover:border-[var(--accent-primary)] hover:bg-white transition-colors cursor-pointer group"
               >
                 <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-[var(--border-primary)] font-bold text-sm text-[var(--text-muted)] shrink-0">

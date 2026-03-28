@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
+import type { SupportedLanguage } from '@/lib/execution/types';
 import CodeMirror from '@uiw/react-codemirror';
 import { MarkdownRenderer } from '@/components/markdown-renderer';
-import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
 import { java } from '@codemirror/lang-java';
 import { cpp } from '@codemirror/lang-cpp';
@@ -16,6 +16,7 @@ import { EditorView, keymap } from '@codemirror/view';
 import { indentWithTab, insertNewlineAndIndent } from '@codemirror/commands';
 import { EditorState, Prec } from '@codemirror/state';
 import { indentUnit } from '@codemirror/language';
+import { useProblemExecution } from './use-problem-execution';
 
 interface TestCase {
   id: string;
@@ -52,19 +53,34 @@ const difficultyColor = {
 export default function SolveProblemPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const { profile, loading: authLoading, initialized } = useAuth();
   const { toast } = useToast();
 
   const [problem, setProblem] = useState<Problem | null>(null);
   const [code, setCode] = useState('');
-  const [language, setLanguage] = useState('cpp');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isRunning, setIsRunning] = useState(false);
+  const [language, setLanguage] = useState<SupportedLanguage>('cpp');
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'description' | 'hints' | 'submissions'>('description');
-  const [output, setOutput] = useState<string | null>(null);
-  const [showOutput, setShowOutput] = useState(false);
   const [revealedHints, setRevealedHints] = useState<number[]>([]);
+
+  const assignmentId = searchParams.get('assignmentId') || undefined;
+
+  const {
+    isRunning,
+    isSubmitting,
+    output,
+    showOutput,
+    runCode,
+    submitCode,
+    closeOutput,
+  } = useProblemExecution({
+    problemId: params.id,
+    code,
+    language,
+    assignmentId,
+    toast,
+  });
 
   useEffect(() => {
     if (!initialized || authLoading) return;
@@ -75,9 +91,9 @@ export default function SolveProblemPage() {
   const getDefaultStarter = useCallback((lang: string) => {
     switch (lang) {
       case 'python': return '# Write your solution here\n\ndef solve():\n    pass\n';
-      case 'javascript': return '// Write your solution here\n\nfunction solve() {\n  \n}\n';
       case 'java': return '// Write your solution here\n\npublic class Solution {\n    public static void main(String[] args) {\n        \n    }\n}\n';
       case 'cpp': return '// Write your solution here\n\n#include <iostream>\nusing namespace std;\n\nint main() {\n    \n    return 0;\n}\n';
+      case 'c': return '// Write your solution here\n\n#include <stdio.h>\n\nint main() {\n    \n    return 0;\n}\n';
       default: return '// Write your solution here\n';
     }
   }, []);
@@ -111,10 +127,10 @@ export default function SolveProblemPage() {
   const languageExtension = useMemo(() => {
     switch (language) {
       case 'python': return python();
-      case 'javascript': return javascript();
       case 'java': return java();
       case 'cpp': return cpp();
-      default: return javascript();
+      case 'c': return cpp();
+      default: return cpp();
     }
   }, [language]);
 
@@ -132,26 +148,6 @@ export default function SolveProblemPage() {
     indentWithTab,
     { key: 'Enter', run: insertNewlineAndIndent, shift: insertNewlineAndIndent },
   ])), []);
-
-  const handleRun = async () => {
-    setIsRunning(true);
-    setShowOutput(true);
-    setOutput('Running...');
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    const sampleTC = problem?.test_cases?.find(tc => tc.is_sample);
-    setOutput('✓ Sample test case passed\n\nInput: ' + (sampleTC?.input_data || 'N/A') + '\nExpected: ' + (sampleTC?.expected_output || 'N/A'));
-    setIsRunning(false);
-  };
-
-  const handleSubmit = async () => {
-    setIsSubmitting(true);
-    setShowOutput(true);
-    setOutput('Submitting and running all test cases...');
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setOutput('✓ All test cases passed!\n\nResult: Accepted');
-    toast('Solution submitted!', 'success');
-    setIsSubmitting(false);
-  };
 
   const revealHint = (index: number) => {
     if (!revealedHints.includes(index)) {
@@ -328,7 +324,7 @@ export default function SolveProblemPage() {
             <select
               value={language}
               onChange={(e) => {
-                const newLang = e.target.value;
+                const newLang = e.target.value as SupportedLanguage;
                 setLanguage(newLang);
                 if (!code || code === getDefaultStarter(language)) {
                   setCode(getDefaultStarter(newLang));
@@ -337,12 +333,12 @@ export default function SolveProblemPage() {
               className="bg-[#3c3c3c] text-gray-300 text-xs font-mono px-3 py-1.5 rounded-md border border-[#555] focus:outline-none focus:border-[var(--accent-primary)] cursor-pointer"
             >
               <option value="cpp">C++</option>
-              <option value="javascript">JavaScript</option>
+              <option value="c">C</option>
               <option value="python">Python</option>
               <option value="java">Java</option>
             </select>
             <span className="text-[10px] text-gray-500 font-mono">
-              solution.{language === 'cpp' ? 'cpp' : language === 'java' ? 'java' : language === 'python' ? 'py' : 'js'}
+              solution.{language === 'cpp' ? 'cpp' : language === 'java' ? 'java' : language === 'python' ? 'py' : 'c'}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -360,7 +356,7 @@ export default function SolveProblemPage() {
               Reset
             </button>
             <button
-              onClick={handleRun}
+              onClick={runCode}
               disabled={isRunning}
               className="flex items-center gap-1.5 bg-[#3c3c3c] hover:bg-[#4c4c4c] text-gray-200 text-xs font-semibold px-3 py-1.5 rounded-md transition-colors cursor-pointer disabled:opacity-50"
             >
@@ -370,7 +366,7 @@ export default function SolveProblemPage() {
               {isRunning ? 'Running...' : 'Run'}
             </button>
             <button
-              onClick={handleSubmit}
+              onClick={submitCode}
               disabled={isSubmitting}
               className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-md transition-colors cursor-pointer disabled:opacity-50"
             >
@@ -425,7 +421,7 @@ export default function SolveProblemPage() {
             <div className="border-t border-[#3e3e42] bg-[#1e1e1e] max-h-48 overflow-auto shrink-0">
               <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-[#3e3e42]">
                 <span className="text-xs font-bold text-gray-400">Output</span>
-                <button onClick={() => setShowOutput(false)} className="text-gray-500 hover:text-gray-300 cursor-pointer">
+                <button onClick={closeOutput} className="text-gray-500 hover:text-gray-300 cursor-pointer">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
