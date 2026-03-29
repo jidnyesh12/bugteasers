@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { MarkdownRenderer } from '@/components/markdown-renderer';
 import type { Problem } from '../solve-types';
+import type { ProblemSubmissionDisplayItem } from '@/lib/submissions/view-types';
+import { SubmissionsTabContent } from './submissions-tab-content';
 
 const difficultyColor = {
   easy: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
@@ -13,9 +15,22 @@ const difficultyColor = {
 interface ProblemDetailsPanelProps {
   problem: Problem;
   onBack: () => void;
+  submissions: ProblemSubmissionDisplayItem[];
+  isSubmissionsLoading: boolean;
+  submissionsError: string | null;
+  onRetrySubmissions: () => void;
+  onLoadSubmissionCode: (submission: ProblemSubmissionDisplayItem) => void;
 }
 
-export function ProblemDetailsPanel({ problem, onBack }: ProblemDetailsPanelProps) {
+export function ProblemDetailsPanel({
+  problem,
+  onBack,
+  submissions,
+  isSubmissionsLoading,
+  submissionsError,
+  onRetrySubmissions,
+  onLoadSubmissionCode,
+}: ProblemDetailsPanelProps) {
   const [activeTab, setActiveTab] = useState<'description' | 'hints' | 'submissions'>('description');
   const [revealedHints, setRevealedHints] = useState<number[]>([]);
 
@@ -169,6 +184,16 @@ export function ProblemDetailsPanel({ problem, onBack }: ProblemDetailsPanelProp
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === 'submissions' && (
+          <SubmissionsTabContent
+            submissions={submissions}
+            isLoading={isSubmissionsLoading}
+            error={submissionsError}
+            onRetry={onRetrySubmissions}
+            onLoadSubmissionCode={onLoadSubmissionCode}
+          />
         )}
       </div>
     </div>

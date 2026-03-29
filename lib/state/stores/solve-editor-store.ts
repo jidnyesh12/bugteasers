@@ -44,7 +44,7 @@ export const SOLVE_EDITOR_LAYOUT_BOUNDS = {
 export const DEFAULT_SOLVE_EDITOR_PANE_STATE: SolveEditorPaneState = {
   leftPaneWidth: SOLVE_EDITOR_LAYOUT_BOUNDS.leftPane.defaultWidthPercent,
   outputPanelHeight: SOLVE_EDITOR_LAYOUT_BOUNDS.outputPanel.defaultHeightPx,
-  isOutputCollapsed: false,
+  isOutputCollapsed: true,
 };
 
 interface SolveEditorStoreState {

@@ -38,7 +38,18 @@ import {
 import { useCodeMirrorConfig } from './hooks/use-codemirror-config';
 import { useProblemLoader } from './hooks/use-problem-loader';
 import { useProblemExecution, type ExecutionPanelResult } from './hooks/use-problem-execution';
+import {
+  useExecutionErrorNotifier,
+  useSubmissionResultNotifications,
+} from './hooks/use-execution-notifications';
+import {
+  useProblemSubmissionDisplay,
+  type PendingSubmissionMeta,
+} from './hooks/use-problem-submission-display';
+import { useProblemSubmissions } from './hooks/use-problem-submissions';
+import { useSolveKeyboardShortcuts } from './hooks/use-solve-keyboard-shortcuts';
 import { useSolveEditorState } from './hooks/use-solve-editor-state';
+import type { ProblemSubmissionDisplayItem } from '@/lib/submissions/view-types';
 
 export default function SolveProblemPage() {
   const router = useRouter();
@@ -80,6 +91,7 @@ export default function SolveProblemPage() {
   const [outputTab, setOutputTab] = useState<'testcase' | 'result'>('result');
   const [selectedCaseIndex, setSelectedCaseIndex] = useState(0);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [pendingSubmissionMeta, setPendingSubmissionMeta] = useState<PendingSubmissionMeta | null>(null);
 
   const assignmentId = searchParams.get('assignmentId') || undefined;
   const paneStorageKey = useMemo(() => buildSolveEditorPaneKey({
@@ -146,6 +158,7 @@ export default function SolveProblemPage() {
   } as CSSProperties), [paneState.leftPaneWidth]);
 
   const getCurrentCode = useCallback(() => codeRef.current, [codeRef]);
+  const handleExecutionError = useExecutionErrorNotifier(toast);
   const handleExecutionResult = useCallback((nextResult: ExecutionPanelResult) => {
     if (nextResult.status === 'passed') {
       setSelectedCaseIndex(Math.max(nextResult.results.length - 1, 0));
@@ -167,8 +180,22 @@ export default function SolveProblemPage() {
     getCode: getCurrentCode,
     language,
     assignmentId,
-    toast,
+    onExecutionError: handleExecutionError,
     onResultReady: handleExecutionResult,
+  });
+
+  useSubmissionResultNotifications({ executionResult, toast });
+
+  const {
+    submissions,
+    isLoading: isSubmissionsLoading,
+    loadError: submissionsError,
+    loadSubmissions,
+  } = useProblemSubmissions({
+    problemId: params.id,
+    assignmentId,
+    enabled: Boolean(profile?.id) && Boolean(problem),
+    refreshToken: executionResult?.mode === 'submit' ? executionResult.submissionId ?? null : null,
   });
 
   useEffect(() => {
@@ -190,10 +217,20 @@ export default function SolveProblemPage() {
   }, [paneStorageKey, runCode, setPaneState]);
 
   const handleSubmitClick = useCallback(() => {
+    setPendingSubmissionMeta({
+      code: codeRef.current,
+      language,
+      submittedAt: new Date().toISOString(),
+    });
     setOutputTab('result');
     setPaneState(paneStorageKey, { isOutputCollapsed: false });
     void submitCode();
-  }, [paneStorageKey, setPaneState, submitCode]);
+  }, [codeRef, language, paneStorageKey, setPaneState, submitCode]);
+
+  useSolveKeyboardShortcuts({
+    onRunShortcut: handleRunClick,
+    onSubmitShortcut: handleSubmitClick,
+  });
 
   const handleLanguageChange = useCallback((newLanguage: SupportedLanguage) => {
     if (newLanguage === language) {
@@ -215,8 +252,6 @@ export default function SolveProblemPage() {
     editorTheme,
   } = useCodeMirrorConfig({
     language,
-    onRunShortcut: handleRunClick,
-    onSubmitShortcut: handleSubmitClick,
   });
 
   const getStarterCode = useCallback((targetLanguage: SupportedLanguage) => {
@@ -280,6 +315,18 @@ export default function SolveProblemPage() {
     resetToStarterCode();
   }, [codeRef, getStarterCode, language, resetToStarterCode]);
 
+  const handleLoadSubmissionCode = useCallback((submission: ProblemSubmissionDisplayItem) => {
+    setEditorContent(submission.code, 'replace');
+    setDraft(draftStorageKey, submission.code);
+  }, [draftStorageKey, setDraft, setEditorContent]);
+
+  const submissionsForDisplay = useProblemSubmissionDisplay({
+    submissions,
+    executionResult,
+    isSubmitting,
+    pendingSubmissionMeta,
+  });
+
   const caseRows = useMemo(
     () => buildOutputCaseRows(problem?.test_cases, executionResult),
     [executionResult, problem?.test_cases]
@@ -315,7 +362,17 @@ export default function SolveProblemPage() {
       className="h-[calc(100vh-3.5rem)] flex flex-col lg:flex-row overflow-hidden"
       style={layoutStyle}
     >
-      <ProblemDetailsPanel problem={problem} onBack={() => router.back()} />
+      <ProblemDetailsPanel
+        problem={problem}
+        onBack={() => router.back()}
+        submissions={submissionsForDisplay}
+        isSubmissionsLoading={isSubmissionsLoading}
+        submissionsError={submissionsError}
+        onRetrySubmissions={() => {
+          void loadSubmissions();
+        }}
+        onLoadSubmissionCode={handleLoadSubmissionCode}
+      />
 
       <div
         role="separator"

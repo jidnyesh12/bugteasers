@@ -35,30 +35,36 @@ export interface CaseStatusMeta {
   labelClass: string;
 }
 
+function getVisibleCases(
+  allCases: ProblemTestCaseSource[]
+): ProblemTestCaseSource[] {
+  const sampleCases = allCases.filter((testCase) => testCase.is_sample);
+  // Submit runs all tests, but students should only see public/sample cases in the UI.
+  return sampleCases.length > 0 ? sampleCases : allCases;
+}
+
 export function buildOutputCaseRows(
   testCases: ProblemTestCaseSource[] | undefined,
   executionResult: ExecutionPanelResult | null
 ): OutputCaseRow[] {
   const allCases = testCases ?? [];
-  const sampleCases = allCases.filter((testCase) => testCase.is_sample);
-  const baseCases = executionResult
-    ? executionResult.mode === 'run'
-      ? (sampleCases.length > 0 ? sampleCases : allCases)
-      : allCases
-    : (sampleCases.length > 0 ? sampleCases : allCases);
+  const baseCases = getVisibleCases(allCases);
+  if (baseCases.length === 0) {
+    return [];
+  }
 
   const results = executionResult?.results ?? [];
-  const itemCount = Math.max(baseCases.length, results.length);
+  const resultsByTestCaseId = new Map(results.map((result) => [result.testCaseId, result]));
+  const canFallbackToIndex = !executionResult || executionResult.mode === 'run';
 
-  return Array.from({ length: itemCount }, (_, index) => {
-    const baseCase = baseCases[index];
-    const result = results[index];
+  return baseCases.map((baseCase, index) => {
+    const result = resultsByTestCaseId.get(baseCase.id) ?? (canFallbackToIndex ? results[index] : undefined);
 
     return {
-      key: baseCase?.id ?? result?.testCaseId ?? `case-${index + 1}`,
+      key: baseCase.id,
       label: `Case ${index + 1}`,
-      input: baseCase?.input_data ?? '',
-      expected: result?.expectedOutput ?? baseCase?.expected_output ?? '',
+      input: baseCase.input_data,
+      expected: result?.expectedOutput ?? baseCase.expected_output,
       actual: result?.actualOutput ?? '',
       passed: result?.passed,
       error: result?.error,

@@ -477,6 +477,10 @@ export function ExecutionOutputPanel({
                 </>
               )}
 
+              {executionResult.status !== 'running' && executionResult.status !== 'error' && caseRows.length === 0 && (
+                <p className="text-sm text-gray-400">No public testcase details to display for this submission.</p>
+              )}
+
               {runningDetail && (
                 <p className="text-sm text-gray-300">{runningDetail}</p>
               )}
