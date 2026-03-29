@@ -374,10 +374,6 @@ export function ExecutionOutputPanel({
                 )}
               </div>
 
-              {executionResult.mode === 'submit' && executionResult.submissionId && (
-                <p className="text-xs text-gray-400">Submission ID: {executionResult.submissionId}</p>
-              )}
-
               {executionResult.message && executionResult.status === 'error' && (
                 <pre className="rounded border border-red-500/40 bg-red-500/10 p-3 text-[12px] leading-5 font-mono text-red-200 whitespace-pre-wrap">
                   {executionResult.message}

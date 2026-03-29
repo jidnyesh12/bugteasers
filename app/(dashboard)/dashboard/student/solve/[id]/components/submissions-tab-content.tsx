@@ -118,9 +118,6 @@ export function SubmissionsTabContent(props: SubmissionsTabContentProps) {
                     <div className="min-w-[180px]">
                       <p className="text-sm font-semibold text-[var(--text-primary)]">Submission {displayNumber}</p>
                       <p className="text-[11px] text-[var(--text-muted)]">{formatSubmissionTime(submission.submittedAt)}</p>
-                      <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                        ID: {isOptimistic && submission.id === '__pending_submission__' ? 'pending...' : submission.id.slice(0, 8)}
-                      </p>
                     </div>
 
                     <div className="flex items-center gap-2 ml-auto">
