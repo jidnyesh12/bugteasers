@@ -1,4 +1,5 @@
 import type { ProblemSubmissionHistoryItem, SubmissionStatus } from './types';
+import { normalizeSupportedLanguage } from '@/lib/execution/languages';
 
 export interface RawProblemSubmissionRow {
   id: string;
@@ -86,10 +87,11 @@ export function mapRawProblemSubmission(
   submission: RawProblemSubmissionRow
 ): ProblemSubmissionHistoryItem {
   const { passedCount, totalTestCount } = summarizeTestResults(submission.test_results);
+  const normalizedLanguage = normalizeSupportedLanguage(submission.language);
 
   return {
     id: submission.id,
-    language: submission.language,
+    language: normalizedLanguage ?? submission.language,
     status: normalizeSubmissionStatus(submission.status),
     score: parseNullableNumber(submission.score, { min: 0, max: 100 }),
     earnedPoints: parseNullableNumber(submission.earned_points, { min: 0 }),

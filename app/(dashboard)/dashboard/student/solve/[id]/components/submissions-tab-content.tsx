@@ -6,6 +6,7 @@ import {
   formatSubmissionTime,
   submissionStatusStyle,
 } from '@/lib/submissions/formatting';
+import { normalizeSupportedLanguage } from '@/lib/execution/languages';
 import type { ProblemSubmissionDisplayItem } from '@/lib/submissions/view-types';
 
 interface SubmissionsTabContentProps {
@@ -101,6 +102,8 @@ export function SubmissionsTabContent(props: SubmissionsTabContentProps) {
               const statusStyle = submissionStatusStyle[submission.status] ?? submissionStatusStyle.error;
               const displayNumber = submissions.length - index;
               const isOptimistic = submission.isOptimistic === true;
+              const isSupportedLanguage = normalizeSupportedLanguage(submission.language) !== null;
+              const isOpenDisabled = isOptimistic || !isSupportedLanguage;
 
               return (
                 <div
@@ -127,10 +130,10 @@ export function SubmissionsTabContent(props: SubmissionsTabContentProps) {
                       </span>
                       <Button
                         onClick={() => onLoadSubmissionCode(submission)}
-                        disabled={isOptimistic}
+                        disabled={isOpenDisabled}
                         size="xs"
                         className="h-7 px-2.5"
-                        title="Open in editor"
+                        title={isSupportedLanguage ? 'Open in editor' : 'Unsupported language for editor'}
                       >
                         <OpenInEditorIcon />
                         Open in editor
@@ -141,7 +144,12 @@ export function SubmissionsTabContent(props: SubmissionsTabContentProps) {
                   <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                     <div>
                       <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Language</p>
-                      <p className="text-[var(--text-primary)] font-semibold">{submission.language}</p>
+                      <p className="text-[var(--text-primary)] font-semibold">
+                        {submission.language}
+                        {!isSupportedLanguage && (
+                          <span className="ml-1 text-[10px] font-medium text-rose-600">(unsupported)</span>
+                        )}
+                      </p>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Score</p>

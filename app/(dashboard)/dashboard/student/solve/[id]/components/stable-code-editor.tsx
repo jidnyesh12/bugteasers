@@ -1,11 +1,12 @@
 'use client';
 
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import CodeMirror, { type ReactCodeMirrorProps, type ReactCodeMirrorRef } from '@uiw/react-codemirror';
 
 export interface StableCodeEditorProps {
   seedValue: string;
   onCodeChange: (value: string) => void;
+  onReady?: () => void;
   extensions: NonNullable<ReactCodeMirrorProps['extensions']>;
   theme: NonNullable<ReactCodeMirrorProps['theme']>;
   basicSetup: NonNullable<ReactCodeMirrorProps['basicSetup']>;
@@ -19,6 +20,7 @@ export interface StableCodeEditorHandle {
 export const StableCodeEditor = forwardRef<StableCodeEditorHandle, StableCodeEditorProps>(function StableCodeEditor({
   seedValue,
   onCodeChange,
+  onReady,
   extensions,
   theme,
   basicSetup,
@@ -66,6 +68,10 @@ export const StableCodeEditor = forwardRef<StableCodeEditorHandle, StableCodeEdi
     setLocalValue(value);
     onCodeChange(value);
   }, [onCodeChange]);
+
+  useEffect(() => {
+    onReady?.();
+  }, [onReady]);
 
   return (
     <CodeMirror

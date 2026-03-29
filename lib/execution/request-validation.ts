@@ -1,9 +1,9 @@
 import type { NextRequest } from 'next/server';
 import type { SupportedLanguage } from './types';
 import { ExecutionValidationError } from './errors';
+import { SUPPORTED_EXECUTION_LANGUAGES } from './languages';
 
 export const MAX_CODE_LENGTH = 10000;
-export const SUPPORTED_EXECUTION_LANGUAGES = ['python', 'java', 'cpp', 'c'] as const;
 
 export interface RunPayload {
   code: string;

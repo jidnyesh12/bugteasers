@@ -78,4 +78,20 @@ describe('submission mapper utilities', () => {
     expect(mapped.earnedPoints).toBeNull();
     expect(mapped.totalPoints).toBeNull();
   });
+
+  it('normalizes known submission language aliases', () => {
+    const mapped = mapRawProblemSubmission({
+      id: 'submission-3',
+      language: 'c++',
+      status: 'passed',
+      score: 100,
+      earned_points: 10,
+      total_points: 10,
+      submitted_at: '2026-03-29T12:00:00.000Z',
+      code: 'int main() { return 0; }',
+      test_results: [],
+    });
+
+    expect(mapped.language).toBe('cpp');
+  });
 });

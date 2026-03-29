@@ -35,6 +35,7 @@ import {
   SOLVE_EDITOR_LAYOUT_BOUNDS,
   useSolveEditorStore,
 } from '@/lib/state/stores';
+import { normalizeSupportedLanguage } from '@/lib/execution/languages';
 import { useCodeMirrorConfig } from './hooks/use-codemirror-config';
 import { useProblemLoader } from './hooks/use-problem-loader';
 import { useProblemExecution, type ExecutionPanelResult } from './hooks/use-problem-execution';
@@ -92,6 +93,11 @@ export default function SolveProblemPage() {
   const [selectedCaseIndex, setSelectedCaseIndex] = useState(0);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [pendingSubmissionMeta, setPendingSubmissionMeta] = useState<PendingSubmissionMeta | null>(null);
+  const [pendingSubmissionLoad, setPendingSubmissionLoad] = useState<{
+    language: SupportedLanguage;
+    code: string;
+  } | null>(null);
+  const pendingSubmissionNeedsBaseRemountRef = useRef(false);
 
   const assignmentId = searchParams.get('assignmentId') || undefined;
   const paneStorageKey = useMemo(() => buildSolveEditorPaneKey({
@@ -270,12 +276,31 @@ export default function SolveProblemPage() {
     }
 
     const nextCode = draftCode ?? getStarterCode(language);
-    if (codeRef.current === nextCode) {
+    const shouldRemountBaseForPendingSubmission = pendingSubmissionNeedsBaseRemountRef.current;
+
+    if (!shouldRemountBaseForPendingSubmission && codeRef.current === nextCode) {
       return;
     }
 
     setEditorContent(nextCode, 'remount');
+
+    if (shouldRemountBaseForPendingSubmission) {
+      pendingSubmissionNeedsBaseRemountRef.current = false;
+    }
   }, [codeRef, draftCode, getStarterCode, language, problem, setEditorContent]);
+
+  const handleEditorReady = useCallback(() => {
+    if (
+      !pendingSubmissionLoad ||
+      pendingSubmissionLoad.language !== language ||
+      pendingSubmissionNeedsBaseRemountRef.current
+    ) {
+      return;
+    }
+
+    setEditorContent(pendingSubmissionLoad.code, 'replace');
+    setPendingSubmissionLoad(null);
+  }, [language, pendingSubmissionLoad, setEditorContent]);
 
   const resetToStarterCode = useCallback(() => {
     const starter = getStarterCode(language);
@@ -316,9 +341,37 @@ export default function SolveProblemPage() {
   }, [codeRef, getStarterCode, language, resetToStarterCode]);
 
   const handleLoadSubmissionCode = useCallback((submission: ProblemSubmissionDisplayItem) => {
+    const targetLanguage = normalizeSupportedLanguage(submission.language);
+    if (!targetLanguage) {
+      toast(`Cannot load submission: unsupported language \"${submission.language}\".`, 'warning');
+      return;
+    }
+
+    // Preserve current editor work before switching to another language submission.
+    if (targetLanguage !== language) {
+      setDraft(draftStorageKey, codeRef.current);
+      pendingSubmissionNeedsBaseRemountRef.current = true;
+      setPendingSubmissionLoad({
+        language: targetLanguage,
+        code: submission.code,
+      });
+      setLanguage(targetLanguage);
+      return;
+    }
+
+    pendingSubmissionNeedsBaseRemountRef.current = false;
+    setPendingSubmissionLoad(null);
     setEditorContent(submission.code, 'replace');
-    setDraft(draftStorageKey, submission.code);
-  }, [draftStorageKey, setDraft, setEditorContent]);
+  }, [
+    codeRef,
+    draftStorageKey,
+    language,
+    setPendingSubmissionLoad,
+    setDraft,
+    setEditorContent,
+    setLanguage,
+    toast,
+  ]);
 
   const submissionsForDisplay = useProblemSubmissionDisplay({
     submissions,
@@ -402,6 +455,7 @@ export default function SolveProblemPage() {
               ref={editorHandleRef}
               seedValue={editorSeed.value}
               onCodeChange={handleEditorCodeChange}
+              onReady={handleEditorReady}
               extensions={editorExtensions}
               theme={editorTheme}
               basicSetup={editorBasicSetup}
