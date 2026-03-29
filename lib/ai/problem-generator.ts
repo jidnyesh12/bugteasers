@@ -8,6 +8,7 @@ import {
 } from './types';
 import { SYSTEM_PROMPT, buildProblemGenerationPrompt } from './prompt-templates';
 import { GEMINI_API_KEY } from '@/lib/env';
+import { SUPPORTED_EXECUTION_LANGUAGES } from '@/lib/execution/languages';
 
 // Initialize Gemini with API key
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -22,13 +23,17 @@ export async function generateProblems(
     });
 
     // Build the prompt
+    const languages = request.languages && request.languages.length > 0
+      ? request.languages
+      : SUPPORTED_EXECUTION_LANGUAGES;
+
     const userPrompt = buildProblemGenerationPrompt(
       request.topic,
       request.difficulty,
       request.tags,
       request.constraints,
       request.numProblems || 1,
-      request.languages || ['python', 'javascript']
+      languages
     );
 
     const fullPrompt = `${SYSTEM_PROMPT}\n\n${userPrompt}`;
@@ -111,6 +116,9 @@ function validateGeneratedProblems(problems: GeneratedProblem[]): void {
     if (!Array.isArray(problem.hints) || problem.hints.length === 0) {
       throw new Error('Problem missing hints');
     }
+    if (!problem.solution_code || typeof problem.solution_code !== 'string') {
+      throw new Error('Problem missing valid solution code');
+    }
 
     // Validate test cases
     const sampleCases = problem.test_cases.filter((tc) => tc.is_sample);
@@ -135,7 +143,7 @@ function validateGeneratedProblems(problems: GeneratedProblem[]): void {
 // Helper function to regenerate specific parts of a problem
 export async function regenerateProblemSection(
   problem: GeneratedProblem,
-  section: 'hints' | 'test_cases' | 'description' | 'starter_code'
+  section: 'hints' | 'test_cases' | 'description'
 ): Promise<Partial<GeneratedProblem>> {
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
@@ -164,13 +172,6 @@ Return only a JSON object: { "test_cases": [{ "input_data": "...", "expected_out
 Current description: ${problem.description}
 
 Return only a JSON object: { "description": "..." }`,
-
-    starter_code: `Generate starter code (function signatures) for this problem in Python and JavaScript:
-
-Title: ${problem.title}
-Description: ${problem.description}
-
-Return only a JSON object: { "starter_code": { "python": "...", "javascript": "..." } }`,
   };
 
   const result = await model.generateContent(prompts[section]);

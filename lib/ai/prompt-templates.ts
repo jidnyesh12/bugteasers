@@ -1,5 +1,10 @@
 // Prompt templates for problem generation
 
+import { SUPPORTED_EXECUTION_LANGUAGES } from '@/lib/execution/languages';
+import type { SupportedLanguage } from '@/lib/execution/types';
+
+const SUPPORTED_SOLVE_LANGUAGES_TEXT = SUPPORTED_EXECUTION_LANGUAGES.join(', ');
+
 export const SYSTEM_PROMPT = [
   'You are an expert coding problem creator for an educational platform.',
   'Your role is to generate high-quality, pedagogically sound coding problems that help students learn programming concepts.',
@@ -10,8 +15,9 @@ export const SYSTEM_PROMPT = [
   '- Generate progressive hints that guide without giving away the solution',
   '- Create comprehensive test cases (both sample and hidden)',
   '- Ensure test cases cover edge cases, boundary conditions, and typical scenarios',
-  '- Provide starter code that gives students a clear starting point',
-  '- Write reference solutions that are clean and well-commented',
+  '- This platform uses CodeChef/Codeforces style solving: students write a full program that reads stdin and writes stdout',
+  `- Supported solve languages are: ${SUPPORTED_SOLVE_LANGUAGES_TEXT}`,
+  '- Write reference solutions using one of the supported languages with stdin/stdout (not function-only LeetCode style)',
   '- Use markdown formatting for descriptions',
   '- IMPORTANT: Use LaTeX formatting for all mathematical expressions, variables, and complexities. Wrap them in single dollar signs $. Example: $n$, $10^5$, $O(n^2)$, $nums[i]$.',
   '',
@@ -49,7 +55,7 @@ export function buildProblemGenerationPrompt(
   tags: string[] = [],
   constraints?: string,
   numProblems: number = 1,
-  languages: string[] = ['python', 'javascript']
+  languages: readonly SupportedLanguage[] = SUPPORTED_EXECUTION_LANGUAGES
 ): string {
   const difficultyGuidelines = {
     easy: 'Suitable for beginners. Focus on basic concepts, simple logic, and straightforward implementations.',
@@ -65,7 +71,7 @@ export function buildProblemGenerationPrompt(
     `**Difficulty Guidelines**: ${difficultyGuidelines[difficulty]}`,
     tags.length > 0 ? `**Tags**: ${tags.join(', ')}` : '',
     constraints ? `**Additional Constraints**: ${constraints}` : '',
-    `**Programming Languages**: ${languages.join(', ')}`,
+    `**Supported Solve Languages**: ${languages.join(', ')}`,
     '',
     'For each problem, provide:',
     '',
@@ -106,16 +112,12 @@ export function buildProblemGenerationPrompt(
     '   - Include edge cases and boundary conditions',
     '   - Assign points based on difficulty (1-3 points per case)',
     '',
-    '6. **Starter Code**:',
-    `   - Provide function signatures for: ${languages.join(', ')}`,
-    '   - Include parameter names and return type hints',
-    '   - Add brief docstring/comment explaining expected behavior',
+    '6. **Solution Code**:',
+    `   - Provide a complete, well-commented reference solution in one language from: ${languages.join(', ')}`,
+    '   - Must parse input from stdin and print output to stdout',
+    '   - Do NOT provide a function-only signature style solution',
     '',
-    '7. **Solution Code**:',
-    '   - Provide a complete, well-commented reference solution in Python',
-    '   - Use clean, readable code with proper variable names',
-    '',
-    '8. **Metadata**:',
+    '7. **Metadata**:',
     `   - Time limit: ${difficulty === 'easy' ? '1000-2000' : difficulty === 'medium' ? '2000-3000' : '3000-5000'}ms`,
     '   - Memory limit: 256MB',
     '   - Suggested tags based on concepts used',
@@ -144,10 +146,7 @@ export function buildProblemGenerationPrompt(
     '      "hints": ["array of strings (LaTeX enabled)"],',
     '      "time_limit": "number",',
     '      "memory_limit": 256,',
-    '      "starter_code": {',
-    `        ${languages.map(lang => `"${lang}": "string"`).join(',\n        ')}`,
-    '      },',
-    '      "solution_code": "string",',
+    '      "solution_code": "string (complete stdin/stdout program in one supported language)",',
     '      "test_cases": [',
     '        {',
     `          "input_data": "string (RAW stdin: e.g. \\"5 1\\n1 5 2 4 3\\")",`,

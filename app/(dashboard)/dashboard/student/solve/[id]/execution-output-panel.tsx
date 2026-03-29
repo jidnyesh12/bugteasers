@@ -114,6 +114,8 @@ export function ExecutionOutputPanel({
   }, [isCollapsed, panelHeight]);
 
   const activePanelHeight = dragPreviewHeight ?? panelHeight;
+  const isTestcaseTabActive = !isCollapsed && outputTab === 'testcase';
+  const isResultTabActive = !isCollapsed && outputTab === 'result';
 
   const expandPanel = useCallback((targetHeight: number) => {
     onCollapsedChange(false);
@@ -279,7 +281,7 @@ export function ExecutionOutputPanel({
           <button
             onClick={() => handleTabClick('testcase')}
             className={`px-2.5 py-1 text-[11px] font-semibold rounded transition-colors cursor-pointer ${
-              outputTab === 'testcase'
+              isTestcaseTabActive
                 ? 'bg-[#3c3c3c] text-gray-100 border border-[#5a5a5a]'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-[#2a2d32]'
             }`}
@@ -289,7 +291,7 @@ export function ExecutionOutputPanel({
           <button
             onClick={() => handleTabClick('result')}
             className={`px-2.5 py-1 text-[11px] font-semibold rounded transition-colors cursor-pointer ${
-              outputTab === 'result'
+              isResultTabActive
                 ? 'bg-[#3c3c3c] text-gray-100 border border-[#5a5a5a]'
                 : 'text-gray-400 hover:text-gray-200 hover:bg-[#2a2d32]'
             }`}

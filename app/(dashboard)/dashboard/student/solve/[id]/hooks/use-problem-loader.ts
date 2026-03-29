@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchProblemDetail } from '@/lib/api/problems-client';
 import { queryKeys } from '@/lib/state/query';
+import { DEFAULT_EXECUTION_LANGUAGE } from '@/lib/execution/languages';
 import { getDefaultStarterCode } from '../utils/editor-code-utils';
 import type { Problem } from '../solve-types';
 
@@ -61,12 +62,7 @@ export function useProblemLoader(options: UseProblemLoaderOptions): UseProblemLo
     }
 
     hydratedProblemIdRef.current = data.id;
-
-    const starter = typeof data.starter_code === 'string' && data.starter_code.trim()
-      ? data.starter_code
-      : getDefaultStarterCode('cpp');
-
-    setInitialEditorContent(starter);
+    setInitialEditorContent(getDefaultStarterCode(DEFAULT_EXECUTION_LANGUAGE));
   }, [data, setInitialEditorContent]);
 
   const loadError = !enabled

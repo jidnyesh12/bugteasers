@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { GeneratedProblem } from '@/lib/ai/types';
 import { generateProblems } from '@/lib/api/problems-client';
+import { EXECUTION_LANGUAGE_LABELS, SUPPORTED_EXECUTION_LANGUAGES } from '@/lib/execution/languages';
+import type { SupportedLanguage } from '@/lib/execution/types';
 
 interface ProblemGeneratorFormProps {
   onGenerate: (problems: GeneratedProblem[]) => void;
@@ -24,7 +26,7 @@ export default function ProblemGeneratorForm({
   const [tags, setTags] = useState('');
   const [constraints, setConstraints] = useState('');
   const [numProblems, setNumProblems] = useState(1);
-  const [languages, setLanguages] = useState<string[]>(['python', 'javascript']);
+  const [languages, setLanguages] = useState<SupportedLanguage[]>([...SUPPORTED_EXECUTION_LANGUAGES]);
   const [error, setError] = useState('');
   const { mutateAsync: generateProblemsAsync, isPending: internalLoading } = useMutation({
     mutationFn: generateProblems,
@@ -57,19 +59,19 @@ export default function ProblemGeneratorForm({
     }
   };
 
-  const toggleLanguage = (lang: string) => {
-    setLanguages((prev) =>
-      prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang]
-    );
-  };
-
   const difficultyOptions: { value: 'easy' | 'medium' | 'hard'; label: string; color: string }[] = [
     { value: 'easy', label: 'Easy', color: '#1DB97A' },
     { value: 'medium', label: 'Medium', color: '#F39C12' },
     { value: 'hard', label: 'Hard', color: '#E74C3C' },
   ];
 
-  const allLanguages = ['python', 'javascript', 'typescript', 'java', 'cpp', 'c'];
+  const toggleLanguage = (lang: SupportedLanguage) => {
+    setLanguages((prev) =>
+      prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang]
+    );
+  };
+
+  const allLanguages = SUPPORTED_EXECUTION_LANGUAGES;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -146,7 +148,7 @@ export default function ProblemGeneratorForm({
                     : 'bg-white border-[var(--border-primary)] text-[var(--text-secondary)] hover:border-[var(--border-secondary)]'
                   }`}
               >
-                {lang === 'cpp' ? 'C++' : lang.charAt(0).toUpperCase() + lang.slice(1)}
+                {EXECUTION_LANGUAGE_LABELS[lang]}
               </button>
             );
           })}

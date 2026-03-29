@@ -12,7 +12,6 @@ export interface Problem {
   difficulty: 'easy' | 'medium' | 'hard';
   tags: string[];
   hints: string[];
-  starter_code: string;
   test_cases: TestCase[];
   constraints: string;
   time_limit: number;

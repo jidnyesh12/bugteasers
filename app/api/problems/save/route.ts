@@ -43,7 +43,6 @@ export async function POST(request: Request) {
                     hints: problem.hints,
                     time_limit: problem.time_limit,
                     memory_limit: problem.memory_limit,
-                    starter_code: problem.starter_code || null,
                     solution_code: problem.solution_code,
                 })
                 .select()

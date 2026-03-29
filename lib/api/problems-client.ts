@@ -1,5 +1,6 @@
 import { ExecutionHttpError } from './execution-client';
 import type { GeneratedProblem } from '@/lib/ai/types';
+import type { SupportedLanguage } from '@/lib/execution/types';
 
 interface ProblemDetailResponse<TProblem> {
   problem: TProblem;
@@ -76,7 +77,7 @@ export async function generateProblems(input: {
   tags?: string[];
   constraints?: string;
   numProblems: number;
-  languages: string[];
+  languages: SupportedLanguage[];
 }): Promise<GeneratedProblem[]> {
   const response = await fetch('/api/problems/generate', {
     method: 'POST',

@@ -6,6 +6,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { generateProblems } from '@/lib/ai/problem-generator';
 import { ProblemGenerationRequest } from '@/lib/ai/types';
 import { GEMINI_API_KEY } from '@/lib/env';
+import { dedupeSupportedLanguages, SUPPORTED_EXECUTION_LANGUAGES } from '@/lib/execution/languages';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,6 +43,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const rawLanguages = Array.isArray((body as { languages?: unknown }).languages)
+      ? (body as { languages: unknown[] }).languages.filter(
+        (language): language is string => typeof language === 'string'
+      )
+      : [];
+
+    const requestedLanguages = dedupeSupportedLanguages(rawLanguages);
+    const languages = requestedLanguages.length > 0
+      ? requestedLanguages
+      : [...SUPPORTED_EXECUTION_LANGUAGES];
+
     // Check if Gemini API key is configured
     if (!GEMINI_API_KEY) {
       return NextResponse.json(
@@ -57,7 +69,7 @@ export async function POST(request: NextRequest) {
       tags: body.tags || [],
       constraints: body.constraints,
       numProblems: body.numProblems || 1,
-      languages: body.languages || ['python', 'javascript', 'java', 'cpp'],
+      languages,
     });
 
     return NextResponse.json(result, { status: 200 });

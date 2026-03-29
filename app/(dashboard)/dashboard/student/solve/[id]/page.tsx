@@ -256,14 +256,8 @@ export default function SolveProblemPage() {
   });
 
   const getStarterCode = useCallback((targetLanguage: SupportedLanguage) => {
-    const hasProblemStarter = typeof problem?.starter_code === 'string' && problem.starter_code.trim();
-
-    if (targetLanguage === 'cpp' && hasProblemStarter) {
-      return problem.starter_code;
-    }
-
     return getDefaultStarterCode(targetLanguage);
-  }, [problem]);
+  }, []);
 
   useEffect(() => {
     if (!problem) {
@@ -338,11 +332,10 @@ export default function SolveProblemPage() {
   const handleLoadSubmissionCode = useCallback((submission: ProblemSubmissionDisplayItem) => {
     const targetLanguage = normalizeSupportedLanguage(submission.language);
     if (!targetLanguage) {
-      toast(`Cannot load submission: unsupported language \"${submission.language}\".`, 'warning');
+      toast(`Cannot load submission: unsupported language "${submission.language}".`, 'warning');
       return;
     }
 
-    // Preserve current editor work before switching to another language submission.
     if (targetLanguage !== language) {
       setDraft(draftStorageKey, codeRef.current);
       pendingSubmissionNeedsBaseRemountRef.current = true;
@@ -350,6 +343,12 @@ export default function SolveProblemPage() {
         language: targetLanguage,
         code: submission.code,
       });
+      const targetDraftStorageKey = buildSolveEditorDraftKey({
+        userId: profile?.id ?? null,
+        problemId: params.id,
+        language: targetLanguage,
+      });
+      setDraft(targetDraftStorageKey, submission.code);
       setLanguage(targetLanguage);
       return;
     }
@@ -361,8 +360,10 @@ export default function SolveProblemPage() {
     codeRef,
     draftStorageKey,
     language,
-    setPendingSubmissionLoad,
+    params.id,
+    profile?.id,
     setDraft,
+    setPendingSubmissionLoad,
     setEditorContent,
     setLanguage,
     toast,

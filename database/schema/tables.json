@@ -394,14 +394,6 @@
     {
       "table_schema": "public",
       "table_name": "problems",
-      "column_name": "starter_code",
-      "data_type": "jsonb",
-      "is_nullable": "YES",
-      "column_default": null
-    },
-    {
-      "table_schema": "public",
-      "table_name": "problems",
       "column_name": "solution_code",
       "data_type": "text",
       "is_nullable": "YES",

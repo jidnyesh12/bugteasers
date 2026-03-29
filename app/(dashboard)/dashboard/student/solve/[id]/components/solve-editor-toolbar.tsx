@@ -1,6 +1,12 @@
 'use client';
 
 import { LoadingSpinner } from '@/components/ui/loading';
+import {
+  EXECUTION_FILE_EXTENSIONS,
+  EXECUTION_LANGUAGE_LABELS,
+  SUPPORTED_EXECUTION_LANGUAGES,
+  normalizeSupportedLanguage,
+} from '@/lib/execution/languages';
 import type { SupportedLanguage } from '@/lib/execution/types';
 
 interface SolveEditorToolbarProps {
@@ -11,22 +17,6 @@ interface SolveEditorToolbarProps {
   onSubmit: () => void;
   isRunning: boolean;
   isSubmitting: boolean;
-}
-
-function getFileExtension(language: SupportedLanguage): string {
-  if (language === 'cpp') {
-    return 'cpp';
-  }
-
-  if (language === 'java') {
-    return 'java';
-  }
-
-  if (language === 'python') {
-    return 'py';
-  }
-
-  return 'c';
 }
 
 export function SolveEditorToolbar({
@@ -46,15 +36,21 @@ export function SolveEditorToolbar({
       <div className="flex items-center gap-3">
         <select
           value={language}
-          onChange={(event) => onLanguageChange(event.target.value as SupportedLanguage)}
+          onChange={(event) => {
+            const nextLanguage = normalizeSupportedLanguage(event.target.value);
+            if (nextLanguage) {
+              onLanguageChange(nextLanguage);
+            }
+          }}
           className="bg-[#3c3c3c] text-gray-300 text-xs font-mono px-3 py-1.5 rounded-md border border-[#555] focus:outline-none focus:border-[var(--accent-primary)] cursor-pointer"
         >
-          <option value="cpp">C++</option>
-          <option value="c">C</option>
-          <option value="python">Python</option>
-          <option value="java">Java</option>
+          {SUPPORTED_EXECUTION_LANGUAGES.map((supportedLanguage) => (
+            <option key={supportedLanguage} value={supportedLanguage}>
+              {EXECUTION_LANGUAGE_LABELS[supportedLanguage]}
+            </option>
+          ))}
         </select>
-        <span className="text-[10px] text-gray-500 font-mono">solution.{getFileExtension(language)}</span>
+        <span className="text-[10px] text-gray-500 font-mono">solution.{EXECUTION_FILE_EXTENSIONS[language]}</span>
       </div>
       <div className="flex items-center gap-2">
         <button

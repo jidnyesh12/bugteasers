@@ -3,6 +3,7 @@ import * as fc from 'fast-check';
 import { NextRequest } from 'next/server';
 import { POST as runPost } from '@/app/api/problems/[id]/run/route';
 import { POST as submitPost } from '@/app/api/problems/[id]/submit/route';
+import { SUPPORTED_EXECUTION_LANGUAGES } from '@/lib/execution/languages';
 
 vi.mock('next-auth', async (importOriginal) => {
   const actual = await importOriginal<typeof import('next-auth')>();
@@ -35,7 +36,7 @@ describe('Execution API Security and Validation Properties', () => {
     await fc.assert(
       fc.asyncProperty(
         fc.string({ minLength: 1, maxLength: 300 }),
-        fc.constantFrom('python', 'java', 'cpp', 'c'),
+        fc.constantFrom(...SUPPORTED_EXECUTION_LANGUAGES),
         async (code, language) => {
           const runRequest = new NextRequest('http://localhost:3000/api/problems/problem-1/run', {
             method: 'POST',

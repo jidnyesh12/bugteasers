@@ -52,10 +52,10 @@ describe('PistonClient Unit Tests', () => {
       }).toThrow(UnsupportedLanguageError);
     });
 
-    it('should throw UnsupportedLanguageError for javascript', () => {
+    it('should throw UnsupportedLanguageError for go', () => {
       expect(() => {
         // @ts-expect-error Testing invalid input
-        client.mapLanguage('javascript');
+        client.mapLanguage('go');
       }).toThrow(UnsupportedLanguageError);
     });
   });

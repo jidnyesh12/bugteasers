@@ -8,6 +8,9 @@ import type {
 } from '@/lib/execution/types';
 import { UnsupportedLanguageError, InvalidResponseError } from '@/lib/execution/types';
 import { PistonClientImpl } from '@/lib/execution/client';
+import { SUPPORTED_EXECUTION_LANGUAGES } from '@/lib/execution/languages';
+
+const SUPPORTED_LANGUAGE_SET = new Set<string>(SUPPORTED_EXECUTION_LANGUAGES);
 
 describe('Language Mapping is Correct and Complete', () => {
   const client = new PistonClientImpl({
@@ -19,7 +22,7 @@ describe('Language Mapping is Correct and Complete', () => {
   it('should map all supported languages to valid Piston languages', () => {
     fc.assert(
       fc.property(
-        fc.constantFrom<SupportedLanguage>('python', 'java', 'cpp', 'c'),
+        fc.constantFrom<SupportedLanguage>(...SUPPORTED_EXECUTION_LANGUAGES),
         (language) => {
           const pistonLanguage = client.mapLanguage(language);
           
@@ -47,9 +50,8 @@ describe('Language Mapping is Correct and Complete', () => {
       fc.property(
         fc.string().filter(s => {
           // Exclude valid languages and object property names
-          const validLanguages = ['python', 'java', 'cpp', 'c'];
           const objectProperties = ['toString', 'valueOf', 'constructor', 'hasOwnProperty', '__proto__', '__defineGetter__', '__defineSetter__', '__lookupGetter__', '__lookupSetter__'];
-          return !validLanguages.includes(s) && !objectProperties.includes(s) && s.length > 0;
+          return !SUPPORTED_LANGUAGE_SET.has(s) && !objectProperties.includes(s) && s.length > 0;
         }),
         (invalidLanguage) => {
           expect(() => {
@@ -66,7 +68,7 @@ describe('Language Mapping is Correct and Complete', () => {
   it('should be deterministic - same input always produces same output', () => {
     fc.assert(
       fc.property(
-        fc.constantFrom<SupportedLanguage>('python', 'java', 'cpp', 'c'),
+        fc.constantFrom<SupportedLanguage>(...SUPPORTED_EXECUTION_LANGUAGES),
         (language) => {
           const result1 = client.mapLanguage(language);
           const result2 = client.mapLanguage(language);

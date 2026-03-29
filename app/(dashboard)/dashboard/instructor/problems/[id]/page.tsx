@@ -31,7 +31,6 @@ interface ProblemDetail {
   hints: string[] | null;
   examples: unknown | null;
   test_cases: TestCase[];
-  starter_code: Record<string, string> | null;
   solution_code: string | null;
   time_limit: number;
   memory_limit: number;
@@ -217,25 +216,6 @@ export default function ProblemDetailPage() {
                   <span className="font-bold text-[var(--text-primary)] text-sm">Hint {i + 1}</span>
                 </div>
                 <MarkdownRenderer content={hint} className="text-sm text-[var(--text-secondary)]" />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Starter Code */}
-      {problem.starter_code && Object.keys(problem.starter_code).length > 0 && (
-        <div className="bg-white border border-[var(--border-primary)] rounded-2xl p-6 mb-6">
-          <h2 className="text-base font-black tracking-tight text-[var(--text-primary)] mb-4">Starter Code</h2>
-          <div className="space-y-4">
-            {Object.entries(problem.starter_code).map(([language, code]) => (
-              <div key={language}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-[var(--text-secondary)] uppercase">{language}</span>
-                </div>
-                <pre className="bg-[var(--bg-tertiary)] p-4 rounded-xl overflow-x-auto">
-                  <code className="text-sm text-[var(--text-primary)]">{code}</code>
-                </pre>
               </div>
             ))}
           </div>

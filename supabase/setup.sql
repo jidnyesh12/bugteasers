@@ -117,7 +117,7 @@ END $$;
 
 DO $$ BEGIN
   CREATE TYPE programming_language AS ENUM (
-    'python', 'javascript', 'typescript', 'java', 'cpp', 'c'
+    'python', 'java', 'cpp', 'c'
   );
 EXCEPTION
   WHEN duplicate_object THEN NULL;
@@ -140,7 +140,6 @@ CREATE TABLE IF NOT EXISTS public.problems (
   time_limit     INTEGER NOT NULL DEFAULT 2000,   -- milliseconds
   memory_limit   INTEGER NOT NULL DEFAULT 256,    -- MB
   usage_count    INTEGER NOT NULL DEFAULT 0,
-  starter_code   TEXT,
   solution_code  TEXT,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()

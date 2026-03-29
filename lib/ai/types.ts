@@ -1,12 +1,14 @@
 // Types for AI problem generation
 
+import type { SupportedLanguage } from '@/lib/execution/types';
+
 export interface ProblemGenerationRequest {
   topic: string;
   difficulty: 'easy' | 'medium' | 'hard';
   tags?: string[];
   constraints?: string;
   numProblems?: number; // For batch generation
-  languages?: string[]; // Programming languages to generate starter code for
+  languages?: SupportedLanguage[]; // Supported solve languages for generated problem context
 }
 
 export interface GeneratedTestCase {
@@ -30,10 +32,7 @@ export interface GeneratedProblem {
   hints: string[];
   time_limit: number; // milliseconds
   memory_limit: number; // MB
-  starter_code: {
-    [language: string]: string; // e.g., { python: "def solution():", javascript: "function solution() {" }
-  };
-  solution_code: string; // Reference solution in one language
+  solution_code: string; // Complete reference solution in one supported language
   test_cases: GeneratedTestCase[];
 }
 

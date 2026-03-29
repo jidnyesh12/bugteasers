@@ -17,7 +17,7 @@ describe('execution language utilities', () => {
   });
 
   it('returns null for unsupported values', () => {
-    expect(normalizeSupportedLanguage('javascript')).toBeNull();
+    expect(normalizeSupportedLanguage('ruby')).toBeNull();
     expect(normalizeSupportedLanguage('')).toBeNull();
     expect(normalizeSupportedLanguage('   ')).toBeNull();
   });
