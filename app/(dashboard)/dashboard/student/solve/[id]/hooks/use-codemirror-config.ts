@@ -3,11 +3,13 @@ import type { SupportedLanguage } from '@/lib/execution/types';
 import { python } from '@codemirror/lang-python';
 import { java } from '@codemirror/lang-java';
 import { cpp } from '@codemirror/lang-cpp';
+import { acceptCompletion, autocompletion } from '@codemirror/autocomplete';
 import { vscodeDark } from '@uiw/codemirror-theme-vscode';
 import { EditorView, keymap } from '@codemirror/view';
 import { indentWithTab, insertNewlineAndIndent } from '@codemirror/commands';
 import { EditorState, Prec } from '@codemirror/state';
 import { indentUnit } from '@codemirror/language';
+import { getLanguageAutocompleteData } from '../utils/editor-autocomplete';
 
 interface UseCodeMirrorConfigOptions {
   language: SupportedLanguage;
@@ -15,6 +17,18 @@ interface UseCodeMirrorConfigOptions {
 
 export function useCodeMirrorConfig(options: UseCodeMirrorConfigOptions) {
   const { language } = options;
+
+  const acceptCompletionOrIndent = useMemo(
+    () => (view: EditorView) =>
+      acceptCompletion(view) || (indentWithTab.run?.(view) ?? false),
+    []
+  );
+
+  const acceptCompletionOrNewline = useMemo(
+    () => (view: EditorView) =>
+      acceptCompletion(view) || insertNewlineAndIndent(view),
+    []
+  );
 
   const languageExtension = useMemo(() => {
     switch (language) {
@@ -38,20 +52,31 @@ export function useCodeMirrorConfig(options: UseCodeMirrorConfigOptions) {
   }), []);
 
   const editorKeymapExt = useMemo(() => Prec.highest(keymap.of([
+    { key: 'Tab', run: acceptCompletionOrIndent },
     indentWithTab,
-    { key: 'Enter', run: insertNewlineAndIndent, shift: insertNewlineAndIndent },
-  ])), []);
+    { key: 'Enter', run: acceptCompletionOrNewline, shift: insertNewlineAndIndent },
+  ])), [acceptCompletionOrIndent, acceptCompletionOrNewline]);
 
   const editorTabSizeExt = useMemo(() => EditorState.tabSize.of(4), []);
   const editorIndentUnitExt = useMemo(() => indentUnit.of('    '), []);
+  const languageAutocompleteDataExt = useMemo(
+    () => getLanguageAutocompleteData(language),
+    [language]
+  );
+  const editorAutocompleteExt = useMemo(
+    () => autocompletion({ activateOnTyping: true }),
+    []
+  );
 
   const editorExtensions = useMemo(() => [
     editorKeymapExt,
     languageExtension,
+    languageAutocompleteDataExt,
+    editorAutocompleteExt,
     editorThemeExt,
     editorTabSizeExt,
     editorIndentUnitExt,
-  ], [editorIndentUnitExt, editorKeymapExt, editorTabSizeExt, editorThemeExt, languageExtension]);
+  ], [editorAutocompleteExt, editorIndentUnitExt, editorKeymapExt, editorTabSizeExt, editorThemeExt, languageAutocompleteDataExt, languageExtension]);
 
   const editorBasicSetup = useMemo(() => ({
     lineNumbers: true,
@@ -63,7 +88,7 @@ export function useCodeMirrorConfig(options: UseCodeMirrorConfigOptions) {
     indentOnInput: true,
     bracketMatching: true,
     closeBrackets: true,
-    autocompletion: true,
+    autocompletion: false,
     rectangularSelection: true,
     crosshairCursor: false,
     highlightSelectionMatches: true,
