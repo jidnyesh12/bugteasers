@@ -1,11 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
+import { addProblemToAssignment, fetchAssignments } from '@/lib/api/assignments-client';
+import { fetchProblemDetail } from '@/lib/api/problems-client';
+import { queryKeys } from '@/lib/state/query';
 
 import { MarkdownRenderer } from '@/components/markdown-renderer';
 
@@ -45,17 +49,38 @@ export default function ProblemDetailPage() {
   const router = useRouter();
   const params = useParams();
   const { profile, loading: authLoading, initialized } = useAuth();
-  const [problem, setProblem] = useState<ProblemDetail | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const problemId = String(params.id);
+  const queryClient = useQueryClient();
   
   // Add to Assignment State
   const { toast } = useToast();
   const [showAddModal, setShowAddModal] = useState(false);
-  const [assignments, setAssignments] = useState<{id: string, title: string}[]>([]);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('');
-  const [isAdding, setIsAdding] = useState(false);
-  const [loadingAssignments, setLoadingAssignments] = useState(false);
+
+  const {
+    data: problem,
+    isFetching: isProblemLoading,
+    error,
+  } = useQuery<ProblemDetail>({
+    queryKey: queryKeys.problems.detail(problemId),
+    queryFn: () => fetchProblemDetail<ProblemDetail>(problemId),
+    enabled: profile?.role === 'instructor',
+  });
+
+  const {
+    data: assignments = [],
+    isFetching: loadingAssignments,
+    refetch: refetchAssignments,
+  } = useQuery<{ id: string; title: string }[]>({
+    queryKey: queryKeys.assignments.mine,
+    queryFn: () => fetchAssignments<{ id: string; title: string }>(),
+    enabled: profile?.role === 'instructor' && showAddModal,
+  });
+
+  const { mutateAsync: addProblemToAssignmentAsync, isPending: isAdding } = useMutation({
+    mutationFn: ({ assignmentId, selectedProblemId }: { assignmentId: string; selectedProblemId: string }) =>
+      addProblemToAssignment(assignmentId, selectedProblemId),
+  });
 
   // CRITICAL: Protect route - only instructors can access
   useEffect(() => {
@@ -72,80 +97,20 @@ export default function ProblemDetailPage() {
     }
   }, [profile, authLoading, initialized, router]);
 
-  const loadProblem = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const res = await fetch(`/api/problems/${params.id}`);
-      
-      if (!res.ok) {
-        if (res.status === 404) {
-          setError('Problem not found');
-        } else {
-          setError('Failed to load problem');
-        }
-        setIsLoading(false);
-        return;
-      }
-
-      const data = await res.json();
-      setProblem(data.problem);
-    } catch (err) {
-      console.error('Error loading problem:', err);
-      setError('Failed to load problem');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [params.id]);
-
-  useEffect(() => {
-    if (params.id && profile?.role === 'instructor') {
-      loadProblem();
-    }
-  }, [params.id, profile?.role, loadProblem]);
-
-  const loadAssignments = async () => {
-    try {
-      setLoadingAssignments(true);
-      const res = await fetch('/api/assignments');
-      const data = await res.json();
-      if (res.ok) {
-        setAssignments(data.assignments || []);
-      } else {
-        toast('Failed to load assignments', 'error');
-      }
-    } catch {
-      toast('Network error', 'error');
-    } finally {
-      setLoadingAssignments(false);
-    }
-  };
-
   const handleAddToAssignment = async () => {
     if (!selectedAssignmentId) {
       toast('Select an assignment', 'warning');
       return;
     }
     try {
-      setIsAdding(true);
-      const res = await fetch(`/api/assignments/${selectedAssignmentId}/problems`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ problem_id: params.id }),
-      });
-      
-      if (res.ok) {
-        toast('Problem added to assignment', 'success');
-        setShowAddModal(false);
-      } else {
-        const data = await res.json();
-        toast(data.error || 'Failed to add', 'error');
-      }
-    } catch {
-      toast('Network error', 'error');
-    } finally {
-      setIsAdding(false);
+      await addProblemToAssignmentAsync({ assignmentId: selectedAssignmentId, selectedProblemId: problemId });
+      toast('Problem added to assignment', 'success');
+      setShowAddModal(false);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.assignments.mine });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.assignments.detail(selectedAssignmentId) });
+    } catch (mutationError) {
+      const message = mutationError instanceof Error ? mutationError.message : 'Failed to add';
+      toast(message, 'error');
     }
   };
 
@@ -153,11 +118,17 @@ export default function ProblemDetailPage() {
     return <FullPageLoader />;
   }
 
-  if (isLoading) {
+  if (isProblemLoading) {
     return <FullPageLoader />;
   }
 
-  if (error || !problem) {
+  const errorMessage = error instanceof Error
+    ? error.message
+    : error
+      ? 'Problem not found'
+      : null;
+
+  if (errorMessage || !problem) {
     return (
       <div className="p-6 lg:p-8 max-w-7xl mx-auto">
         <div className="bg-white border border-[var(--border-primary)] rounded-2xl p-8 text-center">
@@ -168,7 +139,7 @@ export default function ProblemDetailPage() {
               <line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">{error || 'Problem not found'}</h2>
+          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">{errorMessage || 'Problem not found'}</h2>
           <p className="text-[var(--text-muted)] mb-6">This problem may have been deleted or you don&apos;t have access to it.</p>
           <Button onClick={() => router.push('/dashboard/instructor/problems')}>
             Back to Problems
@@ -210,7 +181,7 @@ export default function ProblemDetailPage() {
           <Button 
             onClick={() => {
               setShowAddModal(true);
-              loadAssignments();
+              void refetchAssignments();
             }}
           >
             Add to Assignment

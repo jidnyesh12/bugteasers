@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
 import { Button } from '@/components/ui/button';
 import type { Assignment } from '@/lib/types';
+import { fetchAssignments } from '@/lib/api/assignments-client';
+import { queryKeys } from '@/lib/state/query';
 
 interface AssignmentWithCounts extends Assignment {
   problem_count?: number;
@@ -15,35 +18,23 @@ interface AssignmentWithCounts extends Assignment {
 export default function AssignmentsPage() {
   const router = useRouter();
   const { profile, loading: authLoading, initialized } = useAuth();
-  const [assignments, setAssignments] = useState<AssignmentWithCounts[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    data: assignments = [],
+    isPending,
+    isFetching,
+  } = useQuery<AssignmentWithCounts[]>({
+    queryKey: queryKeys.assignments.mine,
+    queryFn: () => fetchAssignments<AssignmentWithCounts>(),
+    enabled: profile?.role === 'instructor',
+  });
+
+  const isLoading = isPending || isFetching;
 
   useEffect(() => {
     if (!initialized || authLoading) return;
     if (!profile) { router.replace('/login'); return; }
     if (profile.role !== 'instructor') { router.replace('/dashboard/student'); return; }
   }, [profile, authLoading, initialized, router]);
-
-  useEffect(() => {
-    if (profile?.role === 'instructor') {
-      loadAssignments();
-    }
-  }, [profile?.role]);
-
-  const loadAssignments = async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch('/api/assignments');
-      const data = await res.json();
-      if (res.ok) {
-        setAssignments(data.assignments || []);
-      }
-    } catch (error) {
-      console.error('Error loading assignments:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const formatDeadline = (deadline: string) => {
     const date = new Date(deadline);

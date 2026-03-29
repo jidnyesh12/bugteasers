@@ -1,9 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
+import { fetchProblems } from '@/lib/api/problems-client';
+import { queryKeys } from '@/lib/state/query';
 
 interface Problem {
   id: string;
@@ -23,31 +26,23 @@ const difficultyConfig = {
 export default function ProblemsPage() {
   const router = useRouter();
   const { profile, loading: authLoading, initialized } = useAuth();
-  const [problems, setProblems] = useState<Problem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    data: problems = [],
+    isPending,
+    isFetching,
+  } = useQuery<Problem[]>({
+    queryKey: queryKeys.problems.mine,
+    queryFn: () => fetchProblems<Problem>({ mine: true }),
+    enabled: profile?.role === 'instructor',
+  });
+
+  const isLoading = isPending || isFetching;
 
   useEffect(() => {
     if (!initialized || authLoading) return
     if (!profile) { router.replace('/login'); return }
     if (profile.role !== 'instructor') { router.replace('/dashboard/student'); return }
   }, [profile, authLoading, initialized, router])
-
-  useEffect(() => {
-    if (profile?.id && profile.role === 'instructor') { loadProblems(); }
-  }, [profile?.id, profile?.role]);
-
-  const loadProblems = async () => {
-    try {
-      const res = await fetch('/api/problems?mine=true');
-      if (!res.ok) throw new Error('Failed to load problems');
-      const data = await res.json();
-      setProblems(data.problems || []);
-    } catch (error) {
-      console.error('Error loading problems:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   if (!initialized || authLoading || !profile) return <FullPageLoader />;
 

@@ -1,12 +1,21 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import type { Classroom, Assignment } from '@/lib/types';
+import {
+  fetchClassroomAssignments,
+  fetchClassroomDetail,
+  fetchClassroomStudents,
+  removeClassroomStudent,
+} from '@/lib/api/classrooms-client';
+import { queryKeys } from '@/lib/state/query';
+import { unassignAssignmentFromClassroom } from '@/lib/api/assignments-client';
 
 interface Student {
   id: string;
@@ -28,59 +37,52 @@ export default function ClassroomDetailsPage() {
   const params = useParams<{ id: string }>();
   const { profile, loading: authLoading, initialized } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   const [activeTab, setActiveTab] = useState<'students' | 'assignments'>('students');
-  const [classroom, setClassroom] = useState<Classroom | null>(null);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [assignments, setAssignments] = useState<ClassroomAssignment[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+
+  const {
+    data: classroom,
+    isFetching: isClassroomLoading,
+  } = useQuery<Classroom>({
+    queryKey: queryKeys.classrooms.detail(params.id),
+    queryFn: () => fetchClassroomDetail<Classroom>(params.id),
+    enabled: profile?.role === 'instructor',
+  });
+
+  const {
+    data: students = [],
+    isFetching: isStudentsLoading,
+  } = useQuery<Student[]>({
+    queryKey: queryKeys.classrooms.students(params.id),
+    queryFn: () => fetchClassroomStudents<Student>(params.id),
+    enabled: profile?.role === 'instructor',
+  });
+
+  const {
+    data: assignments = [],
+    isFetching: isAssignmentsLoading,
+  } = useQuery<ClassroomAssignment[]>({
+    queryKey: queryKeys.classrooms.assignments(params.id),
+    queryFn: () => fetchClassroomAssignments<ClassroomAssignment>(params.id),
+    enabled: profile?.role === 'instructor',
+  });
+
+  const { mutateAsync: removeStudentAsync } = useMutation({
+    mutationFn: ({ classroomId, studentId }: { classroomId: string; studentId: string }) =>
+      removeClassroomStudent(classroomId, studentId),
+  });
+
+  const { mutateAsync: unassignAssignmentAsync } = useMutation({
+    mutationFn: ({ assignmentId, classroomId }: { assignmentId: string; classroomId: string }) =>
+      unassignAssignmentFromClassroom(assignmentId, classroomId),
+  });
 
   useEffect(() => {
     if (!initialized || authLoading) return;
     if (!profile) { router.replace('/login'); return; }
     if (profile.role !== 'instructor') { router.replace('/dashboard/student'); return; }
   }, [profile, authLoading, initialized, router]);
-
-  const loadClassroomData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      
-      // Load classroom details
-      const classroomRes = await fetch(`/api/classrooms/${params.id}`);
-      if (!classroomRes.ok) throw new Error('Failed to load classroom');
-      const classroomData = await classroomRes.json();
-      setClassroom(classroomData.classroom);
-
-      // Load students and assignments in parallel
-      const [studentsRes, assignmentsRes] = await Promise.all([
-        fetch(`/api/classrooms/${params.id}/students`),
-        fetch(`/api/classrooms/${params.id}/assignments`)
-      ]);
-
-      if (studentsRes.ok) {
-        const studentsData = await studentsRes.json();
-        setStudents(studentsData.students || []);
-      }
-
-      if (assignmentsRes.ok) {
-        const assignmentsData = await assignmentsRes.json();
-        setAssignments(assignmentsData.assignments || []);
-      }
-
-    } catch (error) {
-      console.error('Error loading classroom data:', error);
-      toast('Failed to load classroom details', 'error');
-      router.push('/dashboard/instructor/classrooms');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [params.id, router, toast]);
-
-  useEffect(() => {
-    if (profile?.role === 'instructor') {
-      loadClassroomData();
-    }
-  }, [profile?.role, loadClassroomData]);
 
   const handleCopyCode = () => {
     if (classroom?.join_code) {
@@ -92,16 +94,18 @@ export default function ClassroomDetailsPage() {
   const handleRemoveStudent = async (studentId: string) => {
     if (!confirm('Are you sure you want to remove this student?')) return;
 
+    const studentsQueryKey = queryKeys.classrooms.students(params.id);
+    const previousStudents = queryClient.getQueryData<Student[]>(studentsQueryKey);
+
     try {
-      const res = await fetch(`/api/classrooms/${params.id}/students?student_id=${studentId}`, {
-        method: 'DELETE',
-      });
-
-      if (!res.ok) throw new Error('Failed to remove student');
-
-      setStudents(prev => prev.filter(s => s.student.id !== studentId));
+      queryClient.setQueryData<Student[]>(studentsQueryKey, (current) =>
+        (current ?? []).filter((entry) => entry.student.id !== studentId)
+      );
+      await removeStudentAsync({ classroomId: params.id, studentId });
+      await queryClient.invalidateQueries({ queryKey: studentsQueryKey });
       toast('Student removed', 'success');
     } catch (error) {
+      queryClient.setQueryData(studentsQueryKey, previousStudents);
       console.error('Error removing student:', error);
       toast('Failed to remove student', 'error');
     }
@@ -110,22 +114,24 @@ export default function ClassroomDetailsPage() {
   const handleUnassign = async (assignmentId: string) => {
     if (!confirm('Are you sure you want to remove this assignment from the classroom?')) return;
 
+    const assignmentsQueryKey = queryKeys.classrooms.assignments(params.id);
+    const previousAssignments = queryClient.getQueryData<ClassroomAssignment[]>(assignmentsQueryKey);
+
     try {
-      const res = await fetch(`/api/assignments/${assignmentId}/assign?classroom_id=${params.id}`, {
-        method: 'DELETE',
-      });
-
-      if (!res.ok) throw new Error('Failed to remove assignment');
-
-      setAssignments(prev => prev.filter(a => a.id !== assignmentId));
+      queryClient.setQueryData<ClassroomAssignment[]>(assignmentsQueryKey, (current) =>
+        (current ?? []).filter((entry) => entry.id !== assignmentId)
+      );
+      await unassignAssignmentAsync({ assignmentId, classroomId: params.id });
+      await queryClient.invalidateQueries({ queryKey: assignmentsQueryKey });
       toast('Assignment removed', 'success');
     } catch (error) {
+      queryClient.setQueryData(assignmentsQueryKey, previousAssignments);
       console.error('Error removing assignment:', error);
       toast('Failed to remove assignment', 'error');
     }
   };
 
-  if (!initialized || authLoading || !profile || isLoading) return <FullPageLoader />;
+  if (!initialized || authLoading || !profile || isClassroomLoading || isStudentsLoading || isAssignmentsLoading) return <FullPageLoader />;
   if (!classroom) return null;
 
   return (

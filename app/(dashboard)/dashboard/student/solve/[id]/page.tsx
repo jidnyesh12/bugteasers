@@ -87,6 +87,7 @@ export default function SolveProblemPage() {
     problemId: params.id,
     setInitialEditorContent,
     toast,
+    enabled: profile?.role === 'student',
   });
 
   const [outputTab, setOutputTab] = useState<'testcase' | 'result'>('result');
@@ -209,12 +210,6 @@ export default function SolveProblemPage() {
     if (!profile) { router.replace('/login'); return; }
     if (profile.role !== 'student') { router.replace('/dashboard/instructor'); return; }
   }, [profile, authLoading, initialized, router]);
-
-  useEffect(() => {
-    if (profile?.role === 'student') {
-      void loadProblem();
-    }
-  }, [profile?.role, loadProblem]);
 
   const handleRunClick = useCallback(() => {
     setOutputTab('result');

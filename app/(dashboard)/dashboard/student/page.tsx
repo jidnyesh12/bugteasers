@@ -2,11 +2,23 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/lib/auth/auth-context'
 import { FullPageLoader } from '@/components/ui/loading'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
+import { fetchClassrooms, joinClassroom } from '@/lib/api/classrooms-client'
+import { queryKeys } from '@/lib/state/query'
+
+interface EnrolledClassroom {
+  id: string;
+  classroom?: {
+    id: string;
+    name: string;
+  };
+  joined_at: string;
+}
 
 const stats = [
   {
@@ -62,38 +74,29 @@ export default function StudentDashboard() {
   const { profile, loading, initialized } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
+  const queryClient = useQueryClient()
 
-  const [classrooms, setClassrooms] = useState<{ id: string; classroom?: { id: string; name: string }; joined_at: string }[]>([])
-  const [loadingClassrooms, setLoadingClassrooms] = useState(true)
   const [showJoinModal, setShowJoinModal] = useState(false)
   const [joinCode, setJoinCode] = useState('')
-  const [joining, setJoining] = useState(false)
+
+  const {
+    data: classrooms = [],
+    isFetching: loadingClassrooms,
+  } = useQuery<EnrolledClassroom[]>({
+    queryKey: queryKeys.classrooms.studentMine,
+    queryFn: () => fetchClassrooms<EnrolledClassroom>(),
+    enabled: profile?.role === 'student',
+  })
+
+  const { mutateAsync: joinClassroomAsync, isPending: joining } = useMutation({
+    mutationFn: joinClassroom,
+  })
 
   useEffect(() => {
     if (!initialized || loading) return
     if (!profile) { router.replace('/login'); return }
     if (profile.role === 'instructor') { router.replace('/dashboard/instructor'); return }
   }, [profile, loading, initialized, router])
-
-  useEffect(() => {
-    if (profile?.role === 'student') {
-        fetchClassrooms()
-    }
-  }, [profile])
-
-  const fetchClassrooms = async () => {
-    try {
-        const res = await fetch('/api/classrooms')
-        const data = await res.json()
-        if (res.ok) {
-            setClassrooms(data.classrooms || [])
-        }
-    } catch (error) {
-        console.error('Failed to fetch classrooms', error)
-    } finally {
-        setLoadingClassrooms(false)
-    }
-  }
 
   const handleJoinClassroom = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -102,27 +105,15 @@ export default function StudentDashboard() {
         return
     }
 
-    setJoining(true)
     try {
-        const res = await fetch('/api/classrooms/join', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ join_code: joinCode })
-        })
-        const data = await res.json()
-
-        if (res.ok) {
-            toast('Successfully joined classroom!', 'success')
-            setShowJoinModal(false)
-            setJoinCode('')
-            fetchClassrooms() // Refresh list
-        } else {
-            toast(data.error || 'Failed to join', 'error')
-        }
-    } catch {
-        toast('Network error', 'error')
-    } finally {
-        setJoining(false)
+      await joinClassroomAsync({ join_code: joinCode })
+      toast('Successfully joined classroom!', 'success')
+      setShowJoinModal(false)
+      setJoinCode('')
+      await queryClient.invalidateQueries({ queryKey: queryKeys.classrooms.studentMine })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to join'
+      toast(message, 'error')
     }
   }
 

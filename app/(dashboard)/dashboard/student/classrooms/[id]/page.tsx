@@ -1,10 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
 import type { Assignment } from '@/lib/types';
+import { fetchClassroomAssignments, fetchClassrooms } from '@/lib/api/classrooms-client';
+import { queryKeys } from '@/lib/state/query';
 
 interface ClassroomAssignment extends Assignment {
   assigned_at: string;
@@ -21,9 +24,23 @@ export default function StudentClassroomDetailsPage() {
   const params = useParams<{ id: string }>();
   const { profile, loading: authLoading, initialized } = useAuth();
   
-  const [classroom, setClassroom] = useState<ClassroomDetails | null>(null);
-  const [assignments, setAssignments] = useState<ClassroomAssignment[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    data: enrolledClassrooms = [],
+    isFetching: isClassroomsLoading,
+  } = useQuery<{ id: string; classroom: ClassroomDetails }[]>({
+    queryKey: queryKeys.classrooms.studentMine,
+    queryFn: () => fetchClassrooms<{ id: string; classroom: ClassroomDetails }>(),
+    enabled: profile?.role === 'student',
+  });
+
+  const {
+    data: assignments = [],
+    isFetching: isAssignmentsLoading,
+  } = useQuery<ClassroomAssignment[]>({
+    queryKey: queryKeys.classrooms.assignments(params.id),
+    queryFn: () => fetchClassroomAssignments<ClassroomAssignment>(params.id),
+    enabled: profile?.role === 'student',
+  });
 
   useEffect(() => {
     if (!initialized || authLoading) return;
@@ -31,52 +48,17 @@ export default function StudentClassroomDetailsPage() {
     if (profile.role !== 'student') { router.replace('/dashboard/instructor'); return; }
   }, [profile, authLoading, initialized, router]);
 
-  const loadClassroomData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      // We need classroom details to verify access and show name
-      // The student can only view if enrolled.
-      // Using the students API I created earlier: GET /api/classrooms/[id]/students checks enrollment
-      // But that returns students list which student shouldn't see potentially (or maybe they can).
-      // Let's rely on assignments endpoint which checks enrollment.
-      // And I need a way to get just the classroom name safely.
-      // I'll assume the assignments endpoint or a new safe-details endpoint provides it.
-      // Actually, I can fetch from /api/classrooms which lists enrolled ones and find it there.
-      
-      const [classroomsRes, assignmentsRes] = await Promise.all([
-        fetch('/api/classrooms'), // Lists enrolled classrooms
-        fetch(`/api/classrooms/${params.id}/assignments`)
-      ]);
-
-      if (classroomsRes.ok) {
-        const data = await classroomsRes.json();
-        const enrolled = data.classrooms?.find((c: { classroom: { id: string } }) => c.classroom.id === params.id);
-        if (enrolled) {
-          setClassroom(enrolled.classroom);
-        } else {
-          // Not found in enrolled list -> access denied or invalid ID
-          router.replace('/dashboard/student/classrooms');
-          return;
-        }
-      }
-
-      if (assignmentsRes.ok) {
-        const data = await assignmentsRes.json();
-        setAssignments(data.assignments || []);
-      }
-
-    } catch (error) {
-      console.error('Error loading classroom data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [params.id, router]);
+  const classroom = enrolledClassrooms.find((item) => item.classroom?.id === params.id)?.classroom ?? null;
 
   useEffect(() => {
-    if (profile?.role === 'student') {
-      loadClassroomData();
+    if (profile?.role !== 'student') {
+      return;
     }
-  }, [profile?.role, loadClassroomData]);
+
+    if (!isClassroomsLoading && !classroom) {
+      router.replace('/dashboard/student/classrooms');
+    }
+  }, [classroom, isClassroomsLoading, profile?.role, router]);
 
   const formatDeadline = (deadline: string) => {
     const date = new Date(deadline);
@@ -86,7 +68,7 @@ export default function StudentClassroomDetailsPage() {
     return { formatted, isOverdue };
   };
 
-  if (!initialized || authLoading || !profile || isLoading) return <FullPageLoader />;
+  if (!initialized || authLoading || !profile || isClassroomsLoading || isAssignmentsLoading) return <FullPageLoader />;
   if (!classroom) return null;
 
   return (

@@ -4,14 +4,18 @@ import { useAuth } from '@/lib/auth/auth-context'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Classroom } from '@/lib/types'
+import { createClassroom, fetchClassrooms } from '@/lib/api/classrooms-client'
+import { queryKeys } from '@/lib/state/query'
 
 export default function ClassroomsPage() {
   const { profile, loading: authLoading, initialized } = useAuth()
   const { toast } = useToast()
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   // CRITICAL: Protect route - only instructors can access
   useEffect(() => {
@@ -28,36 +32,26 @@ export default function ClassroomsPage() {
     }
   }, [profile, authLoading, initialized, router])
 
-  const [classrooms, setClassrooms] = useState<Classroom[]>([])
-  const [loading, setLoading] = useState(true)
+  const {
+    data: classrooms = [],
+    isFetching: loading,
+  } = useQuery<Classroom[]>({
+    queryKey: queryKeys.classrooms.instructorMine,
+    queryFn: () => fetchClassrooms<Classroom>(),
+    enabled: profile?.role === 'instructor',
+  })
+
   const [showModal, setShowModal] = useState(false)
 
   // Form state
   const [name, setName] = useState('')
   const [joinCode, setJoinCode] = useState('')
   const [autoGenerate, setAutoGenerate] = useState(true)
-  const [creating, setCreating] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  const fetchClassrooms = useCallback(async () => {
-    try {
-      const res = await fetch('/api/classrooms')
-      const data = await res.json()
-      if (res.ok) {
-        setClassrooms(data.classrooms || [])
-      } else {
-        toast(data.error || 'Failed to load classrooms', 'error')
-      }
-    } catch {
-      toast('Network error', 'error')
-    } finally {
-      setLoading(false)
-    }
-  }, [toast])
-
-  useEffect(() => {
-    fetchClassrooms()
-  }, [fetchClassrooms])
+  const { mutateAsync: createClassroomAsync, isPending: creating } = useMutation({
+    mutationFn: createClassroom<Classroom>,
+  })
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -70,29 +64,17 @@ export default function ClassroomsPage() {
       return
     }
 
-    setCreating(true)
     try {
-      const res = await fetch('/api/classrooms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          join_code: autoGenerate ? '' : joinCode.trim(),
-        }),
+      const classroom = await createClassroomAsync({
+        name: name.trim(),
+        join_code: autoGenerate ? '' : joinCode.trim(),
       })
-      const data = await res.json()
-
-      if (res.ok) {
-        toast('Classroom created!', 'success')
-        setClassrooms((prev) => [data.classroom, ...prev])
-        resetForm()
-      } else {
-        toast(data.error || 'Failed to create classroom', 'error')
-      }
-    } catch {
-      toast('Network error', 'error')
-    } finally {
-      setCreating(false)
+      toast('Classroom created!', 'success')
+      queryClient.setQueryData<Classroom[]>(queryKeys.classrooms.instructorMine, (current) => [classroom, ...(current ?? [])])
+      resetForm()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create classroom'
+      toast(message, 'error')
     }
   }
 

@@ -11,6 +11,8 @@ import {
   useContext,
   type ReactNode,
 } from 'react'
+import { useMutation } from '@tanstack/react-query'
+import { registerUser } from '@/lib/api/auth-client'
 
 // ─── Profile shape exposed to components ───
 interface UserProfile {
@@ -69,6 +71,10 @@ function AuthContextInner({ children }: { children: ReactNode }) {
       }
     : null
 
+  const { mutateAsync: registerUserAsync } = useMutation({
+    mutationFn: registerUser,
+  })
+
   // ── Sign in ──
   const signIn = async (
     email: string,
@@ -94,21 +100,13 @@ function AuthContextInner({ children }: { children: ReactNode }) {
     role: 'student' | 'instructor'
   ): Promise<{ error?: string }> => {
     try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, fullName, role }),
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        return { error: data.error || 'Registration failed' }
-      }
+      await registerUserAsync({ email, password, fullName, role })
 
       // Auto sign-in after successful registration
       return signIn(email, password)
-    } catch {
-      return { error: 'Network error. Please try again.' }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Network error. Please try again.'
+      return { error: message }
     }
   }
 

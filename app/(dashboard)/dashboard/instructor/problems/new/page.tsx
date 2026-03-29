@@ -2,15 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
 import ProblemGeneratorForm from '@/components/problem-generator-form';
 import GeneratedProblemPreview from '@/components/generated-problem-preview';
 import { GeneratedProblem } from '@/lib/ai/types';
+import { saveGeneratedProblems } from '@/lib/api/problems-client';
+import { queryKeys } from '@/lib/state/query';
 
 export default function NewProblemPage() {
   const router = useRouter();
   const { profile, loading: authLoading, initialized } = useAuth();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!initialized || authLoading) return
@@ -21,7 +25,10 @@ export default function NewProblemPage() {
   const [step, setStep] = useState<'form' | 'preview'>('form');
   const [generatedProblems, setGeneratedProblems] = useState<GeneratedProblem[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+
+  const { mutateAsync: saveProblemsAsync, isPending: isSaving } = useMutation({
+    mutationFn: saveGeneratedProblems,
+  });
 
   const handleGenerate = (problems: GeneratedProblem[]) => {
     setGeneratedProblems(problems);
@@ -30,24 +37,14 @@ export default function NewProblemPage() {
   };
 
   const handleSave = async (problems: GeneratedProblem[]) => {
-    setIsSaving(true);
     try {
-      const res = await fetch('/api/problems/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ problems }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to save');
-      }
+      await saveProblemsAsync(problems);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.problems.mine });
       router.push('/dashboard/instructor/problems');
     } catch (error) {
       console.error('Error saving problems:', error);
       const msg = error instanceof Error ? error.message : 'Unknown error';
       alert(`Failed to save problems: ${msg}`);
-    } finally {
-      setIsSaving(false);
     }
   };
 

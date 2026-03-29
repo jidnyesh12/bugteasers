@@ -1,6 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { fetchProblemDetail } from '@/lib/api/problems-client';
+import { queryKeys } from '@/lib/state/query';
 import { getDefaultStarterCode } from '../utils/editor-code-utils';
 import type { Problem } from '../solve-types';
 
@@ -10,6 +13,7 @@ interface UseProblemLoaderOptions {
   problemId: string;
   setInitialEditorContent: (value: string) => void;
   toast: (message: string, type?: ToastKind) => void;
+  enabled?: boolean;
 }
 
 interface UseProblemLoaderResult {
@@ -20,50 +24,83 @@ interface UseProblemLoaderResult {
 }
 
 export function useProblemLoader(options: UseProblemLoaderOptions): UseProblemLoaderResult {
-  const { problemId, setInitialEditorContent, toast } = options;
+  const { problemId, setInitialEditorContent, toast, enabled = true } = options;
 
-  const [problem, setProblem] = useState<Problem | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const toastRef = useRef(toast);
+  const hydratedProblemIdRef = useRef<string | null>(null);
+  const lastToastErrorRef = useRef<string | null>(null);
+  const queryKey = useMemo(() => queryKeys.problems.detail(problemId), [problemId]);
+
+  const {
+    data,
+    error,
+    isPending,
+    isFetching,
+    refetch,
+  } = useQuery<Problem>({
+    queryKey,
+    queryFn: () => fetchProblemDetail<Problem>(problemId),
+    enabled,
+  });
 
   useEffect(() => {
     toastRef.current = toast;
   }, [toast]);
 
-  const loadProblem = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setLoadError(null);
+  useEffect(() => {
+    hydratedProblemIdRef.current = null;
+  }, [problemId]);
 
-      const response = await fetch(`/api/problems/${problemId}`);
-      if (!response.ok) {
-        throw new Error('Failed to load problem');
-      }
-
-      const data = await response.json();
-      const nextProblem = data.problem as Problem;
-
-      setProblem(nextProblem);
-
-      const starter = typeof nextProblem.starter_code === 'string' && nextProblem.starter_code.trim()
-        ? nextProblem.starter_code
-        : getDefaultStarterCode('cpp');
-
-      setInitialEditorContent(starter);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Error loading problem:', error);
-      setProblem(null);
-      setLoadError(message);
-      toastRef.current(`Failed to load problem: ${message}`, 'error');
-    } finally {
-      setIsLoading(false);
+  useEffect(() => {
+    if (!data) {
+      return;
     }
-  }, [problemId, setInitialEditorContent]);
+
+    if (hydratedProblemIdRef.current === data.id) {
+      return;
+    }
+
+    hydratedProblemIdRef.current = data.id;
+
+    const starter = typeof data.starter_code === 'string' && data.starter_code.trim()
+      ? data.starter_code
+      : getDefaultStarterCode('cpp');
+
+    setInitialEditorContent(starter);
+  }, [data, setInitialEditorContent]);
+
+  const loadError = !enabled
+    ? null
+    : error instanceof Error
+      ? error.message
+      : error
+        ? 'Failed to load problem'
+        : null;
+
+  useEffect(() => {
+    if (!enabled || !loadError) {
+      lastToastErrorRef.current = null;
+      return;
+    }
+
+    if (lastToastErrorRef.current === loadError) {
+      return;
+    }
+
+    lastToastErrorRef.current = loadError;
+    toastRef.current(`Failed to load problem: ${loadError}`, 'error');
+  }, [enabled, loadError]);
+
+  const loadProblem = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
+
+  const isLoading = enabled
+    ? isPending || (isFetching && !data)
+    : false;
 
   return {
-    problem,
+    problem: enabled ? (data ?? null) : null,
     isLoading,
     loadError,
     loadProblem,

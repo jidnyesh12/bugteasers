@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { GeneratedProblem } from '@/lib/ai/types';
+import { generateProblems } from '@/lib/api/problems-client';
 
 interface ProblemGeneratorFormProps {
   onGenerate: (problems: GeneratedProblem[]) => void;
@@ -24,8 +26,9 @@ export default function ProblemGeneratorForm({
   const [numProblems, setNumProblems] = useState(1);
   const [languages, setLanguages] = useState<string[]>(['python', 'javascript']);
   const [error, setError] = useState('');
-  const [internalLoading, setInternalLoading] = useState(false);
-
+  const { mutateAsync: generateProblemsAsync, isPending: internalLoading } = useMutation({
+    mutationFn: generateProblems,
+  });
   const isLoading = externalLoading || internalLoading;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,28 +36,16 @@ export default function ProblemGeneratorForm({
     setError('');
     if (!topic.trim()) { setError('Please enter a topic'); return; }
 
-    setInternalLoading(true);
     try {
-      const response = await fetch('/api/problems/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic: topic.trim(),
-          difficulty,
-          tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
-          constraints: constraints.trim() || undefined,
-          numProblems,
-          languages,
-        }),
+      const problems = await generateProblemsAsync({
+        topic: topic.trim(),
+        difficulty,
+        tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
+        constraints: constraints.trim() || undefined,
+        numProblems,
+        languages,
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate problems');
-      }
-
-      const data = await response.json();
-      onGenerate(data.problems);
+      onGenerate(problems);
     } catch (err) {
       const rawMsg = err instanceof Error ? err.message : 'An error occurred';
       // Make AI failures more user-friendly
@@ -63,8 +54,6 @@ export default function ProblemGeneratorForm({
       } else {
         setError(rawMsg);
       }
-    } finally {
-      setInternalLoading(false);
     }
   };
 

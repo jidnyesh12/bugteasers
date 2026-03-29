@@ -1,12 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import type { Assignment, Classroom } from '@/lib/types';
+import {
+  assignAssignmentToClassrooms,
+  deleteAssignment,
+  fetchAssignmentDetail,
+} from '@/lib/api/assignments-client';
+import { fetchClassrooms } from '@/lib/api/classrooms-client';
+import { queryKeys } from '@/lib/state/query';
 
 import { MarkdownRenderer } from '@/components/markdown-renderer';
 
@@ -33,16 +41,39 @@ export default function AssignmentDetailsPage() {
   const params = useParams<{ id: string }>();
   const { profile, loading: authLoading, initialized } = useAuth();
   const { toast } = useToast();
-  const [assignment, setAssignment] = useState<AssignmentDetails | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const queryClient = useQueryClient();
   
   // Assign Modal State
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [selectedClassrooms, setSelectedClassrooms] = useState<string[]>([]);
-  const [isAssigning, setIsAssigning] = useState(false);
-  const [loadingClassrooms, setLoadingClassrooms] = useState(false);
+
+  const {
+    data: assignment,
+    isFetching: isLoading,
+  } = useQuery<AssignmentDetails>({
+    queryKey: queryKeys.assignments.detail(params.id),
+    queryFn: () => fetchAssignmentDetail<AssignmentDetails>(params.id),
+    enabled: profile?.role === 'instructor',
+  });
+
+  const {
+    data: classrooms = [],
+    isFetching: loadingClassrooms,
+    refetch: refetchClassrooms,
+  } = useQuery<Classroom[]>({
+    queryKey: queryKeys.classrooms.instructorMine,
+    queryFn: () => fetchClassrooms<Classroom>(),
+    enabled: profile?.role === 'instructor' && showAssignModal,
+  });
+
+  const { mutateAsync: deleteAssignmentAsync, isPending: isDeleting } = useMutation({
+    mutationFn: deleteAssignment,
+  });
+
+  const { mutateAsync: assignAssignmentAsync, isPending: isAssigning } = useMutation({
+    mutationFn: ({ assignmentId, classroomIds }: { assignmentId: string; classroomIds: string[] }) =>
+      assignAssignmentToClassrooms(assignmentId, classroomIds),
+  });
 
   useEffect(() => {
     if (!initialized || authLoading) return;
@@ -50,68 +81,18 @@ export default function AssignmentDetailsPage() {
     if (profile.role !== 'instructor') { router.replace('/dashboard/student'); return; }
   }, [profile, authLoading, initialized, router]);
 
-  const loadAssignment = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch(`/api/assignments/${params.id}`);
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to load assignment');
-      }
-      
-      setAssignment(data.assignment);
-    } catch (error) {
-      console.error('Error loading assignment:', error);
-      toast('Failed to load assignment', 'error');
-      router.push('/dashboard/instructor/assignments');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [params.id, router, toast]);
-
-  useEffect(() => {
-    if (profile?.role === 'instructor') {
-      loadAssignment();
-    }
-  }, [profile?.role, loadAssignment]);
-
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this assignment? This cannot be undone.')) return;
 
     try {
-      setIsDeleting(true);
-      const res = await fetch(`/api/assignments/${params.id}`, {
-        method: 'DELETE',
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to delete assignment');
-      }
+      await deleteAssignmentAsync(params.id);
 
       toast('Assignment deleted', 'success');
+      await queryClient.invalidateQueries({ queryKey: queryKeys.assignments.mine });
       router.push('/dashboard/instructor/assignments');
     } catch (error) {
       console.error('Error deleting assignment:', error);
       toast('Failed to delete assignment', 'error');
-      setIsDeleting(false);
-    }
-  };
-
-  const loadClassrooms = async () => {
-    try {
-      setLoadingClassrooms(true);
-      const res = await fetch('/api/classrooms');
-      const data = await res.json();
-      if (res.ok) {
-        setClassrooms(data.classrooms || []);
-      } else {
-        toast('Failed to load classrooms', 'error');
-      }
-    } catch {
-      toast('Network error', 'error');
-    } finally {
-      setLoadingClassrooms(false);
     }
   };
 
@@ -122,25 +103,23 @@ export default function AssignmentDetailsPage() {
     }
 
     try {
-      setIsAssigning(true);
-      const res = await fetch(`/api/assignments/${params.id}/assign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ classroom_ids: selectedClassrooms }),
+      await assignAssignmentAsync({
+        assignmentId: params.id,
+        classroomIds: selectedClassrooms,
       });
-      
-      if (res.ok) {
-        toast('Assignment assigned successfully!', 'success');
-        setShowAssignModal(false);
-        setSelectedClassrooms([]);
-      } else {
-        const data = await res.json();
-        toast(data.error || 'Failed to assign', 'error');
-      }
-    } catch {
-      toast('Network error', 'error');
-    } finally {
-      setIsAssigning(false);
+
+      toast('Assignment assigned successfully!', 'success');
+      setShowAssignModal(false);
+      setSelectedClassrooms([]);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.classrooms.instructorMine });
+      await Promise.all(
+        selectedClassrooms.map((classroomId) =>
+          queryClient.invalidateQueries({ queryKey: queryKeys.classrooms.assignments(classroomId) })
+        )
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to assign';
+      toast(message, 'error');
     }
   };
 
@@ -187,7 +166,7 @@ export default function AssignmentDetailsPage() {
             <Button
               onClick={() => {
                 setShowAssignModal(true);
-                loadClassrooms();
+                void refetchClassrooms();
               }}
             >
               Assign to Class

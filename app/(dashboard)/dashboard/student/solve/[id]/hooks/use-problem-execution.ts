@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import type {
   ScoreResult,
   SupportedLanguage,
@@ -48,17 +49,28 @@ interface UseProblemExecutionResult {
 export function useProblemExecution(options: UseProblemExecutionOptions): UseProblemExecutionResult {
   const { problemId, getCode, language, assignmentId, onExecutionError, onResultReady } = options;
 
-  const [isRunning, setIsRunning] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [executionResult, setExecutionResult] = useState<ExecutionPanelResult | null>(null);
   const [showOutput, setShowOutput] = useState(true);
+
+  const {
+    mutateAsync: runMutationAsync,
+    isPending: isRunning,
+  } = useMutation({
+    mutationFn: runProblemCode,
+  });
+
+  const {
+    mutateAsync: submitMutationAsync,
+    isPending: isSubmitting,
+  } = useMutation({
+    mutationFn: submitProblemCode,
+  });
 
   const runCode = useCallback(async () => {
     if (isRunning || isSubmitting) {
       return;
     }
 
-    setIsRunning(true);
     setShowOutput(true);
     setExecutionResult({
       mode: 'run',
@@ -68,7 +80,7 @@ export function useProblemExecution(options: UseProblemExecutionOptions): UsePro
     });
 
     try {
-      const response = await runProblemCode({
+      const response = await runMutationAsync({
         problemId,
         code: getCode(),
         language,
@@ -94,17 +106,23 @@ export function useProblemExecution(options: UseProblemExecutionOptions): UsePro
       setExecutionResult(nextResult);
       onResultReady?.(nextResult);
       onExecutionError?.('run', error);
-    } finally {
-      setIsRunning(false);
     }
-  }, [getCode, isRunning, isSubmitting, language, onExecutionError, onResultReady, problemId]);
+  }, [
+    getCode,
+    isRunning,
+    isSubmitting,
+    language,
+    onExecutionError,
+    onResultReady,
+    problemId,
+    runMutationAsync,
+  ]);
 
   const submitCode = useCallback(async () => {
     if (isSubmitting || isRunning) {
       return;
     }
 
-    setIsSubmitting(true);
     setShowOutput(true);
     setExecutionResult({
       mode: 'submit',
@@ -114,7 +132,7 @@ export function useProblemExecution(options: UseProblemExecutionOptions): UsePro
     });
 
     try {
-      const response = await submitProblemCode({
+      const response = await submitMutationAsync({
         problemId,
         code: getCode(),
         language,
@@ -142,10 +160,18 @@ export function useProblemExecution(options: UseProblemExecutionOptions): UsePro
       setExecutionResult(nextResult);
       onResultReady?.(nextResult);
       onExecutionError?.('submit', error);
-    } finally {
-      setIsSubmitting(false);
     }
-  }, [assignmentId, getCode, isRunning, isSubmitting, language, onExecutionError, onResultReady, problemId]);
+  }, [
+    assignmentId,
+    getCode,
+    isRunning,
+    isSubmitting,
+    language,
+    onExecutionError,
+    onResultReady,
+    problemId,
+    submitMutationAsync,
+  ]);
 
   const closeOutput = useCallback(() => {
     setShowOutput(false);

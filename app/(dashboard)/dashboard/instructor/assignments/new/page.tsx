@@ -1,13 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import ProblemSelector from '@/components/problem-selector';
+import { assignAssignmentToClassrooms, createAssignment } from '@/lib/api/assignments-client';
+import { fetchClassrooms } from '@/lib/api/classrooms-client';
+import { fetchProblems } from '@/lib/api/problems-client';
+import { queryKeys } from '@/lib/state/query';
 
 interface Problem {
   id: string;
@@ -25,54 +30,49 @@ export default function NewAssignmentPage() {
   const router = useRouter();
   const { profile, loading: authLoading, initialized } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [deadline, setDeadline] = useState('');
   const [selectedProblemIds, setSelectedProblemIds] = useState<string[]>([]);
   const [selectedClassroomIds, setSelectedClassroomIds] = useState<string[]>([]);
-  
-  const [problems, setProblems] = useState<Problem[]>([]);
-  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const {
+    data: problems = [],
+    isFetching: isProblemsLoading,
+  } = useQuery<Problem[]>({
+    queryKey: queryKeys.problems.mine,
+    queryFn: () => fetchProblems<Problem>({ mine: true }),
+    enabled: profile?.role === 'instructor',
+  });
+
+  const {
+    data: classrooms = [],
+    isFetching: isClassroomsLoading,
+  } = useQuery<Classroom[]>({
+    queryKey: queryKeys.classrooms.instructorMine,
+    queryFn: () => fetchClassrooms<Classroom>(),
+    enabled: profile?.role === 'instructor',
+  });
+
+  const { mutateAsync: createAssignmentAsync, isPending: isCreatingAssignment } = useMutation({
+    mutationFn: createAssignment<{ id: string }>,
+  });
+
+  const { mutateAsync: assignAssignmentAsync, isPending: isAssigningAssignment } = useMutation({
+    mutationFn: ({ assignmentId, classroomIds }: { assignmentId: string; classroomIds: string[] }) =>
+      assignAssignmentToClassrooms(assignmentId, classroomIds),
+  });
+
+  const isLoading = isProblemsLoading || isClassroomsLoading;
+  const isSubmitting = isCreatingAssignment || isAssigningAssignment;
 
   useEffect(() => {
     if (!initialized || authLoading) return;
     if (!profile) { router.replace('/login'); return; }
     if (profile.role !== 'instructor') { router.replace('/dashboard/student'); return; }
   }, [profile, authLoading, initialized, router]);
-
-  const loadData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const [problemsRes, classroomsRes] = await Promise.all([
-        fetch('/api/problems'),
-        fetch('/api/classrooms')
-      ]);
-
-      if (problemsRes.ok) {
-        const problemsData = await problemsRes.json();
-        setProblems(problemsData.problems || []);
-      }
-
-      if (classroomsRes.ok) {
-        const classroomsData = await classroomsRes.json();
-        setClassrooms(classroomsData.classrooms || []);
-      }
-    } catch (error) {
-      console.error('Error loading data:', error);
-      toast('Failed to load data', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    if (profile?.role === 'instructor') {
-      loadData();
-    }
-  }, [profile?.role, loadData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,43 +93,45 @@ export default function NewAssignmentPage() {
     }
 
     try {
-      setIsSubmitting(true);
-
-      // Create assignment
-      const res = await fetch('/api/assignments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || undefined,
-          deadline,
-          problem_ids: selectedProblemIds,
-        }),
+      const assignment = await createAssignmentAsync({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        deadline,
+        problem_ids: selectedProblemIds,
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to create assignment');
-      }
-
-      // Assign to classrooms if selected
       if (selectedClassroomIds.length > 0) {
-        await fetch(`/api/assignments/${data.assignment.id}/assign`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ classroom_ids: selectedClassroomIds }),
-        });
+        try {
+          await assignAssignmentAsync({
+            assignmentId: assignment.id,
+            classroomIds: selectedClassroomIds,
+          });
+
+          await queryClient.invalidateQueries({ queryKey: queryKeys.classrooms.instructorMine });
+          await Promise.all(
+            selectedClassroomIds.map((classroomId) =>
+              queryClient.invalidateQueries({ queryKey: queryKeys.classrooms.assignments(classroomId) })
+            )
+          );
+        } catch (assignError) {
+          const assignMessage = assignError instanceof Error
+            ? assignError.message
+            : 'Assignment created but classroom assignment failed';
+
+          toast(`Assignment created, but classroom assignment failed: ${assignMessage}`, 'warning');
+          await queryClient.invalidateQueries({ queryKey: queryKeys.assignments.mine });
+          router.push('/dashboard/instructor/assignments');
+          return;
+        }
       }
 
       toast('Assignment created!', 'success');
+      await queryClient.invalidateQueries({ queryKey: queryKeys.assignments.mine });
       router.push('/dashboard/instructor/assignments');
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to create assignment';
       console.error('Error creating assignment:', error);
       toast(msg, 'error');
-    } finally {
-      setIsSubmitting(false);
     }
   };
 

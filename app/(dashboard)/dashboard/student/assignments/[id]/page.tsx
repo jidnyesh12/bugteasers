@@ -1,11 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
 import type { Assignment } from '@/lib/types';
+import { fetchAssignmentDetail } from '@/lib/api/assignments-client';
+import { queryKeys } from '@/lib/state/query';
 
 import { MarkdownRenderer } from '@/components/markdown-renderer';
 
@@ -32,9 +35,16 @@ export default function StudentAssignmentDetailsPage() {
   const params = useParams<{ id: string }>();
   const { profile, loading: authLoading, initialized } = useAuth();
   const { toast } = useToast();
-  
-  const [assignment, setAssignment] = useState<AssignmentDetails | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+
+  const {
+    data: assignment,
+    isFetching: isLoading,
+    error,
+  } = useQuery<AssignmentDetails>({
+    queryKey: queryKeys.assignments.detail(params.id),
+    queryFn: () => fetchAssignmentDetail<AssignmentDetails>(params.id),
+    enabled: profile?.role === 'student',
+  });
 
   useEffect(() => {
     if (!initialized || authLoading) return;
@@ -42,31 +52,14 @@ export default function StudentAssignmentDetailsPage() {
     if (profile.role !== 'student') { router.replace('/dashboard/instructor'); return; }
   }, [profile, authLoading, initialized, router]);
 
-  const loadAssignment = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch(`/api/assignments/${params.id}`);
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to load assignment');
-      }
-      
-      setAssignment(data.assignment);
-    } catch (error) {
-      console.error('Error loading assignment:', error);
-      toast('Failed to load assignment', 'error');
-      router.push('/dashboard/student/classrooms');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [params.id, router, toast]);
-
   useEffect(() => {
-    if (profile?.role === 'student') {
-      loadAssignment();
+    if (profile?.role !== 'student' || !error) {
+      return;
     }
-  }, [profile?.role, loadAssignment]);
+
+    toast('Failed to load assignment', 'error');
+    router.push('/dashboard/student/classrooms');
+  }, [error, profile?.role, router, toast]);
 
   if (!initialized || authLoading || !profile || isLoading) return <FullPageLoader />;
   if (!assignment) return null;

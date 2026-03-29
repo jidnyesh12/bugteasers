@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   fetchProblemSubmissions,
 } from '@/lib/api/submissions-client';
 import type { ProblemSubmissionHistoryItem } from '@/lib/submissions/types';
+import { queryKeys } from '@/lib/state/query';
 
 interface UseProblemSubmissionsOptions {
   problemId: string;
@@ -30,60 +32,49 @@ export function useProblemSubmissions(
     enabled = true,
     refreshToken = null,
   } = options;
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(
+    () => queryKeys.submissions.history(problemId, assignmentId),
+    [assignmentId, problemId]
+  );
 
-  const [submissions, setSubmissions] = useState<ProblemSubmissionHistoryItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  // Tracks the latest request so slower earlier responses cannot overwrite newer data.
-  const requestIdRef = useRef(0);
+  const {
+    data,
+    error,
+    isFetching,
+    refetch,
+  } = useQuery<ProblemSubmissionHistoryItem[]>({
+    queryKey,
+    queryFn: () => fetchProblemSubmissions({
+      problemId,
+      assignmentId,
+    }),
+    enabled,
+  });
 
   const loadSubmissions = useCallback(async () => {
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
-
-    setIsLoading(true);
-    setLoadError(null);
-
-    try {
-      const history = await fetchProblemSubmissions({
-        problemId,
-        assignmentId,
-      });
-
-      if (requestIdRef.current !== requestId) {
-        return;
-      }
-
-      setSubmissions(history);
-    } catch (error) {
-      if (requestIdRef.current !== requestId) {
-        return;
-      }
-
-      const message = error instanceof Error ? error.message : 'Failed to load submissions';
-      setSubmissions([]);
-      setLoadError(message);
-    } finally {
-      if (requestIdRef.current === requestId) {
-        setIsLoading(false);
-      }
-    }
-  }, [assignmentId, problemId]);
+    await refetch();
+  }, [refetch]);
 
   useEffect(() => {
-    if (!enabled) {
-      setSubmissions([]);
-      setIsLoading(false);
-      setLoadError(null);
+    if (!enabled || !refreshToken) {
       return;
     }
 
-    void loadSubmissions();
-  }, [enabled, loadSubmissions, refreshToken]);
+    void queryClient.invalidateQueries({ queryKey });
+  }, [enabled, queryClient, queryKey, refreshToken]);
+
+  const loadError = !enabled
+    ? null
+    : error instanceof Error
+      ? error.message
+      : error
+        ? 'Failed to load submissions'
+        : null;
 
   return {
-    submissions,
-    isLoading,
+    submissions: enabled ? (data ?? []) : [],
+    isLoading: enabled ? isFetching : false,
     loadError,
     loadSubmissions,
   };
