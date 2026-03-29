@@ -53,7 +53,7 @@ export function ResetCodeDialog({
               onClick={onCancel}
               className="rounded-md border border-[#4f4f53] bg-[#2f2f34] px-3 py-1.5 text-xs font-semibold text-gray-100 transition-colors hover:bg-[#3b3b42]"
             >
-              Keep Editing
+              Keep Coding
             </button>
             <button
               type="button"

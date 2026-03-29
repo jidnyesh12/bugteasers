@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSpinner } from '@/components/ui/loading';
 import type { SupportedLanguage } from '@/lib/execution/types';
 
 interface SolveEditorToolbarProps {
@@ -73,11 +74,19 @@ export function SolveEditorToolbar({
         </button>
         <button
           onClick={onSubmit}
-          disabled={isSubmitting}
           className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-md transition-colors cursor-pointer disabled:opacity-50"
           title="Submit (Ctrl + Enter)"
         >
-          {isSubmitting ? 'Submitting...' : 'Submit'}
+          {isSubmitting ? (
+            <>
+              <span className="inline-flex scale-75" aria-hidden="true">
+                <LoadingSpinner size="sm" />
+              </span>
+              Running...
+            </>
+          ) : (
+            'Submit'
+          )}
         </button>
       </div>
     </div>

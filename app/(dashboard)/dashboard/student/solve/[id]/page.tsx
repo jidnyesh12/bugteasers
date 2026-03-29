@@ -1,7 +1,16 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import { useShallow } from 'zustand/react/shallow';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
@@ -19,6 +28,13 @@ import {
   getRunningDetail,
 } from './execution-output-utils';
 import { getDefaultStarterCode, normalizeCode } from './utils/editor-code-utils';
+import {
+  buildSolveEditorDraftKey,
+  buildSolveEditorPaneKey,
+  DEFAULT_SOLVE_EDITOR_PANE_STATE,
+  SOLVE_EDITOR_LAYOUT_BOUNDS,
+  useSolveEditorStore,
+} from '@/lib/state/stores';
 import { useCodeMirrorConfig } from './hooks/use-codemirror-config';
 import { useProblemLoader } from './hooks/use-problem-loader';
 import { useProblemExecution, type ExecutionPanelResult } from './hooks/use-problem-execution';
@@ -31,9 +47,11 @@ export default function SolveProblemPage() {
   const { profile, loading: authLoading, initialized } = useAuth();
   const { toast } = useToast();
 
+  const layoutRef = useRef<HTMLDivElement | null>(null);
   const editorHandleRef = useRef<StableCodeEditorHandle | null>(null);
   const editorPanelRef = useRef<HTMLDivElement | null>(null);
   const [dialogContainer, setDialogContainer] = useState<HTMLElement | null>(null);
+
   const handleEditorPanelRef = useCallback((node: HTMLDivElement | null) => {
     editorPanelRef.current = node;
     setDialogContainer(node);
@@ -64,6 +82,69 @@ export default function SolveProblemPage() {
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   const assignmentId = searchParams.get('assignmentId') || undefined;
+  const paneStorageKey = useMemo(() => buildSolveEditorPaneKey({
+    userId: profile?.id ?? null,
+    problemId: params.id,
+  }), [params.id, profile?.id]);
+
+  const draftStorageKey = useMemo(() => buildSolveEditorDraftKey({
+    userId: profile?.id ?? null,
+    problemId: params.id,
+    language,
+  }), [language, params.id, profile?.id]);
+
+  const {
+    paneState,
+    draftCode,
+    setDraft,
+    setPaneState,
+  } = useSolveEditorStore(
+    useShallow((state) => ({
+      paneState: state.paneState[paneStorageKey] ?? DEFAULT_SOLVE_EDITOR_PANE_STATE,
+      draftCode: state.drafts[draftStorageKey],
+      setDraft: state.setDraft,
+      setPaneState: state.setPaneState,
+    }))
+  );
+
+  const handlePaneResizeStart = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const layoutElement = layoutRef.current;
+    if (!layoutElement) {
+      return;
+    }
+
+    const startX = event.clientX;
+    const startWidth = paneState.leftPaneWidth;
+    const layoutWidth = layoutElement.getBoundingClientRect().width;
+
+    if (layoutWidth <= 0) {
+      return;
+    }
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const deltaPercent = ((moveEvent.clientX - startX) / layoutWidth) * 100;
+      const nextWidth = Math.min(
+        SOLVE_EDITOR_LAYOUT_BOUNDS.leftPane.maxWidthPercent,
+        Math.max(SOLVE_EDITOR_LAYOUT_BOUNDS.leftPane.minWidthPercent, startWidth + deltaPercent)
+      );
+      setPaneState(paneStorageKey, { leftPaneWidth: nextWidth });
+    };
+
+    const onPointerUp = () => {
+      document.body.style.removeProperty('user-select');
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+
+    document.body.style.setProperty('user-select', 'none');
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  }, [paneState.leftPaneWidth, paneStorageKey, setPaneState]);
+
+  const layoutStyle = useMemo(() => ({
+    '--solve-left-pane-width': `${paneState.leftPaneWidth}%`,
+  } as CSSProperties), [paneState.leftPaneWidth]);
+
   const getCurrentCode = useCallback(() => codeRef.current, [codeRef]);
   const handleExecutionResult = useCallback((nextResult: ExecutionPanelResult) => {
     if (nextResult.status === 'passed') {
@@ -81,7 +162,6 @@ export default function SolveProblemPage() {
     showOutput,
     runCode,
     submitCode,
-    closeOutput,
   } = useProblemExecution({
     problemId: params.id,
     getCode: getCurrentCode,
@@ -105,23 +185,29 @@ export default function SolveProblemPage() {
 
   const handleRunClick = useCallback(() => {
     setOutputTab('result');
+    setPaneState(paneStorageKey, { isOutputCollapsed: false });
     void runCode();
-  }, [runCode]);
+  }, [paneStorageKey, runCode, setPaneState]);
 
   const handleSubmitClick = useCallback(() => {
     setOutputTab('result');
+    setPaneState(paneStorageKey, { isOutputCollapsed: false });
     void submitCode();
-  }, [submitCode]);
+  }, [paneStorageKey, setPaneState, submitCode]);
 
   const handleLanguageChange = useCallback((newLanguage: SupportedLanguage) => {
-    const currentCode = codeRef.current;
-    setLanguage(newLanguage);
-
-    if (!currentCode || normalizeCode(currentCode) === normalizeCode(getDefaultStarterCode(language))) {
-      const nextStarter = getDefaultStarterCode(newLanguage);
-      setEditorContent(nextStarter, 'remount');
+    if (newLanguage === language) {
+      return;
     }
-  }, [codeRef, language, setEditorContent, setLanguage]);
+
+    setDraft(draftStorageKey, codeRef.current);
+    setLanguage(newLanguage);
+  }, [codeRef, draftStorageKey, language, setDraft, setLanguage]);
+
+  const handleEditorCodeChange = useCallback((nextCode: string) => {
+    handleCodeChange(nextCode);
+    setDraft(draftStorageKey, nextCode);
+  }, [draftStorageKey, handleCodeChange, setDraft]);
 
   const {
     editorExtensions,
@@ -134,15 +220,33 @@ export default function SolveProblemPage() {
   });
 
   const getStarterCode = useCallback((targetLanguage: SupportedLanguage) => {
-    return typeof problem?.starter_code === 'string' && problem.starter_code.trim()
-      ? problem.starter_code
-      : getDefaultStarterCode(targetLanguage);
+    const hasProblemStarter = typeof problem?.starter_code === 'string' && problem.starter_code.trim();
+
+    if (targetLanguage === 'cpp' && hasProblemStarter) {
+      return problem.starter_code;
+    }
+
+    return getDefaultStarterCode(targetLanguage);
   }, [problem]);
+
+  useEffect(() => {
+    if (!problem) {
+      return;
+    }
+
+    const nextCode = draftCode ?? getStarterCode(language);
+    if (codeRef.current === nextCode) {
+      return;
+    }
+
+    setEditorContent(nextCode, 'remount');
+  }, [codeRef, draftCode, getStarterCode, language, problem, setEditorContent]);
 
   const resetToStarterCode = useCallback(() => {
     const starter = getStarterCode(language);
     setEditorContent(starter, 'replace');
-  }, [getStarterCode, language, setEditorContent]);
+    setDraft(draftStorageKey, starter);
+  }, [draftStorageKey, getStarterCode, language, setDraft, setEditorContent]);
 
   const handleCancelReset = useCallback(() => {
     setIsResetModalOpen(false);
@@ -206,11 +310,23 @@ export default function SolveProblemPage() {
   if (!problem) return null;
 
   return (
-    <div className="h-[calc(100vh-3.5rem)] flex flex-col lg:flex-row overflow-hidden">
+    <div
+      ref={layoutRef}
+      className="h-[calc(100vh-3.5rem)] flex flex-col lg:flex-row overflow-hidden"
+      style={layoutStyle}
+    >
       <ProblemDetailsPanel problem={problem} onBack={() => router.back()} />
 
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize problem and editor panes"
+        onPointerDown={handlePaneResizeStart}
+        className="hidden lg:block lg:w-1.5 lg:shrink-0 cursor-col-resize bg-[var(--border-primary)]/90 hover:bg-[var(--accent-primary)]/50 transition-colors"
+      />
+
       {/* ── Right Panel: Code Editor ── */}
-      <div className="w-full lg:w-[55%] h-full flex flex-col bg-[#1e1e1e]">
+      <div className="w-full lg:flex-1 h-full flex flex-col bg-[#1e1e1e]">
         <SolveEditorToolbar
           language={language}
           onLanguageChange={handleLanguageChange}
@@ -223,12 +339,12 @@ export default function SolveProblemPage() {
 
         {/* CodeMirror Editor — Tab inserts indent, Enter preserves indentation */}
         <div ref={handleEditorPanelRef} className="flex-1 flex flex-col overflow-hidden relative" style={{ minHeight: 0 }}>
-          <div className="flex-1 overflow-hidden min-h-0" tabIndex={-1}>
+          <div className="flex-1 overflow-auto min-h-0" tabIndex={-1}>
             <StableCodeEditor
               key={`editor-${editorSeed.version}`}
               ref={editorHandleRef}
               seedValue={editorSeed.value}
-              onCodeChange={handleCodeChange}
+              onCodeChange={handleEditorCodeChange}
               extensions={editorExtensions}
               theme={editorTheme}
               basicSetup={editorBasicSetup}
@@ -237,6 +353,14 @@ export default function SolveProblemPage() {
 
           <ExecutionOutputPanel
             showOutput={showOutput}
+            isCollapsed={paneState.isOutputCollapsed}
+            onCollapsedChange={(collapsed) => {
+              setPaneState(paneStorageKey, { isOutputCollapsed: collapsed });
+            }}
+            panelHeight={paneState.outputPanelHeight}
+            onPanelHeightChange={(height) => {
+              setPaneState(paneStorageKey, { outputPanelHeight: height });
+            }}
             outputTab={outputTab}
             onOutputTabChange={setOutputTab}
             caseRows={caseRows}
@@ -246,7 +370,6 @@ export default function SolveProblemPage() {
             outputMeta={outputMeta}
             scoreLine={scoreLine}
             runningDetail={runningDetail}
-            onClose={closeOutput}
           />
 
           <ResetCodeDialog

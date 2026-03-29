@@ -70,6 +70,8 @@ export const StableCodeEditor = forwardRef<StableCodeEditorHandle, StableCodeEdi
   return (
     <CodeMirror
       ref={codeMirrorRef}
+      className="h-full"
+      style={{ height: '100%' }}
       value={localValue}
       onChange={handleLocalChange}
       indentWithTab={true}

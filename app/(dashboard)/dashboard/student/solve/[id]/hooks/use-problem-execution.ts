@@ -57,6 +57,10 @@ export function useProblemExecution(options: UseProblemExecutionOptions): UsePro
   const [showOutput, setShowOutput] = useState(false);
 
   const runCode = useCallback(async () => {
+    if (isRunning) {
+      return;
+    }
+
     setIsRunning(true);
     setShowOutput(true);
     setExecutionResult({
@@ -96,9 +100,13 @@ export function useProblemExecution(options: UseProblemExecutionOptions): UsePro
     } finally {
       setIsRunning(false);
     }
-  }, [getCode, language, onResultReady, problemId, toast]);
+  }, [getCode, isRunning, language, onResultReady, problemId, toast]);
 
   const submitCode = useCallback(async () => {
+    if (isSubmitting) {
+      return;
+    }
+
     setIsSubmitting(true);
     setShowOutput(true);
     setExecutionResult({
@@ -140,7 +148,7 @@ export function useProblemExecution(options: UseProblemExecutionOptions): UsePro
     } finally {
       setIsSubmitting(false);
     }
-  }, [assignmentId, getCode, language, onResultReady, problemId, toast]);
+  }, [assignmentId, getCode, isSubmitting, language, onResultReady, problemId, toast]);
 
   const closeOutput = useCallback(() => {
     setShowOutput(false);

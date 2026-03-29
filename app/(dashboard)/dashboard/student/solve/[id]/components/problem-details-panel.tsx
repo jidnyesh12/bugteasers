@@ -28,7 +28,7 @@ export function ProblemDetailsPanel({ problem, onBack }: ProblemDetailsPanelProp
   };
 
   return (
-    <div className="w-full lg:w-[45%] h-full flex flex-col border-r border-[var(--border-primary)] bg-white overflow-hidden">
+    <div className="w-full lg:w-[var(--solve-left-pane-width)] lg:shrink-0 h-full flex flex-col border-r border-[var(--border-primary)] lg:border-r-0 bg-white overflow-hidden">
       <div className="flex items-center gap-0 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 shrink-0">
         <button
           onClick={() => setActiveTab('description')}
