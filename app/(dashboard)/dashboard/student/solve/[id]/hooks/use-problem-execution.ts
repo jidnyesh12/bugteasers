@@ -12,10 +12,7 @@ import {
 } from '@/lib/api/execution-client';
 import {
   formatExecutionErrorOutput,
-  getExecutionErrorToastMessage,
 } from './execution-error-utils';
-
-type ToastKind = 'success' | 'error' | 'info' | 'warning';
 
 export type ExecutionMode = 'run' | 'submit';
 export type ExecutionStatus = 'running' | 'passed' | 'failed' | 'partial' | 'error';
@@ -34,7 +31,7 @@ interface UseProblemExecutionOptions {
   getCode: () => string;
   language: SupportedLanguage;
   assignmentId?: string;
-  toast: (message: string, type?: ToastKind) => void;
+  onExecutionError?: (mode: ExecutionMode, error: unknown) => void;
   onResultReady?: (result: ExecutionPanelResult) => void;
 }
 
@@ -49,15 +46,15 @@ interface UseProblemExecutionResult {
 }
 
 export function useProblemExecution(options: UseProblemExecutionOptions): UseProblemExecutionResult {
-  const { problemId, getCode, language, assignmentId, toast, onResultReady } = options;
+  const { problemId, getCode, language, assignmentId, onExecutionError, onResultReady } = options;
 
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [executionResult, setExecutionResult] = useState<ExecutionPanelResult | null>(null);
-  const [showOutput, setShowOutput] = useState(false);
+  const [showOutput, setShowOutput] = useState(true);
 
   const runCode = useCallback(async () => {
-    if (isRunning) {
+    if (isRunning || isSubmitting) {
       return;
     }
 
@@ -96,14 +93,14 @@ export function useProblemExecution(options: UseProblemExecutionOptions): UsePro
 
       setExecutionResult(nextResult);
       onResultReady?.(nextResult);
-      toast(getExecutionErrorToastMessage(error), 'error');
+      onExecutionError?.('run', error);
     } finally {
       setIsRunning(false);
     }
-  }, [getCode, isRunning, language, onResultReady, problemId, toast]);
+  }, [getCode, isRunning, isSubmitting, language, onExecutionError, onResultReady, problemId]);
 
   const submitCode = useCallback(async () => {
-    if (isSubmitting) {
+    if (isSubmitting || isRunning) {
       return;
     }
 
@@ -144,11 +141,11 @@ export function useProblemExecution(options: UseProblemExecutionOptions): UsePro
 
       setExecutionResult(nextResult);
       onResultReady?.(nextResult);
-      toast(getExecutionErrorToastMessage(error), 'error');
+      onExecutionError?.('submit', error);
     } finally {
       setIsSubmitting(false);
     }
-  }, [assignmentId, getCode, isSubmitting, language, onResultReady, problemId, toast]);
+  }, [assignmentId, getCode, isRunning, isSubmitting, language, onExecutionError, onResultReady, problemId]);
 
   const closeOutput = useCallback(() => {
     setShowOutput(false);

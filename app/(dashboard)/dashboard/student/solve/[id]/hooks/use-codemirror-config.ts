@@ -11,12 +11,10 @@ import { indentUnit } from '@codemirror/language';
 
 interface UseCodeMirrorConfigOptions {
   language: SupportedLanguage;
-  onRunShortcut: () => void;
-  onSubmitShortcut: () => void;
 }
 
 export function useCodeMirrorConfig(options: UseCodeMirrorConfigOptions) {
-  const { language, onRunShortcut, onSubmitShortcut } = options;
+  const { language } = options;
 
   const languageExtension = useMemo(() => {
     switch (language) {
@@ -47,42 +45,13 @@ export function useCodeMirrorConfig(options: UseCodeMirrorConfigOptions) {
   const editorTabSizeExt = useMemo(() => EditorState.tabSize.of(4), []);
   const editorIndentUnitExt = useMemo(() => indentUnit.of('    '), []);
 
-  const editorShortcutExt = useMemo(() => EditorView.domEventHandlers({
-    keydown: (event) => {
-      if (
-        event.ctrlKey &&
-        !event.metaKey &&
-        !event.altKey &&
-        !event.shiftKey &&
-        event.key === "'"
-      ) {
-        event.preventDefault();
-        onRunShortcut();
-        return true;
-      }
-
-      if (
-        (event.ctrlKey || event.metaKey) &&
-        !event.altKey &&
-        event.key === 'Enter'
-      ) {
-        event.preventDefault();
-        onSubmitShortcut();
-        return true;
-      }
-
-      return false;
-    },
-  }), [onRunShortcut, onSubmitShortcut]);
-
   const editorExtensions = useMemo(() => [
     editorKeymapExt,
     languageExtension,
     editorThemeExt,
     editorTabSizeExt,
     editorIndentUnitExt,
-    editorShortcutExt,
-  ], [editorIndentUnitExt, editorKeymapExt, editorShortcutExt, editorTabSizeExt, editorThemeExt, languageExtension]);
+  ], [editorIndentUnitExt, editorKeymapExt, editorTabSizeExt, editorThemeExt, languageExtension]);
 
   const editorBasicSetup = useMemo(() => ({
     lineNumbers: true,

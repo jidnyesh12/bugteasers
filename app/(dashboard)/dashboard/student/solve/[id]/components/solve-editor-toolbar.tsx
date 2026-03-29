@@ -38,6 +38,9 @@ export function SolveEditorToolbar({
   isRunning,
   isSubmitting,
 }: SolveEditorToolbarProps) {
+  const isRunDisabled = isRunning || isSubmitting;
+  const isSubmitDisabled = isRunning || isSubmitting;
+
   return (
     <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-[#3e3e42] shrink-0">
       <div className="flex items-center gap-3">
@@ -63,17 +66,29 @@ export function SolveEditorToolbar({
         </button>
         <button
           onClick={onRun}
-          disabled={isRunning}
+          disabled={isRunDisabled}
           className="flex items-center gap-1.5 bg-[#3c3c3c] hover:bg-[#4c4c4c] text-gray-200 text-xs font-semibold px-3 py-1.5 rounded-md transition-colors cursor-pointer disabled:opacity-50"
           title="Run (Ctrl + ')"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="5 3 19 12 5 21 5 3" />
-          </svg>
-          {isRunning ? 'Running...' : 'Run'}
+          {isRunning ? (
+            <>
+              <span className="inline-flex scale-75" aria-hidden="true">
+                <LoadingSpinner size="sm" />
+              </span>
+              Running...
+            </>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              Run
+            </>
+          )}
         </button>
         <button
           onClick={onSubmit}
+          disabled={isSubmitDisabled}
           className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-md transition-colors cursor-pointer disabled:opacity-50"
           title="Submit (Ctrl + Enter)"
         >
@@ -82,7 +97,7 @@ export function SolveEditorToolbar({
               <span className="inline-flex scale-75" aria-hidden="true">
                 <LoadingSpinner size="sm" />
               </span>
-              Running...
+              Submitting...
             </>
           ) : (
             'Submit'
