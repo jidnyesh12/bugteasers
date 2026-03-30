@@ -12,6 +12,10 @@ interface AssignmentResponse<TAssignment> {
   assignment: TAssignment;
 }
 
+interface AssignmentSubmissionsResponse<TOverview> {
+  submissions: TOverview;
+}
+
 export async function fetchAssignments<TAssignment>(): Promise<TAssignment[]> {
   const response = await fetch('/api/assignments', {
     method: 'GET',
@@ -50,6 +54,27 @@ export async function fetchAssignmentDetail<TAssignment>(assignmentId: string): 
   return parsedBody.assignment;
 }
 
+export async function fetchAssignmentSubmissionOverview<TOverview>(assignmentId: string): Promise<TOverview> {
+  const response = await fetch(`/api/assignments/${assignmentId}/submissions`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const parsedBody = await parseJson<ErrorPayload | AssignmentSubmissionsResponse<TOverview>>(response);
+
+  if (!response.ok) {
+    throwHttpError(response, parsedBody, 'Failed to load assignment submissions');
+  }
+
+  if (!isAssignmentSubmissionsPayload<TOverview>(parsedBody)) {
+    throw new Error('Invalid assignment submissions response');
+  }
+
+  return parsedBody.submissions;
+}
+
 export async function createAssignment<TAssignment>(input: {
   title: string;
   description?: string;
@@ -85,6 +110,23 @@ export async function deleteAssignment(assignmentId: string): Promise<void> {
   const parsedBody = await parseJson<ErrorPayload>(response);
   if (!response.ok) {
     throwHttpError(response, parsedBody, 'Failed to delete assignment');
+  }
+}
+
+export async function closeAssignment(assignmentId: string): Promise<void> {
+  const response = await fetch(`/api/assignments/${assignmentId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      closed_at: new Date().toISOString(),
+    }),
+  });
+
+  const parsedBody = await parseJson<ErrorPayload>(response);
+  if (!response.ok) {
+    throwHttpError(response, parsedBody, 'Failed to close assignment');
   }
 }
 
@@ -177,4 +219,12 @@ function isAssignmentPayload<TAssignment>(value: unknown): value is AssignmentRe
   }
 
   return 'assignment' in (value as Record<string, unknown>);
+}
+
+function isAssignmentSubmissionsPayload<TOverview>(value: unknown): value is AssignmentSubmissionsResponse<TOverview> {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  return 'submissions' in (value as Record<string, unknown>);
 }

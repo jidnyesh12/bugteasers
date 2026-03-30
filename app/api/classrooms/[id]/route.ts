@@ -26,7 +26,7 @@ export async function GET(
     }
 
     if (session.user.role === 'instructor' && classroom.instructor_id !== session.user.id) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      return NextResponse.json({ error: 'Classroom not found' }, { status: 404 });
     }
 
     if (session.user.role === 'student') {
@@ -38,7 +38,7 @@ export async function GET(
         .single();
 
       if (!enrollment) {
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+        return NextResponse.json({ error: 'Classroom not found' }, { status: 404 });
       }
     }
 

@@ -43,24 +43,48 @@ export async function GET(
 
     if (!isInstructor && !isOwner) {
       // Student: check access via classroom
-      const { data: access } = await supabase
+      const { data: access, error: accessError } = await supabase
         .from('classroom_assignments')
         .select('classroom_id')
         .eq('assignment_id', id)
-        .limit(1);
+        .limit(1000);
+
+      if (accessError) {
+        console.error('Error validating assignment classroom mappings:', accessError);
+        return NextResponse.json({ error: 'Failed to validate assignment access' }, { status: 500 });
+      }
 
       if (!access || access.length === 0) {
         return NextResponse.json({ error: 'Access denied' }, { status: 403 });
       }
 
-      const { data: enrollment } = await supabase
-        .from('classroom_students')
-        .select('id')
-        .eq('classroom_id', access[0].classroom_id)
-        .eq('student_id', session.user.id)
-        .limit(1);
+      let hasEnrollment = false;
 
-      if (!enrollment || enrollment.length === 0) {
+      for (const mapping of access as Array<{ classroom_id?: string | null }>) {
+        const classroomId = mapping.classroom_id;
+        if (!classroomId) {
+          continue;
+        }
+
+        const { data: enrollment, error: enrollmentError } = await supabase
+          .from('classroom_students')
+          .select('id')
+          .eq('classroom_id', classroomId)
+          .eq('student_id', session.user.id)
+          .limit(1);
+
+        if (enrollmentError) {
+          console.error('Error validating student enrollment for assignment access:', enrollmentError);
+          return NextResponse.json({ error: 'Failed to validate assignment access' }, { status: 500 });
+        }
+
+        if (enrollment && enrollment.length > 0) {
+          hasEnrollment = true;
+          break;
+        }
+      }
+
+      if (!hasEnrollment) {
         return NextResponse.json({ error: 'Access denied' }, { status: 403 });
       }
     } else if (isInstructor && !isOwner) {
@@ -96,7 +120,7 @@ export async function PATCH(
     if (session.user.role !== 'instructor') return NextResponse.json({ error: 'Only instructors can update assignments' }, { status: 403 });
 
     const body = await request.json();
-    const { title, description, deadline, problem_ids } = body;
+    const { title, description, deadline, problem_ids, closed_at } = body;
 
     const { data: existingAssignment } = await supabase
       .from('assignments').select('created_by').eq('id', id).single();
@@ -109,6 +133,13 @@ export async function PATCH(
     if (title) updateData.title = title.trim();
     if (description !== undefined) updateData.description = description?.trim() || null;
     if (deadline) updateData.deadline = new Date(deadline).toISOString();
+    if (closed_at !== undefined) {
+      if (closed_at !== null && (typeof closed_at !== 'string' || Number.isNaN(Date.parse(closed_at)))) {
+        return NextResponse.json({ error: 'Invalid closed_at value' }, { status: 400 });
+      }
+
+      updateData.closed_at = closed_at === null ? null : new Date(closed_at).toISOString();
+    }
 
     const { error: updateError } = await supabase.from('assignments').update(updateData).eq('id', id);
     if (updateError) return NextResponse.json({ error: 'Failed to update assignment' }, { status: 500 });

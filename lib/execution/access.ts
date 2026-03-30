@@ -13,6 +13,19 @@ interface ExecutionAccessOptions {
   assignmentId?: string;
 }
 
+interface AssignmentSubmissionWindowRow {
+  closed_at: string | null;
+}
+
+function hasAssignmentClosed(closedAt: string | null): boolean {
+  if (!closedAt) {
+    return false;
+  }
+
+  const closedAtMillis = Date.parse(closedAt);
+  return Number.isFinite(closedAtMillis) && closedAtMillis <= Date.now();
+}
+
 export async function assertProblemExists(
   supabase: SupabaseClient,
   problemId: string
@@ -75,7 +88,7 @@ export async function assertExecutionAccess(options: ExecutionAccessOptions): Pr
     .from('classroom_assignments')
     .select('classroom_id')
     .eq('assignment_id', assignmentId)
-    .limit(1);
+    .limit(1000);
 
   if (classroomAssignmentsError) {
     throw new ExecutionDatabaseError(
@@ -88,23 +101,74 @@ export async function assertExecutionAccess(options: ExecutionAccessOptions): Pr
     throw new ExecutionForbiddenError('Access denied');
   }
 
-  const classroomId = classroomAssignments[0]?.classroom_id;
+  let hasEnrollment = false;
 
-  const { data: enrollment, error: enrollmentError } = await supabase
-    .from('classroom_students')
-    .select('id')
-    .eq('classroom_id', classroomId)
-    .eq('student_id', userId)
-    .limit(1);
+  for (const assignmentMapping of classroomAssignments as Array<{ classroom_id?: string | null }>) {
+    const classroomId = assignmentMapping.classroom_id;
+    if (!classroomId) {
+      continue;
+    }
 
-  if (enrollmentError) {
+    const { data: enrollment, error: enrollmentError } = await supabase
+      .from('classroom_students')
+      .select('id')
+      .eq('classroom_id', classroomId)
+      .eq('student_id', userId)
+      .limit(1);
+
+    if (enrollmentError) {
+      throw new ExecutionDatabaseError(
+        `Failed to validate classroom enrollment: ${enrollmentError.message}`,
+        enrollmentError
+      );
+    }
+
+    if (enrollment && enrollment.length > 0) {
+      hasEnrollment = true;
+      break;
+    }
+  }
+
+  if (!hasEnrollment) {
+    throw new ExecutionForbiddenError('Access denied');
+  }
+}
+
+export async function assertAssignmentOpenForSubmission(options: {
+  supabase: SupabaseClient;
+  assignmentId?: string;
+  userRole?: string;
+}): Promise<void> {
+  const { supabase, assignmentId, userRole } = options;
+
+  if (!assignmentId || userRole !== 'student') {
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from('assignments')
+    .select('closed_at')
+    .eq('id', assignmentId)
+    .single();
+
+  if (error) {
+    const errorCode = (error as { code?: string }).code;
+    if (errorCode === 'PGRST116') {
+      throw new ExecutionForbiddenError('Access denied');
+    }
+
     throw new ExecutionDatabaseError(
-      `Failed to validate classroom enrollment: ${enrollmentError.message}`,
-      enrollmentError
+      `Failed to validate assignment submission window: ${error.message}`,
+      error
     );
   }
 
-  if (!enrollment || enrollment.length === 0) {
+  const assignmentWindow = data as AssignmentSubmissionWindowRow | null;
+  if (!assignmentWindow) {
     throw new ExecutionForbiddenError('Access denied');
+  }
+
+  if (hasAssignmentClosed(assignmentWindow.closed_at)) {
+    throw new ExecutionForbiddenError('Assignment is closed. Submissions are no longer accepted.');
   }
 }

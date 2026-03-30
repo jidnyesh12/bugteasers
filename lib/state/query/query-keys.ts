@@ -24,6 +24,8 @@ export const queryKeys = {
   submissions: {
     all: ['submissions'] as const,
     byProblem: (problemId: string) => ['submissions', 'problem', problemId] as const,
+    assignmentSummary: (assignmentId: string) =>
+      ['submissions', 'assignment', assignmentId, 'summary'] as const,
     history: (problemId: string, assignmentId?: string) => [
       'submissions',
       'problem',

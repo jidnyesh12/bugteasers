@@ -5,6 +5,35 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { supabase } from '@/lib/supabase/client';
 
+const JOIN_CODE_LENGTH = 6;
+const MAX_JOIN_CODE_ATTEMPTS = 8;
+
+function generateJoinCodeCandidate(): string {
+  return Math.random().toString(36).substring(2, 2 + JOIN_CODE_LENGTH).toUpperCase();
+}
+
+async function generateUniqueJoinCode(): Promise<string> {
+  for (let attempt = 0; attempt < MAX_JOIN_CODE_ATTEMPTS; attempt += 1) {
+    const joinCode = generateJoinCodeCandidate();
+
+    const { data, error } = await supabase
+      .from('classrooms')
+      .select('id')
+      .eq('join_code', joinCode)
+      .limit(1);
+
+    if (error) {
+      throw new Error(`Failed to validate join code uniqueness: ${error.message}`);
+    }
+
+    if (!data || data.length === 0) {
+      return joinCode;
+    }
+  }
+
+  throw new Error('Failed to generate unique join code');
+}
+
 // GET - List classrooms
 export async function GET() {
   try {
@@ -83,7 +112,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate a unique 6-character join code
-    const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const joinCode = await generateUniqueJoinCode();
 
     const { data: classroom, error } = await supabase
       .from('classrooms')

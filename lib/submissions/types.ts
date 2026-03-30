@@ -12,3 +12,29 @@ export interface ProblemSubmissionHistoryItem {
   submittedAt: string;
   code: string;
 }
+
+export interface AssignmentSubmissionStudent {
+  id: string;
+  fullName: string;
+  email: string;
+}
+
+export interface AssignmentSubmissionProblem {
+  id: string;
+  title: string;
+  orderIndex: number;
+}
+
+export interface AssignmentSubmissionSummary {
+  studentId: string;
+  problemId: string;
+  attemptsCount: number;
+  selectedSubmission: ProblemSubmissionHistoryItem | null;
+}
+
+export interface AssignmentSubmissionOverview {
+  assignmentId: string;
+  students: AssignmentSubmissionStudent[];
+  problems: AssignmentSubmissionProblem[];
+  summaries: AssignmentSubmissionSummary[];
+}

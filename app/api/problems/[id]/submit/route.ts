@@ -9,7 +9,7 @@ import { ExecutionAuthorizationError } from '@/lib/execution/errors';
 import { mapExecutionErrorToHttp } from '@/lib/execution/error-mapping';
 import { createExecutionLogger } from '@/lib/execution/logging';
 import { checkExecutionRateLimit } from '@/lib/execution/rate-limiter';
-import { assertExecutionAccess } from '@/lib/execution/access';
+import { assertAssignmentOpenForSubmission, assertExecutionAccess } from '@/lib/execution/access';
 import { parseJsonBody, validateSubmitPayload } from '@/lib/execution/request-validation';
 
 const logger = createExecutionLogger();
@@ -52,6 +52,12 @@ export async function POST(
       userId: session.user.id,
       userRole: session.user.role,
       assignmentId: payload.assignmentId,
+    });
+
+    await assertAssignmentOpenForSubmission({
+      supabase,
+      assignmentId: payload.assignmentId,
+      userRole: session.user.role,
     });
 
     // Create execution service

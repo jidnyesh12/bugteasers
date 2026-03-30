@@ -52,6 +52,8 @@ export async function POST(
       userId: session.user.id,
       userRole: session.user.role,
     });
+    // Intentionally no assignment closure check in run mode.
+    // Students may keep practicing after closure, but submit mode remains gated.
 
     // Create execution service
     const pistonClient = new PistonClientImpl();

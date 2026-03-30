@@ -14,7 +14,14 @@ export function LoadingSpinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
 
 export function FullPageLoader() {
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
+    <div
+      className="min-h-screen flex items-center justify-center"
+      style={{
+        background: '#ffffff',
+        backgroundImage:
+          'radial-gradient(circle at top center, rgba(59, 130, 246, 0.5), transparent 70%)',
+      }}
+    >
       <div className="flex flex-col items-center gap-4">
         <LoadingSpinner size="lg" />
         <p className="text-sm text-[var(--text-muted)] animate-pulse">Loading...</p>

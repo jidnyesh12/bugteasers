@@ -109,6 +109,26 @@ export async function DELETE(
       return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
     }
 
+    const { data: classroom, error: classroomLookupError } = await supabase
+      .from('classrooms')
+      .select('instructor_id')
+      .eq('id', classroom_id)
+      .single();
+
+    if (classroomLookupError) {
+      // Treat missing classroom and cross-instructor access the same to avoid resource probing.
+      if (classroomLookupError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Classroom not found' }, { status: 404 });
+      }
+
+      console.error('Error validating classroom ownership:', classroomLookupError);
+      return NextResponse.json({ error: 'Failed to validate classroom' }, { status: 500 });
+    }
+
+    if (!classroom || classroom.instructor_id !== session.user.id) {
+      return NextResponse.json({ error: 'Classroom not found' }, { status: 404 });
+    }
+
     const { error } = await supabase
       .from('classroom_assignments')
       .delete()

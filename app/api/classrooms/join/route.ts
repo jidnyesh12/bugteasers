@@ -10,6 +10,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    if (session.user.role !== 'student') {
+      return NextResponse.json({ error: 'Only students can join classrooms' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { join_code } = body;
 

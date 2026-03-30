@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/auth-context';
@@ -10,11 +10,18 @@ import { useToast } from '@/components/ui/toast';
 import type { Assignment, Classroom } from '@/lib/types';
 import {
   assignAssignmentToClassrooms,
+  closeAssignment,
   deleteAssignment,
   fetchAssignmentDetail,
+  fetchAssignmentSubmissionOverview,
 } from '@/lib/api/assignments-client';
 import { fetchClassrooms } from '@/lib/api/classrooms-client';
 import { queryKeys } from '@/lib/state/query';
+import type {
+  AssignmentSubmissionOverview,
+  AssignmentSubmissionSummary,
+  SubmissionStatus,
+} from '@/lib/submissions/types';
 
 import { MarkdownRenderer } from '@/components/markdown-renderer';
 
@@ -34,6 +41,22 @@ const difficultyStyles = {
   easy: 'flat-badge-green',
   medium: 'flat-badge-amber',
   hard: 'flat-badge-red',
+};
+
+const submissionStatusStyles: Record<SubmissionStatus, string> = {
+  pending: 'flat-badge-blue',
+  passed: 'flat-badge-green',
+  partial: 'flat-badge-amber',
+  failed: 'flat-badge-red',
+  error: 'flat-badge-red',
+};
+
+const submissionStatusLabels: Record<SubmissionStatus, string> = {
+  pending: 'Pending',
+  passed: 'Correct',
+  partial: 'Partial',
+  failed: 'Incorrect',
+  error: 'Error',
 };
 
 export default function AssignmentDetailsPage() {
@@ -66,6 +89,16 @@ export default function AssignmentDetailsPage() {
     enabled: profile?.role === 'instructor' && showAssignModal,
   });
 
+  const {
+    data: submissionOverview,
+    isFetching: isSubmissionsLoading,
+    error: submissionsError,
+  } = useQuery<AssignmentSubmissionOverview>({
+    queryKey: queryKeys.submissions.assignmentSummary(params.id),
+    queryFn: () => fetchAssignmentSubmissionOverview<AssignmentSubmissionOverview>(params.id),
+    enabled: profile?.role === 'instructor',
+  });
+
   const { mutateAsync: deleteAssignmentAsync, isPending: isDeleting } = useMutation({
     mutationFn: deleteAssignment,
   });
@@ -73,6 +106,10 @@ export default function AssignmentDetailsPage() {
   const { mutateAsync: assignAssignmentAsync, isPending: isAssigning } = useMutation({
     mutationFn: ({ assignmentId, classroomIds }: { assignmentId: string; classroomIds: string[] }) =>
       assignAssignmentToClassrooms(assignmentId, classroomIds),
+  });
+
+  const { mutateAsync: closeAssignmentAsync, isPending: isClosingAssignment } = useMutation({
+    mutationFn: closeAssignment,
   });
 
   useEffect(() => {
@@ -123,14 +160,76 @@ export default function AssignmentDetailsPage() {
     }
   };
 
+  const handleCloseAssignment = async () => {
+    if (assignment?.closed_at) {
+      toast('Assignment is already closed', 'warning');
+      return;
+    }
+
+    if (!confirm('Close this assignment? Students will no longer be able to submit for it.')) return;
+
+    try {
+      await closeAssignmentAsync(params.id);
+      toast('Assignment closed. New submissions are now blocked.', 'success');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.assignments.detail(params.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.submissions.assignmentSummary(params.id) }),
+      ]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to close assignment';
+      toast(message, 'error');
+    }
+  };
+
   const toggleClassroom = (id: string) => {
     setSelectedClassrooms(prev => 
       prev.includes(id) ? prev.filter(cId => cId !== id) : [...prev, id]
     );
   };
 
+  const submissionSummaryLookup = useMemo(() => {
+    const lookup = new Map<string, AssignmentSubmissionSummary>();
+    for (const summary of submissionOverview?.summaries ?? []) {
+      lookup.set(`${summary.studentId}:${summary.problemId}`, summary);
+    }
+
+    return lookup;
+  }, [submissionOverview?.summaries]);
+
   if (!initialized || authLoading || !profile || isLoading) return <FullPageLoader />;
   if (!assignment) return null;
+
+  const isAssignmentClosed = Boolean(assignment.closed_at);
+  const submissionStudents = submissionOverview?.students ?? [];
+  const submissionProblems = submissionOverview?.problems ?? assignment.problems.map((problem) => ({
+    id: problem.id,
+    title: problem.title,
+    orderIndex: problem.order_index,
+  }));
+
+  const renderSubmissionCell = (summary: AssignmentSubmissionSummary | undefined) => {
+    if (!summary || !summary.selectedSubmission) {
+      return <span className="text-[11px] text-[var(--text-muted)]">No submission</span>;
+    }
+
+    const selectedSubmission = summary.selectedSubmission;
+    const scoreLabel = selectedSubmission.score !== null
+      ? `${Math.round(selectedSubmission.score)}%`
+      : selectedSubmission.earnedPoints !== null && selectedSubmission.totalPoints !== null
+        ? `${selectedSubmission.earnedPoints}/${selectedSubmission.totalPoints}`
+        : 'No score';
+
+    return (
+      <div className="space-y-1">
+        <span className={`flat-badge ${submissionStatusStyles[selectedSubmission.status]}`}>
+          {submissionStatusLabels[selectedSubmission.status]}
+        </span>
+        <p className="text-[11px] text-[var(--text-muted)]">
+          {scoreLabel} · {summary.attemptsCount} attempt{summary.attemptsCount === 1 ? '' : 's'}
+        </p>
+      </div>
+    );
+  };
 
   return (
     <div className="p-6 lg:p-8 max-w-4xl mx-auto">
@@ -160,6 +259,10 @@ export default function AssignmentDetailsPage() {
               </span>
               <span>•</span>
               <span>{assignment.problems.length} problems</span>
+              <span>•</span>
+              <span className={`flat-badge ${isAssignmentClosed ? 'flat-badge-red' : 'flat-badge-green'}`}>
+                {isAssignmentClosed ? 'Closed' : 'Open'}
+              </span>
             </div>
           </div>
           <div className="flex gap-2">
@@ -170,6 +273,13 @@ export default function AssignmentDetailsPage() {
               }}
             >
               Assign to Class
+            </Button>
+            <Button
+              variant={isAssignmentClosed ? 'secondary' : 'danger'}
+              onClick={handleCloseAssignment}
+              disabled={isAssignmentClosed || isClosingAssignment}
+            >
+              {isAssignmentClosed ? 'Closed' : isClosingAssignment ? 'Closing…' : 'Close Assignment'}
             </Button>
             <Button
               variant="danger"
@@ -219,6 +329,64 @@ export default function AssignmentDetailsPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="bg-white border border-[var(--border-primary)] rounded-2xl p-6">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <h3 className="text-sm font-bold text-[var(--text-primary)]">Student Submissions</h3>
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                Representative attempt per student and problem: latest correct, otherwise best partial, otherwise latest incorrect.
+              </p>
+            </div>
+            <span className="text-xs text-[var(--text-muted)]">
+              {isSubmissionsLoading
+                ? 'Refreshing...'
+                : `${submissionStudents.length} student${submissionStudents.length === 1 ? '' : 's'}`}
+            </span>
+          </div>
+
+          {submissionsError ? (
+            <p className="text-sm text-red-600">Failed to load submission summary.</p>
+          ) : submissionProblems.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">Add problems to this assignment to track submissions.</p>
+          ) : submissionStudents.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No students are enrolled in classrooms that received this assignment yet.</p>
+          ) : (
+            <div className="overflow-x-auto border border-[var(--border-primary)] rounded-xl">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead className="bg-[var(--bg-secondary)] border-b border-[var(--border-primary)]">
+                  <tr>
+                    <th className="px-4 py-3 font-bold text-[var(--text-secondary)]">Student</th>
+                    {submissionProblems.map((problem) => (
+                      <th key={problem.id} className="px-4 py-3 font-bold text-[var(--text-secondary)]">
+                        <div className="line-clamp-1" title={problem.title}>{problem.title}</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border-primary)]">
+                  {submissionStudents.map((student) => (
+                    <tr key={student.id} className="align-top">
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-[var(--text-primary)]">{student.fullName}</p>
+                        <p className="text-xs text-[var(--text-muted)]">{student.email}</p>
+                      </td>
+                      {submissionProblems.map((problem) => {
+                        const summary = submissionSummaryLookup.get(`${student.id}:${problem.id}`);
+
+                        return (
+                          <td key={`${student.id}:${problem.id}`} className="px-4 py-3">
+                            {renderSubmissionCell(summary)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 

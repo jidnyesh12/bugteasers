@@ -25,6 +25,7 @@ export interface Assignment {
   description?: string
   created_by: string
   deadline: string
+  closed_at?: string | null
   created_at: string
   updated_at: string
 }

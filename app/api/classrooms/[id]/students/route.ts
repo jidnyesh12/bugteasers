@@ -37,7 +37,7 @@ export async function GET(
         .single();
 
       if (!enrollment) {
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+        return NextResponse.json({ error: 'Classroom not found' }, { status: 404 });
       }
     }
 

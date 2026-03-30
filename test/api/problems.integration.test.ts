@@ -205,6 +205,75 @@ describe('POST /api/problems/[id]/run', () => {
     });
   });
 
+  it('should allow run requests even when assignmentId is provided for a closed assignment', async () => {
+    const { getServerSession } = await import('next-auth');
+    const { createExecutionService } = await import('@/lib/execution');
+    const { supabase } = await import('@/lib/supabase/client');
+
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { id: 'user-1', email: 'test@example.com', role: 'student' },
+      expires: '2024-12-31',
+    });
+
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === 'problems') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { id: 'test-id' },
+                error: null,
+              }),
+            }),
+          }),
+        } as unknown as ReturnType<typeof supabase.from>;
+      }
+
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      } as unknown as ReturnType<typeof supabase.from>;
+    });
+
+    const mockRunCode = vi.fn().mockResolvedValue({
+      results: [],
+      score: {
+        totalPoints: 0,
+        earnedPoints: 0,
+        percentage: 0,
+        status: 'failed',
+      },
+    });
+
+    vi.mocked(createExecutionService).mockReturnValue({
+      runCode: mockRunCode,
+      submitCode: vi.fn(),
+    });
+
+    const response = await runPost(
+      new NextRequest('http://localhost:3000/api/problems/test-id/run', {
+        method: 'POST',
+        body: JSON.stringify({
+          code: 'print("practice")',
+          language: 'python',
+          assignmentId: 'closed-assignment-id',
+        }),
+      }),
+      { params: Promise.resolve({ id: 'test-id' }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockRunCode).toHaveBeenCalledWith({
+      code: 'print("practice")',
+      language: 'python',
+      problemId: 'test-id',
+    });
+    expect(vi.mocked(supabase.from)).not.toHaveBeenCalledWith('assignments');
+  });
+
   it('should return 500 when execution service throws error', async () => {
     const { getServerSession } = await import('next-auth');
     const { createExecutionService } = await import('@/lib/execution');
@@ -367,6 +436,16 @@ describe('POST /api/problems/[id]/submit', () => {
         };
       }
 
+      if (table === 'assignments') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { closed_at: null }, error: null }),
+            }),
+          }),
+        };
+      }
+
       return {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -479,6 +558,16 @@ describe('POST /api/problems/[id]/submit', () => {
         };
       }
 
+      if (table === 'assignments') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { closed_at: null }, error: null }),
+            }),
+          }),
+        };
+      }
+
       return {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -521,6 +610,229 @@ describe('POST /api/problems/[id]/submit', () => {
       },
       'user-1'
     );
+  });
+
+  it('should allow assignment submit when student is enrolled in one of multiple assigned classrooms', async () => {
+    const { getServerSession } = await import('next-auth');
+    const { createExecutionService } = await import('@/lib/execution');
+    const { supabase } = await import('@/lib/supabase/client');
+
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { id: 'user-1', email: 'test@example.com', role: 'student' },
+      expires: '2024-12-31',
+    });
+
+    const mockFrom = vi.fn((table: string) => {
+      if (table === 'problems') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { id: 'test-id' }, error: null }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'assignment_problems') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({ data: [{ id: 'ap-1' }], error: null }),
+              }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'classroom_assignments') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({
+                data: [
+                  { classroom_id: 'classroom-1' },
+                  { classroom_id: 'classroom-2' },
+                ],
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'classroom_students') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockImplementation((_field: string, classroomId: string) => ({
+              eq: vi.fn().mockImplementation((_studentField: string, studentId: string) => ({
+                limit: vi.fn().mockResolvedValue({
+                  data: classroomId === 'classroom-2' && studentId === 'user-1'
+                    ? [{ id: 'enrollment-1' }]
+                    : [],
+                  error: null,
+                }),
+              })),
+            })),
+          }),
+        };
+      }
+
+      if (table === 'assignments') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { closed_at: null }, error: null }),
+            }),
+          }),
+        };
+      }
+
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      };
+    });
+
+    vi.mocked(supabase.from).mockImplementation(mockFrom as unknown as typeof supabase.from);
+
+    const mockSubmitCode = vi.fn().mockResolvedValue({
+      submissionId: 'submission-123',
+      results: [],
+      score: { totalPoints: 0, earnedPoints: 0, percentage: 0, status: 'passed' },
+    });
+
+    vi.mocked(createExecutionService).mockReturnValue({
+      runCode: vi.fn(),
+      submitCode: mockSubmitCode,
+    });
+
+    const response = await submitPost(
+      new NextRequest('http://localhost:3000/api/problems/test-id/submit', {
+        method: 'POST',
+        body: JSON.stringify({
+          code: 'print("hello")',
+          language: 'python',
+          assignmentId: 'assignment-456',
+        }),
+      }),
+      { params: Promise.resolve({ id: 'test-id' }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockSubmitCode).toHaveBeenCalledTimes(1);
+  });
+
+  it('should return 403 when assignment is closed', async () => {
+    const { getServerSession } = await import('next-auth');
+    const { createExecutionService } = await import('@/lib/execution');
+    const { supabase } = await import('@/lib/supabase/client');
+
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { id: 'user-1', email: 'test@example.com', role: 'student' },
+      expires: '2024-12-31',
+    });
+
+    const mockFrom = vi.fn((table: string) => {
+      if (table === 'problems') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { id: 'test-id' }, error: null }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'assignment_problems') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({ data: [{ id: 'ap-1' }], error: null }),
+              }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'classroom_assignments') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [{ classroom_id: 'classroom-1' }], error: null }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'classroom_students') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({ data: [{ id: 'enrollment-1' }], error: null }),
+              }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'assignments') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { closed_at: '2026-03-01T00:00:00.000Z' },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+      };
+    });
+
+    vi.mocked(supabase.from).mockImplementation(mockFrom as unknown as typeof supabase.from);
+
+    const mockSubmitCode = vi.fn().mockResolvedValue({
+      submissionId: 'submission-123',
+      results: [],
+      score: { totalPoints: 0, earnedPoints: 0, percentage: 0, status: 'failed' },
+    });
+
+    vi.mocked(createExecutionService).mockReturnValue({
+      runCode: vi.fn(),
+      submitCode: mockSubmitCode,
+    });
+
+    const response = await submitPost(
+      new NextRequest('http://localhost:3000/api/problems/test-id/submit', {
+        method: 'POST',
+        body: JSON.stringify({
+          code: 'print("hello")',
+          language: 'python',
+          assignmentId: 'assignment-456',
+        }),
+      }),
+      { params: Promise.resolve({ id: 'test-id' }) }
+    );
+
+    const data = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(data.error).toContain('closed');
+    expect(mockSubmitCode).not.toHaveBeenCalled();
   });
 
   it('should return 500 when execution service throws error', async () => {
