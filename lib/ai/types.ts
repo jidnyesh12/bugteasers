@@ -16,6 +16,11 @@ export interface GeneratedTestCase {
   expected_output: string;
   is_sample: boolean;
   points: number;
+  generated_at?: string;
+  generation_model?: string;
+  generation_seed?: string;
+  is_generated?: boolean;
+  input_hash?: string;
 }
 
 export interface GeneratedProblem {
@@ -42,4 +47,20 @@ export interface ProblemGenerationResponse {
     generated_at: string;
     model: string;
   };
+}
+
+export type ProblemGenerationJobStatus =
+  | 'queued'
+  | 'ai_generating'
+  | 'validating'
+  | 'completed'
+  | 'discarded'
+  | 'error';
+
+export interface ProblemGenerationJobStatusResponse {
+  jobId: string;
+  status: ProblemGenerationJobStatus;
+  progressMessage?: string;
+  problems?: GeneratedProblem[];
+  error?: string;
 }

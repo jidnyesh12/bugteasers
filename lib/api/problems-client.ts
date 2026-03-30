@@ -1,5 +1,8 @@
 import { ExecutionHttpError } from './execution-client';
-import type { GeneratedProblem } from '@/lib/ai/types';
+import type {
+  GeneratedProblem,
+  ProblemGenerationJobStatusResponse,
+} from '@/lib/ai/types';
 import type { SupportedLanguage } from '@/lib/execution/types';
 
 interface ProblemDetailResponse<TProblem> {
@@ -17,6 +20,27 @@ interface ProblemsListResponse<TProblem> {
 interface GeneratedProblemsResponse {
   problems: GeneratedProblem[];
 }
+
+export interface GenerateProblemsInput {
+  topic: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  tags?: string[];
+  constraints?: string;
+  numProblems: number;
+  languages: SupportedLanguage[];
+}
+
+interface GenerateProblemsOptions {
+  onStatus?: (status: ProblemGenerationJobStatusResponse) => void;
+  pollIntervalMs?: number;
+  maxPollAttempts?: number;
+}
+
+const DEFAULT_POLL_INTERVAL_MS = 1500;
+const DEFAULT_MAX_POLL_ATTEMPTS = 120;
+const POLL_BACKOFF_FACTOR = 1.1;
+const MAX_POLL_INTERVAL_MS = 5000;
+const POLL_JITTER_RATIO = 0.2;
 
 export async function fetchProblemDetail<TProblem>(problemId: string): Promise<TProblem> {
   const response = await fetch(`/api/problems/${problemId}`, {
@@ -71,14 +95,10 @@ export async function fetchProblems<TProblem>(options?: { mine?: boolean }): Pro
   return parsedBody.problems;
 }
 
-export async function generateProblems(input: {
-  topic: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-  tags?: string[];
-  constraints?: string;
-  numProblems: number;
-  languages: SupportedLanguage[];
-}): Promise<GeneratedProblem[]> {
+export async function generateProblems(
+  input: GenerateProblemsInput,
+  options: GenerateProblemsOptions = {}
+): Promise<GeneratedProblem[]> {
   const response = await fetch('/api/problems/generate', {
     method: 'POST',
     headers: {
@@ -87,7 +107,9 @@ export async function generateProblems(input: {
     body: JSON.stringify(input),
   });
 
-  const parsedBody = await parseJson<ErrorPayload | GeneratedProblemsResponse>(response);
+  const parsedBody = await parseJson<
+    ErrorPayload | GeneratedProblemsResponse | ProblemGenerationJobStatusResponse
+  >(response);
 
   if (!response.ok) {
     const payloadError = isErrorPayload(parsedBody) ? parsedBody.error : undefined;
@@ -96,7 +118,11 @@ export async function generateProblems(input: {
   }
 
   if (!isGeneratedProblemsPayload(parsedBody)) {
-    return [];
+    if (!isProblemGenerationJobStatusPayload(parsedBody)) {
+      throw new Error('Invalid problem generation response');
+    }
+
+    return waitForGeneratedProblems(parsedBody, options);
   }
 
   return parsedBody.problems;
@@ -165,4 +191,101 @@ function isGeneratedProblemsPayload(value: unknown): value is GeneratedProblemsR
 
   const payload = value as Record<string, unknown>;
   return Array.isArray(payload.problems);
+}
+
+async function waitForGeneratedProblems(
+  initialStatus: ProblemGenerationJobStatusResponse,
+  options: GenerateProblemsOptions
+): Promise<GeneratedProblem[]> {
+  const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+  const maxPollAttempts = options.maxPollAttempts ?? DEFAULT_MAX_POLL_ATTEMPTS;
+
+  let status = initialStatus;
+  options.onStatus?.(status);
+
+  for (let attempt = 0; attempt < maxPollAttempts; attempt += 1) {
+    if (status.status === 'completed') {
+      return status.problems ?? [];
+    }
+
+    if (status.status === 'discarded' || status.status === 'error') {
+      throw new Error(
+        status.error ||
+        status.progressMessage ||
+        'Problem generation was discarded during validation.'
+      );
+    }
+
+    await sleep(calculatePollDelayMs(pollIntervalMs, attempt));
+
+    const response = await fetch(`/api/problems/generate/${status.jobId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const parsedBody = await parseJson<
+      ErrorPayload | ProblemGenerationJobStatusResponse
+    >(response);
+
+    if (!response.ok) {
+      const payloadError = isErrorPayload(parsedBody) ? parsedBody.error : undefined;
+      const message = payloadError || response.statusText || 'Failed to poll generation status';
+      throw new ExecutionHttpError(message, response.status);
+    }
+
+    if (!isProblemGenerationJobStatusPayload(parsedBody)) {
+      throw new Error('Invalid generation status payload');
+    }
+
+    status = parsedBody;
+    options.onStatus?.(status);
+  }
+
+  throw new Error('Problem generation timed out. Please retry.');
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function calculatePollDelayMs(basePollIntervalMs: number, attempt: number): number {
+  const normalizedBaseInterval = Math.max(250, basePollIntervalMs);
+  const exponentiatedDelay = Math.min(
+    Math.round(normalizedBaseInterval * Math.pow(POLL_BACKOFF_FACTOR, attempt)),
+    MAX_POLL_INTERVAL_MS
+  );
+  const jitterWindow = Math.max(50, Math.round(exponentiatedDelay * POLL_JITTER_RATIO));
+  const jitter = Math.floor(Math.random() * (2 * jitterWindow + 1)) - jitterWindow;
+
+  return Math.max(250, exponentiatedDelay + jitter);
+}
+
+function isProblemGenerationJobStatusPayload(
+  value: unknown
+): value is ProblemGenerationJobStatusResponse {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const payload = value as Record<string, unknown>;
+  if (typeof payload.jobId !== 'string' || payload.jobId.length === 0) {
+    return false;
+  }
+
+  if (typeof payload.status !== 'string') {
+    return false;
+  }
+
+  return [
+    'queued',
+    'ai_generating',
+    'validating',
+    'completed',
+    'discarded',
+    'error',
+  ].includes(payload.status);
 }

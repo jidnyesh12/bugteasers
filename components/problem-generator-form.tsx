@@ -2,14 +2,22 @@
 
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { GeneratedProblem } from '@/lib/ai/types';
-import { generateProblems } from '@/lib/api/problems-client';
+import {
+  GeneratedProblem,
+  ProblemGenerationJobStatusResponse,
+} from '@/lib/ai/types';
+import {
+  generateProblems,
+  type GenerateProblemsInput,
+} from '@/lib/api/problems-client';
 import { EXECUTION_LANGUAGE_LABELS, SUPPORTED_EXECUTION_LANGUAGES } from '@/lib/execution/languages';
 import type { SupportedLanguage } from '@/lib/execution/types';
 
 interface ProblemGeneratorFormProps {
   onGenerate: (problems: GeneratedProblem[]) => void;
   isLoading: boolean;
+  onGenerationStart?: () => void;
+  onGenerationFinish?: () => void;
 }
 
 const INPUT_CLASS =
@@ -17,9 +25,39 @@ const INPUT_CLASS =
 
 const LABEL_CLASS = 'block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)] mb-1.5';
 
+function getGenerationStatusMessage(status: ProblemGenerationJobStatusResponse): string {
+  if (status.progressMessage && status.progressMessage.trim().length > 0) {
+    return status.progressMessage;
+  }
+
+  if (status.status === 'queued') {
+    return 'Generation request queued. Preparing your problem draft...';
+  }
+
+  if (status.status === 'ai_generating') {
+    return 'Drafting problem statement, model code, and base testcases...';
+  }
+
+  if (status.status === 'validating') {
+    return 'Model code is ready. Now testing model answer on generated testcases.';
+  }
+
+  if (status.status === 'completed') {
+    return 'Validation complete. Opening preview...';
+  }
+
+  if (status.status === 'discarded') {
+    return 'Generation was discarded because validation failed.';
+  }
+
+  return 'Generation failed due to an unexpected error.';
+}
+
 export default function ProblemGeneratorForm({
   onGenerate,
   isLoading: externalLoading,
+  onGenerationStart,
+  onGenerationFinish,
 }: ProblemGeneratorFormProps) {
   const [topic, setTopic] = useState('');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('easy');
@@ -28,8 +66,14 @@ export default function ProblemGeneratorForm({
   const [numProblems, setNumProblems] = useState(1);
   const [languages, setLanguages] = useState<SupportedLanguage[]>([...SUPPORTED_EXECUTION_LANGUAGES]);
   const [error, setError] = useState('');
+  const [generationStatusMessage, setGenerationStatusMessage] = useState('');
   const { mutateAsync: generateProblemsAsync, isPending: internalLoading } = useMutation({
-    mutationFn: generateProblems,
+    mutationFn: (input: GenerateProblemsInput) =>
+      generateProblems(input, {
+        onStatus: (status) => {
+          setGenerationStatusMessage(getGenerationStatusMessage(status));
+        },
+      }),
   });
   const isLoading = externalLoading || internalLoading;
 
@@ -39,6 +83,8 @@ export default function ProblemGeneratorForm({
     if (!topic.trim()) { setError('Please enter a topic'); return; }
 
     try {
+      onGenerationStart?.();
+      setGenerationStatusMessage('Generation request queued. Preparing your problem draft...');
       const problems = await generateProblemsAsync({
         topic: topic.trim(),
         difficulty,
@@ -47,6 +93,7 @@ export default function ProblemGeneratorForm({
         numProblems,
         languages,
       });
+      setGenerationStatusMessage('Validation complete. Opening preview...');
       onGenerate(problems);
     } catch (err) {
       const rawMsg = err instanceof Error ? err.message : 'An error occurred';
@@ -56,6 +103,9 @@ export default function ProblemGeneratorForm({
       } else {
         setError(rawMsg);
       }
+      setGenerationStatusMessage('');
+    } finally {
+      onGenerationFinish?.();
     }
   };
 
@@ -245,7 +295,7 @@ export default function ProblemGeneratorForm({
       {isLoading && (
         <div className="text-center py-4 animate-fade-in">
           <p className="text-sm text-[var(--text-secondary)] font-medium">
-            ☕ This may take 1–2 minutes. Grab a coffee while the AI works its magic!
+            {generationStatusMessage || 'This may take 1–2 minutes. Grab a coffee while the AI works its magic!'}
           </p>
         </div>
       )}
