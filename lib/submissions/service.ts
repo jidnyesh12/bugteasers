@@ -29,10 +29,16 @@ interface GetAssignmentSubmissionOverviewOptions {
 interface RawAssignmentProblemRow {
   problem_id: string;
   order_index: number;
-  problems: Array<{
+  problems:
+  | {
     id: string;
     title: string;
-  }> | null;
+  }
+  | Array<{
+    id: string;
+    title: string;
+  }>
+  | null;
 }
 
 interface RawClassroomAssignmentRow {
@@ -41,16 +47,35 @@ interface RawClassroomAssignmentRow {
 
 interface RawClassroomStudentRow {
   student_id: string;
-  student: Array<{
+  student:
+  | {
     id: string;
     full_name: string | null;
     email: string | null;
-  }> | null;
+  }
+  | Array<{
+    id: string;
+    full_name: string | null;
+    email: string | null;
+  }>
+  | null;
 }
 
 interface RawAssignmentSubmissionRow extends RawProblemSubmissionRow {
   student_id: string;
   problem_id: string;
+}
+
+function firstRelationRecord<TRow>(value: TRow | TRow[] | null | undefined): TRow | null {
+  if (!value) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value;
 }
 
 export async function listProblemSubmissions(
@@ -110,11 +135,11 @@ export async function getAssignmentSubmissionOverview(
       continue;
     }
 
-    const problemMeta = row.problems?.[0];
+    const problemMeta = firstRelationRecord(row.problems);
 
     problemsById.set(row.problem_id, {
       id: row.problem_id,
-      title: problemMeta?.title ?? 'Untitled problem',
+      title: problemMeta?.title ?? 'Unknown problem',
       orderIndex: row.order_index,
     });
   }
@@ -183,7 +208,7 @@ export async function getAssignmentSubmissionOverview(
       continue;
     }
 
-    const studentMeta = row.student?.[0];
+    const studentMeta = firstRelationRecord(row.student);
 
     const fullName = studentMeta?.full_name?.trim() || studentMeta?.email || 'Unknown student';
     studentsById.set(row.student_id, {

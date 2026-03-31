@@ -14,6 +14,7 @@ import {
   deleteAssignment,
   fetchAssignmentDetail,
   fetchAssignmentSubmissionOverview,
+  reopenAssignment,
 } from '@/lib/api/assignments-client';
 import { fetchClassrooms } from '@/lib/api/classrooms-client';
 import { queryKeys } from '@/lib/state/query';
@@ -112,6 +113,10 @@ export default function AssignmentDetailsPage() {
     mutationFn: closeAssignment,
   });
 
+  const { mutateAsync: reopenAssignmentAsync, isPending: isReopeningAssignment } = useMutation({
+    mutationFn: reopenAssignment,
+  });
+
   useEffect(() => {
     if (!initialized || authLoading) return;
     if (!profile) { router.replace('/login'); return; }
@@ -174,9 +179,32 @@ export default function AssignmentDetailsPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.assignments.detail(params.id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.submissions.assignmentSummary(params.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.assignments.mine }),
       ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to close assignment';
+      toast(message, 'error');
+    }
+  };
+
+  const handleReopenAssignment = async () => {
+    if (!assignment?.closed_at) {
+      toast('Assignment is already open', 'warning');
+      return;
+    }
+
+    if (!confirm('Reopen this assignment? Students will be able to submit again.')) return;
+
+    try {
+      await reopenAssignmentAsync(params.id);
+      toast('Assignment reopened. Students can submit again.', 'success');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.assignments.detail(params.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.submissions.assignmentSummary(params.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.assignments.mine }),
+      ]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to reopen assignment';
       toast(message, 'error');
     }
   };
@@ -196,16 +224,89 @@ export default function AssignmentDetailsPage() {
     return lookup;
   }, [submissionOverview?.summaries]);
 
+  const isAssignmentClosed = Boolean(assignment?.closed_at);
+  const submissionStudents = useMemo(
+    () => submissionOverview?.students ?? [],
+    [submissionOverview?.students]
+  );
+  const submissionProblems = useMemo(
+    () =>
+      submissionOverview?.problems ??
+      assignment?.problems?.map((problem) => ({
+        id: problem.id,
+        title: problem.title,
+        orderIndex: problem.order_index,
+      })) ??
+      [],
+    [assignment?.problems, submissionOverview?.problems]
+  );
+
+  const studentTotalScoreLookup = useMemo(() => {
+    const totals = new Map<string, string>();
+
+    for (const student of submissionStudents) {
+      let earnedPoints = 0;
+      let totalPoints = 0;
+      let percentageTotal = 0;
+      let percentageCount = 0;
+
+      for (const problem of submissionProblems) {
+        const summary = submissionSummaryLookup.get(`${student.id}:${problem.id}`);
+        const selectedSubmission = summary?.selectedSubmission;
+
+        if (!selectedSubmission) {
+          continue;
+        }
+
+        if (
+          selectedSubmission.earnedPoints !== null &&
+          selectedSubmission.totalPoints !== null &&
+          Number.isFinite(selectedSubmission.earnedPoints) &&
+          Number.isFinite(selectedSubmission.totalPoints) &&
+          selectedSubmission.totalPoints > 0
+        ) {
+          earnedPoints += selectedSubmission.earnedPoints;
+          totalPoints += selectedSubmission.totalPoints;
+          continue;
+        }
+
+        if (selectedSubmission.score !== null && Number.isFinite(selectedSubmission.score)) {
+          percentageTotal += selectedSubmission.score;
+          percentageCount += 1;
+        }
+      }
+
+      if (totalPoints > 0) {
+        const percentage = Math.round((earnedPoints / totalPoints) * 100);
+        totals.set(student.id, `${earnedPoints}/${totalPoints} (${percentage}%)`);
+        continue;
+      }
+
+      if (percentageCount > 0) {
+        totals.set(student.id, `${Math.round(percentageTotal / percentageCount)}%`);
+        continue;
+      }
+
+      totals.set(student.id, 'No score');
+    }
+
+    return totals;
+  }, [submissionProblems, submissionStudents, submissionSummaryLookup]);
+
+  const submissionsTableMinWidthPercent = useMemo(() => {
+    const visibleProblemColumnsWithoutScroll = 2;
+    if (submissionProblems.length <= visibleProblemColumnsWithoutScroll) {
+      return 100;
+    }
+
+    return 100 + (submissionProblems.length - visibleProblemColumnsWithoutScroll) * 35;
+  }, [submissionProblems.length]);
+
   if (!initialized || authLoading || !profile || isLoading) return <FullPageLoader />;
   if (!assignment) return null;
 
-  const isAssignmentClosed = Boolean(assignment.closed_at);
-  const submissionStudents = submissionOverview?.students ?? [];
-  const submissionProblems = submissionOverview?.problems ?? assignment.problems.map((problem) => ({
-    id: problem.id,
-    title: problem.title,
-    orderIndex: problem.order_index,
-  }));
+  const assignmentDeadline = new Date(assignment.deadline);
+  const isAssignmentOverdue = !isAssignmentClosed && assignmentDeadline < new Date();
 
   const renderSubmissionCell = (summary: AssignmentSubmissionSummary | undefined) => {
     if (!summary || !summary.selectedSubmission) {
@@ -244,29 +345,38 @@ export default function AssignmentDetailsPage() {
           Back to Assignments
         </button>
 
-        <div className="flex items-start justify-between gap-4">
-          <div>
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
             <h1 className="text-2xl font-black tracking-tight text-[var(--text-primary)] mb-2">
               {assignment.title}
             </h1>
-            <div className="flex items-center gap-4 text-sm text-[var(--text-secondary)]">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[var(--text-secondary)]">
               <span className="flex items-center gap-1.5">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
-                Due {new Date(assignment.deadline).toLocaleDateString()}
+                <span className={isAssignmentOverdue ? 'text-red-600 font-semibold' : ''}>
+                  Due {assignmentDeadline.toLocaleDateString()}
+                </span>
               </span>
               <span>•</span>
               <span>{assignment.problems.length} problems</span>
               <span>•</span>
+              {isAssignmentOverdue && (
+                <>
+                  <span className="flat-badge flat-badge-red">Overdue</span>
+                  <span>•</span>
+                </>
+              )}
               <span className={`flat-badge ${isAssignmentClosed ? 'flat-badge-red' : 'flat-badge-green'}`}>
                 {isAssignmentClosed ? 'Closed' : 'Open'}
               </span>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex w-full flex-wrap justify-start gap-2 xl:w-auto xl:justify-end">
             <Button
+              className="whitespace-nowrap bg-[#1D4ED8] text-white hover:bg-[#1E40AF] focus-visible:ring-[#1D4ED8]"
               onClick={() => {
                 setShowAssignModal(true);
                 void refetchClassrooms();
@@ -275,14 +385,21 @@ export default function AssignmentDetailsPage() {
               Assign to Class
             </Button>
             <Button
-              variant={isAssignmentClosed ? 'secondary' : 'danger'}
+              className="whitespace-nowrap bg-[#F59E0B] text-white hover:bg-[#D97706] focus-visible:ring-[#F59E0B]"
               onClick={handleCloseAssignment}
-              disabled={isAssignmentClosed || isClosingAssignment}
+              disabled={isAssignmentClosed || isClosingAssignment || isReopeningAssignment}
             >
-              {isAssignmentClosed ? 'Closed' : isClosingAssignment ? 'Closing…' : 'Close Assignment'}
+              {isClosingAssignment ? 'Closing…' : 'Close Assignment'}
             </Button>
             <Button
-              variant="danger"
+              className="whitespace-nowrap bg-[#059669] text-white hover:bg-[#047857] focus-visible:ring-[#059669]"
+              onClick={handleReopenAssignment}
+              disabled={!isAssignmentClosed || isReopeningAssignment || isClosingAssignment}
+            >
+              {isReopeningAssignment ? 'Reopening…' : 'Reopen Assignment'}
+            </Button>
+            <Button
+              className="whitespace-nowrap bg-[#DC2626] text-white hover:bg-[#B91C1C] focus-visible:ring-[#DC2626]"
               onClick={handleDelete}
               disabled={isDeleting}
             >
@@ -353,14 +470,18 @@ export default function AssignmentDetailsPage() {
           ) : submissionStudents.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)]">No students are enrolled in classrooms that received this assignment yet.</p>
           ) : (
-            <div className="overflow-x-auto border border-[var(--border-primary)] rounded-xl">
-              <table className="w-full min-w-[720px] text-left text-sm">
+            <div className="w-full max-w-full overflow-x-auto overscroll-x-contain border border-[var(--border-primary)] rounded-xl">
+              <table
+                className="w-full min-w-full table-auto text-left text-sm"
+                style={{ minWidth: `${submissionsTableMinWidthPercent}%` }}
+              >
                 <thead className="bg-[var(--bg-secondary)] border-b border-[var(--border-primary)]">
                   <tr>
-                    <th className="px-4 py-3 font-bold text-[var(--text-secondary)]">Student</th>
+                    <th className="px-4 py-3 font-bold text-[var(--text-secondary)] whitespace-nowrap">Student</th>
+                    <th className="px-4 py-3 font-bold text-[var(--text-secondary)] whitespace-nowrap">Total Score</th>
                     {submissionProblems.map((problem) => (
-                      <th key={problem.id} className="px-4 py-3 font-bold text-[var(--text-secondary)]">
-                        <div className="line-clamp-1" title={problem.title}>{problem.title}</div>
+                      <th key={problem.id} className="px-4 py-3 font-bold text-[var(--text-secondary)] whitespace-nowrap" title={problem.title}>
+                        {problem.title}
                       </th>
                     ))}
                   </tr>
@@ -371,6 +492,11 @@ export default function AssignmentDetailsPage() {
                       <td className="px-4 py-3">
                         <p className="font-semibold text-[var(--text-primary)]">{student.fullName}</p>
                         <p className="text-xs text-[var(--text-muted)]">{student.email}</p>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="font-semibold text-[var(--text-primary)]">
+                          {studentTotalScoreLookup.get(student.id) ?? 'No score'}
+                        </span>
                       </td>
                       {submissionProblems.map((problem) => {
                         const summary = submissionSummaryLookup.get(`${student.id}:${problem.id}`);

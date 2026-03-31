@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/lib/auth/auth-context'
@@ -9,22 +9,32 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { fetchClassrooms, joinClassroom } from '@/lib/api/classrooms-client'
+import {
+  fetchStudentDashboardStats,
+  type StudentDashboardStats,
+} from '@/lib/api/dashboard-client'
 import { queryKeys } from '@/lib/state/query'
 
 interface EnrolledClassroom {
-  id: string;
-  classroom?: {
-    id: string;
-    name: string;
-  };
-  joined_at: string;
+  id: string
+  classroom: {
+    id: string
+    name: string
+  }
+  joined_at: string
 }
 
-const stats = [
+const stats: Array<{
+  label: string
+  color: string
+  value: (metrics: StudentDashboardStats) => string
+  sub: (metrics: StudentDashboardStats) => string
+  icon: ReactNode
+}> = [
   {
     label: 'Problems Solved',
-    value: '0',
-    sub: 'Just started',
+    value: (metrics) => metrics.problemsSolved.toLocaleString(),
+    sub: (metrics) => (metrics.problemsSolved === 0 ? 'Solve your first' : 'Great progress'),
     color: '#2B3F7E',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -35,8 +45,8 @@ const stats = [
   },
   {
     label: 'Day Streak',
-    value: '0',
-    sub: 'Start today',
+    value: (metrics) => metrics.dayStreak.toLocaleString(),
+    sub: (metrics) => (metrics.dayStreak === 0 ? 'Start today' : `${metrics.dayStreak} days in a row`),
     color: '#FDB714',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -46,8 +56,8 @@ const stats = [
   },
   {
     label: 'Submissions',
-    value: '0',
-    sub: 'No submissions yet',
+    value: (metrics) => metrics.submissions.toLocaleString(),
+    sub: (metrics) => (metrics.submissions === 0 ? 'No submissions yet' : `${metrics.submissions} total attempts`),
     color: '#7C9CC4',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -58,8 +68,8 @@ const stats = [
   },
   {
     label: 'Accuracy',
-    value: '--',
-    sub: 'Solve to track',
+    value: (metrics) => (metrics.accuracy === null ? 'N/A' : `${metrics.accuracy}%`),
+    sub: (metrics) => (metrics.accuracy === null ? 'Submit to track' : `${metrics.accuracy}% average`),
     color: '#1DB97A',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -87,6 +97,17 @@ export default function StudentDashboard() {
     queryFn: () => fetchClassrooms<EnrolledClassroom>(),
     enabled: profile?.role === 'student',
   })
+
+  const {
+    data: dashboardStatsData,
+    isFetching: loadingStats,
+  } = useQuery({
+    queryKey: queryKeys.dashboard.studentStats,
+    queryFn: fetchStudentDashboardStats,
+    enabled: profile?.role === 'student',
+  })
+
+  const dashboardStats = dashboardStatsData?.stats
 
   const { mutateAsync: joinClassroomAsync, isPending: joining } = useMutation({
     mutationFn: joinClassroom,
@@ -151,19 +172,24 @@ export default function StudentDashboard() {
 
       {/* ── Stats Grid ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {stats.map((stat) => (
-          <div key={stat.label} className="bg-white border border-[var(--border-primary)] rounded-xl p-5 hover:border-[var(--border-secondary)] transition-colors">
-            <div
-              className="w-9 h-9 rounded-lg flex items-center justify-center mb-4"
-              style={{ background: `${stat.color}14`, color: stat.color }}
-            >
-              {stat.icon}
+        {stats.map((stat) => {
+          const valueLabel = dashboardStats ? stat.value(dashboardStats) : loadingStats ? '...' : '0'
+          const subLabel = dashboardStats ? stat.sub(dashboardStats) : loadingStats ? 'Loading...' : 'No activity yet'
+
+          return (
+            <div key={stat.label} className="bg-white border border-[var(--border-primary)] rounded-xl p-5 hover:border-[var(--border-secondary)] transition-colors">
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center mb-4"
+                style={{ background: `${stat.color}14`, color: stat.color }}
+              >
+                {stat.icon}
+              </div>
+              <p className="text-2xl font-black text-[var(--text-primary)] tracking-tight">{valueLabel}</p>
+              <p className="text-xs font-semibold text-[var(--text-secondary)] mt-0.5">{stat.label}</p>
+              <p className="text-xs text-[var(--text-muted)] mt-2">{subLabel}</p>
             </div>
-            <p className="text-2xl font-black text-[var(--text-primary)] tracking-tight">{stat.value}</p>
-            <p className="text-xs font-semibold text-[var(--text-secondary)] mt-0.5">{stat.label}</p>
-            <p className="text-xs text-[var(--text-muted)] mt-2">{stat.sub}</p>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* ── Main Content Grid ── */}
@@ -200,15 +226,15 @@ export default function StudentDashboard() {
                 {classrooms.map((c) => (
                     <div
                         key={c.id}
-                        onClick={() => router.push(`/dashboard/student/classrooms/${c.classroom?.id}`)}
+                    onClick={() => router.push(`/dashboard/student/classrooms/${c.classroom.id}`)}
                         className="group flex items-center justify-between p-3 rounded-xl border border-[var(--border-primary)] hover:border-[var(--accent-primary)] transition-all bg-[var(--bg-secondary)]/30 cursor-pointer"
                     >
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-white border border-[var(--border-primary)] flex items-center justify-center text-[var(--accent-primary)] font-bold text-lg">
-                                {c.classroom?.name?.charAt(0) || '?'}
+                        {c.classroom.name.charAt(0)}
                             </div>
                             <div>
-                                <h3 className="font-bold text-sm text-[var(--text-primary)]">{c.classroom?.name || 'Unknown'}</h3>
+                        <h3 className="font-bold text-sm text-[var(--text-primary)]">{c.classroom.name}</h3>
                                 <p className="text-xs text-[var(--text-muted)]">Joined {new Date(c.joined_at).toLocaleDateString()}</p>
                             </div>
                         </div>

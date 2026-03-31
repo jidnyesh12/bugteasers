@@ -3,6 +3,27 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { supabase } from '@/lib/supabase/client';
 
+interface ProblemWithUsageCount {
+  usage_count: number | null;
+  assignment_problems?: { count: number }[] | null;
+  test_cases?: Array<{ is_sample: boolean }>;
+  [key: string]: unknown;
+}
+
+function resolveUsageCount(problem: ProblemWithUsageCount): number {
+  const relationCount = problem.assignment_problems?.[0]?.count;
+
+  if (typeof relationCount === 'number' && Number.isFinite(relationCount)) {
+    return relationCount;
+  }
+
+  if (typeof problem.usage_count === 'number' && Number.isFinite(problem.usage_count)) {
+    return problem.usage_count;
+  }
+
+  return 0;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -19,6 +40,7 @@ export async function GET(
       .from('problems')
       .select(`
         *,
+        assignment_problems (count),
         test_cases (
           id,
           input_data,
@@ -39,17 +61,24 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch problem' }, { status: 500 });
     }
 
+    const rawProblem = problem as ProblemWithUsageCount;
+    const normalizedProblem: ProblemWithUsageCount = {
+      ...rawProblem,
+      usage_count: resolveUsageCount(rawProblem),
+    };
+    delete normalizedProblem.assignment_problems;
+
     const isInstructor = session.user.role === 'instructor';
 
     if (isInstructor) {
       // Instructors get everything including solution_code
-      return NextResponse.json({ problem });
+      return NextResponse.json({ problem: normalizedProblem });
     }
 
     // Students: strip solution_code, only show sample test cases
-    const safeFields = { ...problem };
+    const safeFields = { ...normalizedProblem };
     delete (safeFields as Record<string, unknown>).solution_code;
-    const sampleTestCases = (problem.test_cases || []).filter(
+    const sampleTestCases = ((normalizedProblem.test_cases as Array<{ is_sample: boolean }> | undefined) || []).filter(
       (tc: { is_sample: boolean }) => tc.is_sample
     );
 

@@ -17,6 +17,8 @@ interface SolveEditorToolbarProps {
   onSubmit: () => void;
   isRunning: boolean;
   isSubmitting: boolean;
+  isSubmitBlocked?: boolean;
+  submitBlockedReason?: string;
 }
 
 export function SolveEditorToolbar({
@@ -27,9 +29,11 @@ export function SolveEditorToolbar({
   onSubmit,
   isRunning,
   isSubmitting,
+  isSubmitBlocked = false,
+  submitBlockedReason,
 }: SolveEditorToolbarProps) {
   const isRunDisabled = isRunning || isSubmitting;
-  const isSubmitDisabled = isRunning || isSubmitting;
+  const isSubmitDisabled = isRunning || isSubmitting || isSubmitBlocked;
 
   return (
     <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-[#3e3e42] shrink-0">
@@ -86,7 +90,7 @@ export function SolveEditorToolbar({
           onClick={onSubmit}
           disabled={isSubmitDisabled}
           className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-md transition-colors cursor-pointer disabled:opacity-50"
-          title="Submit (Ctrl + Enter)"
+          title={submitBlockedReason || 'Submit (Ctrl + Enter)'}
         >
           {isSubmitting ? (
             <>

@@ -1,16 +1,28 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth/auth-context'
 import { FullPageLoader } from '@/components/ui/loading'
+import { fetchInstructorDashboardStats } from '@/lib/api/dashboard-client'
+import { queryKeys } from '@/lib/state/query'
+import type { SubmissionStatus } from '@/lib/submissions/types'
 
-const stats = [
+type InstructorStatKey = 'totalProblems' | 'pendingReviews' | 'activeStudents' | 'classrooms'
+
+const stats: Array<{
+  key: InstructorStatKey
+  label: string
+  color: string
+  sub: (value: number) => string
+  icon: ReactNode
+}> = [
   {
+    key: 'totalProblems',
     label: 'Total Problems',
-    value: '0',
-    sub: 'Create your first',
+    sub: (value) => (value === 0 ? 'Create your first' : `${value} in your bank`),
     color: '#2B3F7E',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -20,9 +32,9 @@ const stats = [
     ),
   },
   {
+    key: 'pendingReviews',
     label: 'Pending Reviews',
-    value: '0',
-    sub: 'All caught up',
+    sub: (value) => (value === 0 ? 'All caught up' : `${value} awaiting review`),
     color: '#F39C12',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -32,9 +44,9 @@ const stats = [
     ),
   },
   {
+    key: 'activeStudents',
     label: 'Active Students',
-    value: '0',
-    sub: 'Invite students',
+    sub: (value) => (value === 0 ? 'Invite students' : `${value} currently active`),
     color: '#1DB97A',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -46,9 +58,9 @@ const stats = [
     ),
   },
   {
+    key: 'classrooms',
     label: 'Classrooms',
-    value: '0',
-    sub: 'Create classroom',
+    sub: (value) => (value === 0 ? 'Create classroom' : `${value} classroom${value === 1 ? '' : 's'} live`),
     color: '#7C9CC4',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -107,9 +119,45 @@ const quickActions = [
   },
 ]
 
+const recentSubmissionBadgeStyles: Record<SubmissionStatus, string> = {
+  pending: 'flat-badge-blue',
+  passed: 'flat-badge-green',
+  partial: 'flat-badge-amber',
+  failed: 'flat-badge-red',
+  error: 'flat-badge-red',
+}
+
+const recentSubmissionLabels: Record<SubmissionStatus, string> = {
+  pending: 'Pending',
+  passed: 'Correct',
+  partial: 'Partial',
+  failed: 'Incorrect',
+  error: 'Error',
+}
+
+function formatSubmissionTime(value: string): string {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Unknown time'
+  }
+
+  return parsed.toLocaleString()
+}
+
 export default function InstructorDashboard() {
   const { profile, loading, initialized } = useAuth()
   const router = useRouter()
+  const {
+    data: dashboardData,
+    isFetching: isStatsLoading,
+  } = useQuery({
+    queryKey: queryKeys.dashboard.instructorStats,
+    queryFn: fetchInstructorDashboardStats,
+    enabled: profile?.role === 'instructor',
+  })
+
+  const dashboardStats = dashboardData?.stats
+  const recentSubmissions = dashboardData?.recentSubmissions || []
 
   useEffect(() => {
     if (!initialized || loading) return
@@ -153,19 +201,25 @@ export default function InstructorDashboard() {
 
       {/* ── Stats Grid ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {stats.map((stat) => (
-          <div key={stat.label} className="bg-white border border-[var(--border-primary)] rounded-xl p-5 hover:border-[var(--border-secondary)] transition-colors">
-            <div
-              className="w-9 h-9 rounded-lg flex items-center justify-center mb-4"
-              style={{ background: `${stat.color}14`, color: stat.color }}
-            >
-              {stat.icon}
+        {stats.map((stat) => {
+          const value = dashboardStats?.[stat.key] ?? 0
+          const valueLabel = dashboardStats ? value.toLocaleString() : isStatsLoading ? '...' : '0'
+          const subLabel = dashboardStats ? stat.sub(value) : isStatsLoading ? 'Loading...' : stat.sub(0)
+
+          return (
+            <div key={stat.label} className="bg-white border border-[var(--border-primary)] rounded-xl p-5 hover:border-[var(--border-secondary)] transition-colors">
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center mb-4"
+                style={{ background: `${stat.color}14`, color: stat.color }}
+              >
+                {stat.icon}
+              </div>
+              <p className="text-2xl font-black text-[var(--text-primary)] tracking-tight">{valueLabel}</p>
+              <p className="text-xs font-semibold text-[var(--text-secondary)] mt-0.5">{stat.label}</p>
+              <p className="text-xs text-[var(--text-muted)] mt-2">{subLabel}</p>
             </div>
-            <p className="text-2xl font-black text-[var(--text-primary)] tracking-tight">{stat.value}</p>
-            <p className="text-xs font-semibold text-[var(--text-secondary)] mt-0.5">{stat.label}</p>
-            <p className="text-xs text-[var(--text-muted)] mt-2">{stat.sub}</p>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* ── Main Content Grid ── */}
@@ -175,17 +229,54 @@ export default function InstructorDashboard() {
         <div className="lg:col-span-3 bg-white border border-[var(--border-primary)] rounded-xl p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-sm font-black uppercase tracking-wider text-[var(--text-primary)]">Recent Submissions</h2>
+            <span className="text-xs text-[var(--text-muted)]">
+              {isStatsLoading && !dashboardData
+                ? 'Refreshing...'
+                : `${recentSubmissions.length} latest`}
+            </span>
           </div>
-          <div className="flex flex-col items-center justify-center py-14 text-center">
-            <div className="w-12 h-12 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-primary)] flex items-center justify-center mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
+          {isStatsLoading && !dashboardData ? (
+            <div className="flex items-center justify-center py-14">
+              <div className="h-7 w-7 rounded-full border-4 border-[var(--bg-tertiary)] border-t-[var(--accent-primary)] animate-spin" />
             </div>
-            <p className="text-sm font-semibold text-[var(--text-secondary)]">No submissions yet</p>
-            <p className="text-xs text-[var(--text-muted)] mt-1 max-w-xs">Student submissions will appear here once they start solving problems</p>
-          </div>
+          ) : recentSubmissions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-14 text-center">
+              <div className="w-12 h-12 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-primary)] flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-[var(--text-secondary)]">No submissions yet</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1 max-w-xs">Student submissions will appear here once they start solving problems</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {recentSubmissions.map((submission) => {
+                const scoreLabel = submission.score === null ? 'No score' : `${Math.round(submission.score)}%`
+
+                return (
+                  <div
+                    key={submission.id}
+                    className="flex items-start justify-between gap-3 p-3 rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)]/30"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{submission.studentName}</p>
+                      <p className="text-xs text-[var(--text-secondary)] truncate">{submission.problemTitle}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`flat-badge ${recentSubmissionBadgeStyles[submission.status]}`}>
+                        {recentSubmissionLabels[submission.status]}
+                      </span>
+                      <p className="text-[11px] text-[var(--text-muted)] mt-1 whitespace-nowrap">
+                        {scoreLabel} - {formatSubmissionTime(submission.submittedAt)}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Quick Actions */}

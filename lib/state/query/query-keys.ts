@@ -3,6 +3,10 @@ export const queryKeys = {
     session: ['auth', 'session'] as const,
     profile: (userId: string) => ['auth', 'profile', userId] as const,
   },
+  dashboard: {
+    instructorStats: ['dashboard', 'instructor', 'stats'] as const,
+    studentStats: ['dashboard', 'student', 'stats'] as const,
+  },
   classrooms: {
     all: ['classrooms'] as const,
     instructorMine: ['classrooms', 'instructor', 'mine'] as const,

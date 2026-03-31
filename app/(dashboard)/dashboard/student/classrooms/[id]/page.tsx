@@ -60,12 +60,18 @@ export default function StudentClassroomDetailsPage() {
     }
   }, [classroom, isClassroomsLoading, profile?.role, router]);
 
-  const formatDeadline = (deadline: string) => {
+  const formatDeadline = (deadline: string, closedAt?: string | null) => {
     const date = new Date(deadline);
     const now = new Date();
-    const isOverdue = date < now;
+    const closedTimestamp = typeof closedAt === 'string' ? Date.parse(closedAt) : Number.NaN;
+    const isClosed = Number.isFinite(closedTimestamp) && closedTimestamp <= now.getTime();
+    const isOverdue = !isClosed && date < now;
     const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    return { formatted, isOverdue };
+    const closedFormatted = isClosed
+      ? new Date(closedTimestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : null;
+
+    return { formatted, isOverdue, isClosed, closedFormatted };
   };
 
   if (!initialized || authLoading || !profile || isClassroomsLoading || isAssignmentsLoading) return <FullPageLoader />;
@@ -109,7 +115,10 @@ export default function StudentClassroomDetailsPage() {
       ) : (
         <div className="grid gap-3">
           {assignments.map((assignment) => {
-            const { formatted, isOverdue } = formatDeadline(assignment.deadline);
+            const { formatted, isOverdue, isClosed, closedFormatted } = formatDeadline(
+              assignment.deadline,
+              assignment.closed_at
+            );
             return (
               <div
                 key={assignment.id}
@@ -122,7 +131,11 @@ export default function StudentClassroomDetailsPage() {
                       <h3 className="text-base font-bold text-[var(--text-primary)] group-hover:text-[var(--accent-primary)] transition-colors">
                         {assignment.title}
                       </h3>
-                      {isOverdue && (
+                      {isClosed ? (
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wide">
+                          Closed
+                        </span>
+                      ) : isOverdue && (
                         <span className="px-2 py-0.5 rounded-md bg-red-50 text-red-600 text-[10px] font-bold uppercase tracking-wide">
                           Overdue
                         </span>
@@ -147,7 +160,13 @@ export default function StudentClassroomDetailsPage() {
                           <circle cx="12" cy="12" r="10" />
                           <polyline points="12 6 12 12 16 14" />
                         </svg>
-                        <span className={isOverdue ? 'text-red-600 font-semibold' : ''}>Due {formatted}</span>
+                        {isClosed ? (
+                          <span className="text-slate-700 font-semibold">
+                            Closed {closedFormatted}
+                          </span>
+                        ) : (
+                          <span className={isOverdue ? 'text-red-600 font-semibold' : ''}>Due {formatted}</span>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -10,11 +10,15 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuth } from '@/lib/auth/auth-context';
 import { FullPageLoader } from '@/components/ui/loading';
 import { useToast } from '@/components/ui/toast';
 import type { SupportedLanguage } from '@/lib/execution/types';
+import type { Assignment } from '@/lib/types';
+import { fetchAssignmentDetail } from '@/lib/api/assignments-client';
+import { queryKeys } from '@/lib/state/query';
 import { ProblemDetailsPanel } from './components/problem-details-panel';
 import { ProblemLoadErrorView } from './components/problem-load-error-view';
 import { SolveEditorToolbar } from './components/solve-editor-toolbar';
@@ -51,6 +55,8 @@ import { useProblemSubmissions } from './hooks/use-problem-submissions';
 import { useSolveKeyboardShortcuts } from './hooks/use-solve-keyboard-shortcuts';
 import { useSolveEditorState } from './hooks/use-solve-editor-state';
 import type { ProblemSubmissionDisplayItem } from '@/lib/submissions/view-types';
+
+type AssignmentWindow = Pick<Assignment, 'id' | 'closed_at'>;
 
 export default function SolveProblemPage() {
   const router = useRouter();
@@ -101,6 +107,27 @@ export default function SolveProblemPage() {
   const pendingSubmissionNeedsBaseRemountRef = useRef(false);
 
   const assignmentId = searchParams.get('assignmentId') || undefined;
+
+  const {
+    data: assignmentWindow,
+    isFetching: isAssignmentWindowLoading,
+  } = useQuery<AssignmentWindow>({
+    queryKey: queryKeys.assignments.detail(assignmentId ?? 'practice'),
+    queryFn: () => fetchAssignmentDetail<AssignmentWindow>(assignmentId as string),
+    enabled: Boolean(assignmentId) && profile?.role === 'student',
+  });
+
+  const assignmentClosedAt = assignmentWindow?.closed_at;
+  const isAssignmentClosed =
+    typeof assignmentClosedAt === 'string' && assignmentClosedAt.trim().length > 0;
+
+  const submitBlockedReason = !assignmentId
+    ? undefined
+    : isAssignmentWindowLoading
+      ? 'Checking assignment status...'
+      : isAssignmentClosed
+        ? 'Assignment is closed. Submissions are disabled.'
+        : undefined;
   const paneStorageKey = useMemo(() => buildSolveEditorPaneKey({
     userId: profile?.id ?? null,
     problemId: params.id,
@@ -218,6 +245,18 @@ export default function SolveProblemPage() {
   }, [paneStorageKey, runCode, setPaneState]);
 
   const handleSubmitClick = useCallback(() => {
+    if (assignmentId) {
+      if (isAssignmentWindowLoading) {
+        toast('Checking assignment status. Please try again in a moment.', 'info');
+        return;
+      }
+
+      if (isAssignmentClosed) {
+        toast('Assignment is closed. Submissions are disabled.', 'warning');
+        return;
+      }
+    }
+
     setPendingSubmissionMeta({
       code: codeRef.current,
       language,
@@ -226,7 +265,17 @@ export default function SolveProblemPage() {
     setOutputTab('result');
     setPaneState(paneStorageKey, { isOutputCollapsed: false });
     void submitCode();
-  }, [codeRef, language, paneStorageKey, setPaneState, submitCode]);
+  }, [
+    assignmentId,
+    codeRef,
+    isAssignmentClosed,
+    isAssignmentWindowLoading,
+    language,
+    paneStorageKey,
+    setPaneState,
+    submitCode,
+    toast,
+  ]);
 
   useSolveKeyboardShortcuts({
     onRunShortcut: handleRunClick,
@@ -441,6 +490,8 @@ export default function SolveProblemPage() {
           onSubmit={handleSubmitClick}
           isRunning={isRunning}
           isSubmitting={isSubmitting}
+          isSubmitBlocked={Boolean(submitBlockedReason)}
+          submitBlockedReason={submitBlockedReason}
         />
 
         {/* CodeMirror Editor — Tab inserts indent, Enter preserves indentation */}

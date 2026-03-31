@@ -5,6 +5,28 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { supabase } from '@/lib/supabase/client';
 
+type AssignmentJoin = {
+  id: string;
+  title: string;
+  description: string | null;
+  deadline: string;
+  closed_at: string | null;
+  created_at: string;
+  assignment_problems?: { count: number }[];
+};
+
+function firstRelationRecord<TRow>(value: TRow | TRow[] | null | undefined): TRow | null {
+  if (!value) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value;
+}
+
 // GET - List assignments in classroom
 export async function GET(
   request: NextRequest,
@@ -51,6 +73,7 @@ export async function GET(
           title,
           description,
           deadline,
+          closed_at,
           created_at,
           assignment_problems (count)
         )
@@ -64,11 +87,18 @@ export async function GET(
     }
 
     // Transform data
-    const assignments = classroomAssignments?.map(ca => ({
-      ...ca.assignment,
-      problem_count: (ca.assignment as unknown as { assignment_problems: { count: number }[] }).assignment_problems?.[0]?.count || 0,
-      assigned_at: ca.assigned_at,
-    })) || [];
+    const assignments = classroomAssignments?.flatMap((classroomAssignment) => {
+      const assignment = firstRelationRecord(classroomAssignment.assignment as AssignmentJoin | AssignmentJoin[] | null);
+      if (!assignment) {
+        return [];
+      }
+
+      return {
+        ...assignment,
+        problem_count: assignment.assignment_problems?.[0]?.count || 0,
+        assigned_at: classroomAssignment.assigned_at,
+      };
+    }) || [];
 
     return NextResponse.json({ assignments });
   } catch (error) {

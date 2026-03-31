@@ -189,12 +189,16 @@ button,
 }
 
 button:not(:disabled):active,
-[role="button"]:not(:disabled):active {
+[role="button"]:not([aria-disabled="true"]):active {
     transform: scale(0.97);
 }
 
-button:disabled {
-    cursor: not-allowed;
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled,
+[role="button"][aria-disabled="true"] {
+    cursor: not-allowed !important;
 }
 
 /* ============================================================

@@ -130,6 +130,23 @@ export async function closeAssignment(assignmentId: string): Promise<void> {
   }
 }
 
+export async function reopenAssignment(assignmentId: string): Promise<void> {
+  const response = await fetch(`/api/assignments/${assignmentId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      closed_at: null,
+    }),
+  });
+
+  const parsedBody = await parseJson<ErrorPayload>(response);
+  if (!response.ok) {
+    throwHttpError(response, parsedBody, 'Failed to reopen assignment');
+  }
+}
+
 export async function assignAssignmentToClassrooms(
   assignmentId: string,
   classroomIds: string[]

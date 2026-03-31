@@ -8,6 +8,30 @@ import { supabase } from '@/lib/supabase/client';
 const JOIN_CODE_LENGTH = 6;
 const MAX_JOIN_CODE_ATTEMPTS = 8;
 
+interface ClassroomSummary {
+  id: string;
+  name: string;
+  instructor_id: string;
+}
+
+interface StudentEnrollmentRow {
+  id: string;
+  joined_at: string;
+  classroom: ClassroomSummary | ClassroomSummary[] | null;
+}
+
+function firstRelationRecord<TRow>(value: TRow | TRow[] | null | undefined): TRow | null {
+  if (!value) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value;
+}
+
 function generateJoinCodeCandidate(): string {
   return Math.random().toString(36).substring(2, 2 + JOIN_CODE_LENGTH).toUpperCase();
 }
@@ -82,8 +106,23 @@ export async function GET() {
         return NextResponse.json({ error: 'Failed to fetch classrooms' }, { status: 500 });
       }
 
-      // Return enrollments but structured to be easily consumable
-      return NextResponse.json({ classrooms: enrollments || [] });
+      const normalizedEnrollments = ((enrollments as StudentEnrollmentRow[] | null) ?? [])
+        .map((enrollment) => ({
+          id: enrollment.id,
+          joined_at: enrollment.joined_at,
+          classroom: firstRelationRecord(enrollment.classroom),
+        }))
+        .filter(
+          (
+            enrollment
+          ): enrollment is {
+            id: string;
+            joined_at: string;
+            classroom: ClassroomSummary;
+          } => Boolean(enrollment.classroom?.id && enrollment.classroom?.name)
+        );
+
+      return NextResponse.json({ classrooms: normalizedEnrollments });
     }
   } catch (error) {
     console.error('Error in list classrooms API:', error);

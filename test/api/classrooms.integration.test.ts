@@ -140,6 +140,55 @@ describe('Classrooms API lifecycle checks', () => {
     expect(data.classrooms[0].classroom.id).toBe('classroom-1');
   });
 
+  it('normalizes classroom relation arrays for student enrollments', async () => {
+    const { getServerSession } = await import('next-auth');
+    const { supabase } = await import('@/lib/supabase/client');
+
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { id: 'student-1', role: 'student', email: 'student@example.com' },
+      expires: '2099-01-01',
+    });
+
+    const orderMock = vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'enroll-1',
+          joined_at: '2026-03-01T00:00:00.000Z',
+          classroom: [
+            {
+              id: 'classroom-1',
+              name: 'DSA',
+              instructor_id: 'instructor-1',
+            },
+          ],
+        },
+      ],
+      error: null,
+    });
+
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === 'classroom_students') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: orderMock,
+            }),
+          }),
+        } as unknown as ReturnType<typeof supabase.from>;
+      }
+
+      return {} as ReturnType<typeof supabase.from>;
+    });
+
+    const response = await listClassroomsGet();
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.classrooms).toHaveLength(1);
+    expect(Array.isArray(data.classrooms[0].classroom)).toBe(false);
+    expect(data.classrooms[0].classroom.id).toBe('classroom-1');
+  });
+
   it('retries join code generation on collision and creates classroom', async () => {
     const { getServerSession } = await import('next-auth');
     const { supabase } = await import('@/lib/supabase/client');
