@@ -45,7 +45,7 @@ describe('POST /api/problems/generate', () => {
     });
 
     vi.mocked(enqueueProblemGenerationJob).mockRejectedValue(
-      new ProblemGenerationConcurrencyLimitError(2)
+      new ProblemGenerationConcurrencyLimitError('Too many active generation jobs for this user')
     );
 
     const request = new NextRequest('http://localhost:3000/api/problems/generate', {
@@ -63,6 +63,31 @@ describe('POST /api/problems/generate', () => {
 
     expect(response.status).toBe(429);
     expect(data.error).toContain('active generation jobs');
+  });
+
+  it('returns 401 when session exists but user id is missing', async () => {
+    const { getServerSession } = await import('next-auth');
+
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { email: 'inst@example.com', role: 'instructor' },
+      expires: '2026-12-31',
+    } as unknown as Awaited<ReturnType<typeof getServerSession>>);
+
+    const request = new NextRequest('http://localhost:3000/api/problems/generate', {
+      method: 'POST',
+      body: JSON.stringify({
+        topic: 'graphs',
+        difficulty: 'medium',
+        numProblems: 1,
+        languages: ['python'],
+      }),
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(data.error).toBe('Unauthorized');
   });
 
   it('returns a full generation status payload when enqueue succeeds', async () => {

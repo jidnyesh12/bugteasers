@@ -74,8 +74,9 @@ BEGIN
       FROM problem_generation_jobs
       WHERE created_by = NEW.created_by
         AND status IN ('queued', 'ai_generating', 'validating')
+        -- Source-of-truth active-job cap: 2 (mirrored in service for user-facing messaging).
     ) >= 2 THEN
-      RAISE EXCEPTION 'Too many active generation jobs for this user'
+      RAISE EXCEPTION 'TOO_MANY_ACTIVE_GENERATION_JOBS'
         USING ERRCODE = 'P0001';
     END IF;
   END IF;

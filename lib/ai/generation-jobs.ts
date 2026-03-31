@@ -43,7 +43,8 @@ const ACTIVE_JOB_STATUSES: readonly ProblemGenerationJobStatus[] = [
 
 const MAX_ACTIVE_GENERATION_JOBS_PER_USER = 2;
 const STALE_JOB_TIMEOUT_MS = 24 * 60 * 60 * 1000;
-const PROCESSING_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
+// Keep lock expiry far above normal generation time while still allowing timely crash recovery.
+const PROCESSING_LOCK_TIMEOUT_MS = 20 * 60 * 1000;
 const MAINTENANCE_INTERVAL_MS = 60 * 1000;
 
 let lastMaintenanceAt = 0;
@@ -77,14 +78,9 @@ export interface ProblemGenerationJobSummary {
 }
 
 export class ProblemGenerationConcurrencyLimitError extends Error {
-  readonly limit: number;
-
-  constructor(limit: number) {
-    super(
-      `You already have ${limit} active generation jobs. Wait for one to finish before starting another.`
-    );
+  constructor(message = 'Too many active generation jobs. Wait for one to finish before starting another.') {
+    super(message);
     this.name = 'ProblemGenerationConcurrencyLimitError';
-    this.limit = limit;
   }
 }
 
@@ -266,20 +262,6 @@ function buildGenerationSeed(request: ProblemGenerationRequest): string {
   });
 
   return createHash('sha256').update(payload).digest('hex');
-}
-
-async function countActiveJobsForUser(userId: string): Promise<number> {
-  const { count, error } = await supabase
-    .from('problem_generation_jobs')
-    .select('id', { count: 'exact', head: true })
-    .eq('created_by', userId)
-    .in('status', [...ACTIVE_JOB_STATUSES]);
-
-  if (error) {
-    throw new Error(`Failed to count active generation jobs: ${error.message}`);
-  }
-
-  return count ?? 0;
 }
 
 async function discardStaleActiveJobs(): Promise<void> {
@@ -666,11 +648,6 @@ export async function enqueueProblemGenerationJob(params: {
 }): Promise<ProblemGenerationJobSummary> {
   await runMaintenanceIfDue();
 
-  const activeJobCount = await countActiveJobsForUser(params.createdBy);
-  if (activeJobCount >= MAX_ACTIVE_GENERATION_JOBS_PER_USER) {
-    throw new ProblemGenerationConcurrencyLimitError(MAX_ACTIVE_GENERATION_JOBS_PER_USER);
-  }
-
   const normalizedRequest = normalizeJobRequest(params.request);
 
   const { data, error } = await supabase
@@ -691,9 +668,21 @@ export async function enqueueProblemGenerationJob(params: {
 
   if (error) {
     const errorCode = (error as { code?: string }).code;
+    const normalizedMessage = (error.message || '').trim();
     const loweredMessage = (error.message || '').toLowerCase();
-    if (errorCode === 'P0001' && loweredMessage.includes('too many active generation jobs')) {
-      throw new ProblemGenerationConcurrencyLimitError(MAX_ACTIVE_GENERATION_JOBS_PER_USER);
+    if (
+      (errorCode === 'P0001' && normalizedMessage === 'TOO_MANY_ACTIVE_GENERATION_JOBS') ||
+      (errorCode === 'P0001' && loweredMessage.includes('too many active generation jobs'))
+    ) {
+      const friendlyLimitMessage =
+        `You already have ${MAX_ACTIVE_GENERATION_JOBS_PER_USER} active generation jobs. ` +
+        'Wait for one to finish before starting another.';
+
+      throw new ProblemGenerationConcurrencyLimitError(
+        normalizedMessage === 'TOO_MANY_ACTIVE_GENERATION_JOBS'
+          ? friendlyLimitMessage
+          : error.message || friendlyLimitMessage
+      );
     }
 
     throw new Error(`Failed to enqueue problem generation job: ${error.message}`);
