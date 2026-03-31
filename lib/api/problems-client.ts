@@ -41,6 +41,16 @@ const DEFAULT_MAX_POLL_ATTEMPTS = 120;
 const POLL_BACKOFF_FACTOR = 1.1;
 const MAX_POLL_INTERVAL_MS = 5000;
 const POLL_JITTER_RATIO = 0.2;
+const MAX_CONSECUTIVE_TRANSIENT_POLL_FAILURES = 3;
+const TRANSIENT_POLL_HTTP_STATUSES: ReadonlySet<number> = new Set([
+  408,
+  425,
+  429,
+  500,
+  502,
+  503,
+  504,
+]);
 
 export async function fetchProblemDetail<TProblem>(problemId: string): Promise<TProblem> {
   const response = await fetch(`/api/problems/${problemId}`, {
@@ -201,6 +211,7 @@ async function waitForGeneratedProblems(
   const maxPollAttempts = options.maxPollAttempts ?? DEFAULT_MAX_POLL_ATTEMPTS;
 
   let status = initialStatus;
+  let consecutiveTransientFailures = 0;
   options.onStatus?.(status);
 
   for (let attempt = 0; attempt < maxPollAttempts; attempt += 1) {
@@ -218,12 +229,26 @@ async function waitForGeneratedProblems(
 
     await sleep(calculatePollDelayMs(pollIntervalMs, attempt));
 
-    const response = await fetch(`/api/problems/generate/${status.jobId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch(`/api/problems/generate/${status.jobId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    } catch (error) {
+      if (shouldRetryTransientPollFailure({
+        statusCode: null,
+        error,
+        consecutiveFailures: consecutiveTransientFailures,
+      })) {
+        consecutiveTransientFailures += 1;
+        continue;
+      }
+
+      throw error;
+    }
 
     const parsedBody = await parseJson<
       ErrorPayload | ProblemGenerationJobStatusResponse
@@ -232,6 +257,16 @@ async function waitForGeneratedProblems(
     if (!response.ok) {
       const payloadError = isErrorPayload(parsedBody) ? parsedBody.error : undefined;
       const message = payloadError || response.statusText || 'Failed to poll generation status';
+
+      if (shouldRetryTransientPollFailure({
+        statusCode: response.status,
+        error: null,
+        consecutiveFailures: consecutiveTransientFailures,
+      })) {
+        consecutiveTransientFailures += 1;
+        continue;
+      }
+
       throw new ExecutionHttpError(message, response.status);
     }
 
@@ -239,11 +274,17 @@ async function waitForGeneratedProblems(
       throw new Error('Invalid generation status payload');
     }
 
+    consecutiveTransientFailures = 0;
     status = parsedBody;
     options.onStatus?.(status);
   }
 
-  throw new Error('Problem generation timed out. Please retry.');
+  throw new Error(
+    `Problem generation timed out after around ${estimatePollingWindowSeconds(
+      pollIntervalMs,
+      maxPollAttempts
+    )} seconds. It may still be running; please retry shortly.`
+  );
 }
 
 function sleep(ms: number): Promise<void> {
@@ -252,12 +293,42 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
-function calculatePollDelayMs(basePollIntervalMs: number, attempt: number): number {
+function shouldRetryTransientPollFailure(params: {
+  statusCode: number | null;
+  error: unknown;
+  consecutiveFailures: number;
+}): boolean {
+  if (params.consecutiveFailures >= MAX_CONSECUTIVE_TRANSIENT_POLL_FAILURES) {
+    return false;
+  }
+
+  if (params.statusCode !== null && TRANSIENT_POLL_HTTP_STATUSES.has(params.statusCode)) {
+    return true;
+  }
+
+  return params.error instanceof TypeError;
+}
+
+function estimatePollingWindowSeconds(basePollIntervalMs: number, maxPollAttempts: number): number {
+  let totalDelayMs = 0;
+
+  for (let attempt = 0; attempt < maxPollAttempts; attempt += 1) {
+    totalDelayMs += calculateBasePollDelayMs(basePollIntervalMs, attempt);
+  }
+
+  return Math.max(1, Math.round(totalDelayMs / 1000));
+}
+
+function calculateBasePollDelayMs(basePollIntervalMs: number, attempt: number): number {
   const normalizedBaseInterval = Math.max(250, basePollIntervalMs);
-  const exponentiatedDelay = Math.min(
+  return Math.min(
     Math.round(normalizedBaseInterval * Math.pow(POLL_BACKOFF_FACTOR, attempt)),
     MAX_POLL_INTERVAL_MS
   );
+}
+
+function calculatePollDelayMs(basePollIntervalMs: number, attempt: number): number {
+  const exponentiatedDelay = calculateBasePollDelayMs(basePollIntervalMs, attempt);
   const jitterWindow = Math.max(50, Math.round(exponentiatedDelay * POLL_JITTER_RATIO));
   const jitter = Math.floor(Math.random() * (2 * jitterWindow + 1)) - jitterWindow;
 
