@@ -16,17 +16,79 @@ CREATE TABLE IF NOT EXISTS problem_generation_jobs (
   result_payload JSONB,
   progress_message TEXT,
   error_message TEXT,
+  processing_token TEXT,
+  processing_started_at TIMESTAMPTZ,
   started_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'problem_generation_jobs' AND column_name = 'processing_token'
+  ) THEN
+    ALTER TABLE problem_generation_jobs ADD COLUMN processing_token TEXT;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'problem_generation_jobs' AND column_name = 'processing_started_at'
+  ) THEN
+    ALTER TABLE problem_generation_jobs ADD COLUMN processing_started_at TIMESTAMPTZ;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_problem_generation_jobs_created_by
   ON problem_generation_jobs(created_by, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_problem_generation_jobs_status
   ON problem_generation_jobs(status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_problem_generation_jobs_active_by_user
+  ON problem_generation_jobs(created_by, status, updated_at DESC)
+  WHERE status IN ('queued', 'ai_generating', 'validating');
+
+CREATE INDEX IF NOT EXISTS idx_problem_generation_jobs_processing_started_at
+  ON problem_generation_jobs(processing_started_at)
+  WHERE processing_started_at IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_problem_generation_jobs_active_updated_at
+  ON problem_generation_jobs(updated_at)
+  WHERE status IN ('queued', 'ai_generating', 'validating');
+
+CREATE OR REPLACE FUNCTION enforce_problem_generation_active_job_limit()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.status IN ('queued', 'ai_generating', 'validating') THEN
+    -- Serialize active-job inserts per user so the count check is race-safe.
+    PERFORM pg_advisory_xact_lock(hashtext(NEW.created_by::text));
+
+    IF (
+      SELECT COUNT(*)
+      FROM problem_generation_jobs
+      WHERE created_by = NEW.created_by
+        AND status IN ('queued', 'ai_generating', 'validating')
+    ) >= 2 THEN
+      RAISE EXCEPTION 'Too many active generation jobs for this user'
+        USING ERRCODE = 'P0001';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_problem_generation_jobs_active_limit ON problem_generation_jobs;
+CREATE TRIGGER trg_problem_generation_jobs_active_limit
+  BEFORE INSERT ON problem_generation_jobs
+  FOR EACH ROW
+  EXECUTE FUNCTION enforce_problem_generation_active_job_limit();
 
 -- ============================================
 -- Metadata columns on test_cases

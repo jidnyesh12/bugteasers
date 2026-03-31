@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { supabase } from '@/lib/supabase/client';
 import { PistonClientImpl } from '@/lib/execution/client';
 import { TestCaseEvaluatorImpl } from '@/lib/execution/evaluator';
@@ -22,6 +22,8 @@ const JOB_SELECT_FIELDS = [
   'result_payload',
   'progress_message',
   'error_message',
+  'processing_token',
+  'processing_started_at',
   'created_at',
   'updated_at',
   'completed_at',
@@ -33,6 +35,19 @@ const TERMINAL_JOB_STATUSES: ReadonlySet<ProblemGenerationJobStatus> = new Set([
   'error',
 ]);
 
+const ACTIVE_JOB_STATUSES: readonly ProblemGenerationJobStatus[] = [
+  'queued',
+  'ai_generating',
+  'validating',
+];
+
+const MAX_ACTIVE_GENERATION_JOBS_PER_USER = 2;
+const STALE_JOB_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+const PROCESSING_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
+const MAINTENANCE_INTERVAL_MS = 60 * 1000;
+
+let lastMaintenanceAt = 0;
+
 interface ProblemGenerationJobRow {
   id: string;
   created_by: string;
@@ -41,6 +56,8 @@ interface ProblemGenerationJobRow {
   result_payload: { problems?: GeneratedProblem[] } | null;
   progress_message: string | null;
   error_message: string | null;
+  processing_token: string | null;
+  processing_started_at: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
@@ -57,6 +74,18 @@ export interface ProblemGenerationJobSummary {
   progressMessage: string | null;
   errorMessage: string | null;
   problems: GeneratedProblem[] | null;
+}
+
+export class ProblemGenerationConcurrencyLimitError extends Error {
+  readonly limit: number;
+
+  constructor(limit: number) {
+    super(
+      `You already have ${limit} active generation jobs. Wait for one to finish before starting another.`
+    );
+    this.name = 'ProblemGenerationConcurrencyLimitError';
+    this.limit = limit;
+  }
 }
 
 function isJobStatus(value: unknown): value is ProblemGenerationJobStatus {
@@ -156,6 +185,9 @@ function mapJobRow(row: unknown): ProblemGenerationJobRow {
         : null,
     progress_message: typeof raw.progress_message === 'string' ? raw.progress_message : null,
     error_message: typeof raw.error_message === 'string' ? raw.error_message : null,
+    processing_token: typeof raw.processing_token === 'string' ? raw.processing_token : null,
+    processing_started_at:
+      typeof raw.processing_started_at === 'string' ? raw.processing_started_at : null,
     created_at: typeof raw.created_at === 'string' ? raw.created_at : new Date().toISOString(),
     updated_at: typeof raw.updated_at === 'string' ? raw.updated_at : new Date().toISOString(),
     completed_at: typeof raw.completed_at === 'string' ? raw.completed_at : null,
@@ -194,18 +226,23 @@ async function fetchJobById(jobId: string): Promise<ProblemGenerationJobRow | nu
 async function transitionJob(
   jobId: string,
   fromStatuses: readonly ProblemGenerationJobStatus[],
-  updates: Record<string, unknown>
+  updates: Record<string, unknown>,
+  options: { lockToken?: string } = {}
 ): Promise<ProblemGenerationJobRow | null> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('problem_generation_jobs')
     .update({
       ...updates,
       updated_at: new Date().toISOString(),
     })
     .eq('id', jobId)
-    .in('status', [...fromStatuses])
-    .select(JOB_SELECT_FIELDS)
-    .maybeSingle();
+    .in('status', [...fromStatuses]);
+
+  if (options.lockToken) {
+    query = query.eq('processing_token', options.lockToken);
+  }
+
+  const { data, error } = await query.select(JOB_SELECT_FIELDS).maybeSingle();
 
   if (error) {
     throw new Error(`Failed to transition generation job: ${error.message}`);
@@ -228,7 +265,110 @@ function buildGenerationSeed(request: ProblemGenerationRequest): string {
     languages: request.languages ?? [...SUPPORTED_EXECUTION_LANGUAGES],
   });
 
-  return createHash('sha256').update(payload).digest('hex').slice(0, 16);
+  return createHash('sha256').update(payload).digest('hex');
+}
+
+async function countActiveJobsForUser(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('problem_generation_jobs')
+    .select('id', { count: 'exact', head: true })
+    .eq('created_by', userId)
+    .in('status', [...ACTIVE_JOB_STATUSES]);
+
+  if (error) {
+    throw new Error(`Failed to count active generation jobs: ${error.message}`);
+  }
+
+  return count ?? 0;
+}
+
+async function discardStaleActiveJobs(): Promise<void> {
+  const staleCutoffIso = new Date(Date.now() - STALE_JOB_TIMEOUT_MS).toISOString();
+  const nowIso = new Date().toISOString();
+
+  const { error } = await supabase
+    .from('problem_generation_jobs')
+    .update({
+      status: 'discarded',
+      progress_message: 'Generation discarded: job expired before completion.',
+      error_message: 'Generation job expired due to inactivity. Please retry generation.',
+      completed_at: nowIso,
+      processing_token: null,
+      processing_started_at: null,
+      updated_at: nowIso,
+    })
+    .in('status', [...ACTIVE_JOB_STATUSES])
+    .lt('updated_at', staleCutoffIso);
+
+  if (error) {
+    throw new Error(`Failed to discard stale generation jobs: ${error.message}`);
+  }
+}
+
+async function releaseExpiredProcessingLocks(): Promise<void> {
+  const staleLockCutoffIso = new Date(Date.now() - PROCESSING_LOCK_TIMEOUT_MS).toISOString();
+  const nowIso = new Date().toISOString();
+
+  const { error } = await supabase
+    .from('problem_generation_jobs')
+    .update({
+      processing_token: null,
+      processing_started_at: null,
+      updated_at: nowIso,
+    })
+    .in('status', ['ai_generating', 'validating'])
+    .not('processing_started_at', 'is', null)
+    .lt('processing_started_at', staleLockCutoffIso);
+
+  if (error) {
+    throw new Error(`Failed to release stale generation locks: ${error.message}`);
+  }
+}
+
+async function runMaintenanceIfDue(): Promise<void> {
+  const now = Date.now();
+  if (now - lastMaintenanceAt < MAINTENANCE_INTERVAL_MS) {
+    return;
+  }
+
+  lastMaintenanceAt = now;
+
+  try {
+    await Promise.all([discardStaleActiveJobs(), releaseExpiredProcessingLocks()]);
+  } catch (error) {
+    console.error('Problem generation maintenance failed:', error);
+  }
+}
+
+async function claimJobProcessingLock(
+  jobId: string,
+  status: 'ai_generating' | 'validating',
+  lockToken: string
+): Promise<ProblemGenerationJobRow | null> {
+  const nowIso = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('problem_generation_jobs')
+    .update({
+      processing_token: lockToken,
+      processing_started_at: nowIso,
+      updated_at: nowIso,
+    })
+    .eq('id', jobId)
+    .eq('status', status)
+    .is('processing_token', null)
+    .select(JOB_SELECT_FIELDS)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to claim generation job processing lock: ${error.message}`);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return mapJobRow(data);
 }
 
 function annotateGeneratedProblems(
@@ -366,7 +506,10 @@ async function validateProblemsAgainstModel(
   return { ok: true };
 }
 
-async function runAiGenerationStage(job: ProblemGenerationJobRow): Promise<ProblemGenerationJobRow> {
+async function runAiGenerationStage(
+  job: ProblemGenerationJobRow,
+  lockToken: string
+): Promise<ProblemGenerationJobRow> {
   try {
     const generationResult = await generateProblems(job.request_payload);
     const seed = buildGenerationSeed(job.request_payload);
@@ -381,7 +524,9 @@ async function runAiGenerationStage(job: ProblemGenerationJobRow): Promise<Probl
       progress_message: 'Model code is ready. Now testing model answer on generated testcases.',
       result_payload: { problems },
       error_message: null,
-    });
+      processing_token: null,
+      processing_started_at: null,
+    }, { lockToken });
 
     if (!transitioned) {
       const latestJob = await fetchJobById(job.id);
@@ -403,7 +548,9 @@ async function runAiGenerationStage(job: ProblemGenerationJobRow): Promise<Probl
       progress_message: 'Generation discarded before validation.',
       error_message: message,
       completed_at: new Date().toISOString(),
-    });
+      processing_token: null,
+      processing_started_at: null,
+    }, { lockToken });
 
     if (!transitioned) {
       const latestJob = await fetchJobById(job.id);
@@ -417,7 +564,10 @@ async function runAiGenerationStage(job: ProblemGenerationJobRow): Promise<Probl
   }
 }
 
-async function runValidationStage(job: ProblemGenerationJobRow): Promise<ProblemGenerationJobRow> {
+async function runValidationStage(
+  job: ProblemGenerationJobRow,
+  lockToken: string
+): Promise<ProblemGenerationJobRow> {
   try {
     const problems = job.result_payload?.problems;
     if (!problems || !Array.isArray(problems) || problems.length === 0) {
@@ -426,7 +576,9 @@ async function runValidationStage(job: ProblemGenerationJobRow): Promise<Problem
         progress_message: 'Generation discarded: missing generated problems payload.',
         error_message: 'Validation could not start because generated problems were missing.',
         completed_at: new Date().toISOString(),
-      });
+        processing_token: null,
+        processing_started_at: null,
+      }, { lockToken });
 
       if (!transitioned) {
         const latestJob = await fetchJobById(job.id);
@@ -448,7 +600,9 @@ async function runValidationStage(job: ProblemGenerationJobRow): Promise<Problem
         progress_message: 'Generation discarded: model solution failed generated testcase validation.',
         error_message: validationResult.message,
         completed_at: new Date().toISOString(),
-      });
+        processing_token: null,
+        processing_started_at: null,
+      }, { lockToken });
 
       if (!transitioned) {
         const latestJob = await fetchJobById(job.id);
@@ -466,7 +620,9 @@ async function runValidationStage(job: ProblemGenerationJobRow): Promise<Problem
       progress_message: 'Validation complete. Problems are ready for preview.',
       error_message: null,
       completed_at: new Date().toISOString(),
-    });
+      processing_token: null,
+      processing_started_at: null,
+    }, { lockToken });
 
     if (!transitioned) {
       const latestJob = await fetchJobById(job.id);
@@ -488,7 +644,9 @@ async function runValidationStage(job: ProblemGenerationJobRow): Promise<Problem
       progress_message: 'Generation discarded during validation due to an unexpected error.',
       error_message: message,
       completed_at: new Date().toISOString(),
-    });
+      processing_token: null,
+      processing_started_at: null,
+    }, { lockToken });
 
     if (!transitioned) {
       const latestJob = await fetchJobById(job.id);
@@ -506,6 +664,13 @@ export async function enqueueProblemGenerationJob(params: {
   createdBy: string;
   request: ProblemGenerationRequest;
 }): Promise<ProblemGenerationJobSummary> {
+  await runMaintenanceIfDue();
+
+  const activeJobCount = await countActiveJobsForUser(params.createdBy);
+  if (activeJobCount >= MAX_ACTIVE_GENERATION_JOBS_PER_USER) {
+    throw new ProblemGenerationConcurrencyLimitError(MAX_ACTIVE_GENERATION_JOBS_PER_USER);
+  }
+
   const normalizedRequest = normalizeJobRequest(params.request);
 
   const { data, error } = await supabase
@@ -516,6 +681,8 @@ export async function enqueueProblemGenerationJob(params: {
       request_payload: normalizedRequest,
       progress_message: 'Generation job queued. Preparing model draft.',
       error_message: null,
+      processing_token: null,
+      processing_started_at: null,
       started_at: null,
       completed_at: null,
     })
@@ -523,6 +690,12 @@ export async function enqueueProblemGenerationJob(params: {
     .single();
 
   if (error) {
+    const errorCode = (error as { code?: string }).code;
+    const loweredMessage = (error.message || '').toLowerCase();
+    if (errorCode === 'P0001' && loweredMessage.includes('too many active generation jobs')) {
+      throw new ProblemGenerationConcurrencyLimitError(MAX_ACTIVE_GENERATION_JOBS_PER_USER);
+    }
+
     throw new Error(`Failed to enqueue problem generation job: ${error.message}`);
   }
 
@@ -553,6 +726,8 @@ export async function getProblemGenerationJobForUser(
 }
 
 export async function progressProblemGenerationJob(jobId: string): Promise<ProblemGenerationJobSummary | null> {
+  await runMaintenanceIfDue();
+
   const job = await fetchJobById(jobId);
   if (!job) {
     return null;
@@ -567,6 +742,8 @@ export async function progressProblemGenerationJob(jobId: string): Promise<Probl
       status: 'ai_generating',
       progress_message: 'Drafting problem statement, model code, and base testcases...',
       error_message: null,
+      processing_token: null,
+      processing_started_at: null,
       started_at: new Date().toISOString(),
     });
 
@@ -579,12 +756,26 @@ export async function progressProblemGenerationJob(jobId: string): Promise<Probl
   }
 
   if (job.status === 'ai_generating') {
-    const transitioned = await runAiGenerationStage(job);
+    const lockToken = randomUUID();
+    const claimed = await claimJobProcessingLock(job.id, 'ai_generating', lockToken);
+    if (!claimed) {
+      const latest = await fetchJobById(job.id);
+      return latest ? toSummary(latest) : null;
+    }
+
+    const transitioned = await runAiGenerationStage(claimed, lockToken);
     return toSummary(transitioned);
   }
 
   if (job.status === 'validating') {
-    const transitioned = await runValidationStage(job);
+    const lockToken = randomUUID();
+    const claimed = await claimJobProcessingLock(job.id, 'validating', lockToken);
+    if (!claimed) {
+      const latest = await fetchJobById(job.id);
+      return latest ? toSummary(latest) : null;
+    }
+
+    const transitioned = await runValidationStage(claimed, lockToken);
     return toSummary(transitioned);
   }
 

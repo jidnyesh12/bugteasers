@@ -3,7 +3,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { enqueueProblemGenerationJob } from '@/lib/ai/generation-jobs';
+import {
+  enqueueProblemGenerationJob,
+  ProblemGenerationConcurrencyLimitError,
+} from '@/lib/ai/generation-jobs';
 import { ProblemGenerationRequest } from '@/lib/ai/types';
 import { GEMINI_API_KEY } from '@/lib/env';
 import { dedupeSupportedLanguages, SUPPORTED_EXECUTION_LANGUAGES } from '@/lib/execution/languages';
@@ -81,10 +84,21 @@ export async function POST(request: NextRequest) {
         jobId: job.jobId,
         status: job.status,
         progressMessage: job.progressMessage,
+        problems: job.problems,
+        error: job.errorMessage,
       },
       { status: 202 }
     );
   } catch (error) {
+    if (error instanceof ProblemGenerationConcurrencyLimitError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+        },
+        { status: 429 }
+      );
+    }
+
     console.error('Error in problem generation API:', error);
     return NextResponse.json(
       {
