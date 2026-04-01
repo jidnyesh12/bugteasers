@@ -59,9 +59,10 @@ export class PistonClientImpl implements PistonClient {
         clearTimeout(timeoutId);
 
         const data = await response.json();
+        const normalizedData = this.withRequestMetadata(data, request);
 
         // Validate and return response (even for compilation errors)
-        return this.validateResponse(data);
+        return this.validateResponse(normalizedData);
 
       } catch (error) {
         const isLastAttempt = attempt === this.config.maxRetries;
@@ -211,6 +212,28 @@ export class PistonClientImpl implements PistonClient {
 
     // Type assertion is safe here because we've validated all required fields
     return resp as unknown as ExecutionResponse;
+  }
+
+  // Some runtimes omit top-level metadata, so copy it from the request before validation.
+  private withRequestMetadata(
+    response: unknown,
+    request: Pick<ExecutionRequest, 'language' | 'version'>
+  ): unknown {
+    if (!response || typeof response !== 'object') {
+      return response;
+    }
+
+    const normalized = { ...(response as Record<string, unknown>) };
+
+    if (typeof normalized.language !== 'string' || normalized.language.length === 0) {
+      normalized.language = request.language;
+    }
+
+    if (typeof normalized.version !== 'string' || normalized.version.length === 0) {
+      normalized.version = request.version;
+    }
+
+    return normalized;
   }
 
   // Validate execution result object structure

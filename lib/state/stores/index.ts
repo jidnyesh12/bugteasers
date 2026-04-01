@@ -5,3 +5,7 @@ export {
   SOLVE_EDITOR_LAYOUT_BOUNDS,
   useSolveEditorStore,
 } from './solve-editor-store';
+
+export {
+  useDashboardLayoutStore,
+} from './dashboard-layout-store';

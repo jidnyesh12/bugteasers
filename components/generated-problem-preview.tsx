@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 import { GeneratedProblem } from '@/lib/ai/types';
+import { EXECUTION_LANGUAGE_LABELS } from '@/lib/execution/languages';
+import { detectSupportedLanguageFromCode } from '@/lib/execution/language-detection';
+import { ReadOnlyCodeViewer } from '@/components/read-only-code-viewer';
 
 interface GeneratedProblemPreviewProps {
   problems: GeneratedProblem[];
@@ -34,6 +37,7 @@ export default function GeneratedProblemPreview({
   const [editMode, setEditMode] = useState<string | null>(null);
 
   const currentProblem = problems[selectedIndex];
+  const solutionLanguage = detectSupportedLanguageFromCode(currentProblem.solution_code || '');
 
   const updateProblem = (field: keyof GeneratedProblem, value: unknown) => {
     setProblems((prev) =>
@@ -307,6 +311,19 @@ export default function GeneratedProblemPreview({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Model Solution */}
+        <div>
+          <label className={LABEL_CLASS}>Model Solution</label>
+          <div className="mb-3 inline-flex items-center rounded-md border border-amber-300 bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+            {EXECUTION_LANGUAGE_LABELS[solutionLanguage]}
+          </div>
+          <ReadOnlyCodeViewer
+            code={currentProblem.solution_code}
+            language={solutionLanguage}
+            maxHeight="360px"
+          />
         </div>
 
         {/* Test Cases */}

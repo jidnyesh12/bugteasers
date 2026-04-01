@@ -1,11 +1,17 @@
 // Centralized environment variable configuration
 // All environment variables should be accessed through this file for type safety
 
+const IS_SERVER = typeof window === 'undefined';
+
 // Validates that required environment variables are set
 function getRequiredEnv(key: string): string {
   const value = process.env[key];
   if (!value) {
-    throw new Error(`Missing required environment variable: ${key}`);
+    if (IS_SERVER) {
+      throw new Error(`Missing required environment variable: ${key}`);
+    }
+
+    return '';
   }
   return value;
 }
@@ -19,7 +25,11 @@ function getPositiveIntEnv(key: string, defaultValue: number): number {
 
   const parsed = Number.parseInt(rawValue, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`Invalid environment variable ${key}: must be a positive integer`);
+    if (IS_SERVER) {
+      throw new Error(`Invalid environment variable ${key}: must be a positive integer`);
+    }
+
+    return defaultValue;
   }
 
   return parsed;
@@ -28,13 +38,21 @@ function getPositiveIntEnv(key: string, defaultValue: number): number {
 function getRequiredUrlEnv(key: string): string {
   const value = getRequiredEnv(key);
 
+  if (!value) {
+    return '';
+  }
+
   try {
     const parsedUrl = new URL(value);
     if (!parsedUrl.protocol || !parsedUrl.host) {
       throw new Error('Invalid URL format');
     }
   } catch {
-    throw new Error(`Invalid environment variable ${key}: must be a valid URL`);
+    if (IS_SERVER) {
+      throw new Error(`Invalid environment variable ${key}: must be a valid URL`);
+    }
+
+    return '';
   }
 
   return value;
@@ -55,3 +73,5 @@ export const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || '';
 
 // Google AI configuration (Gemini)
 export const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+
+export const IS_DEVELOPMENT = process.env.NODE_ENV === 'development';

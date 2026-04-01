@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { IS_DEVELOPMENT } from '@/lib/env';
 import { getQueryClient } from './query-client';
 
 interface AppQueryProviderProps {
@@ -15,7 +16,7 @@ export function AppQueryProvider({ children }: AppQueryProviderProps) {
   return (
     <QueryClientProvider client={queryClient}>
       {children}
-      {process.env.NODE_ENV === 'development' ? <ReactQueryDevtools initialIsOpen={false} /> : null}
+      {IS_DEVELOPMENT ? <ReactQueryDevtools initialIsOpen={false} /> : null}
     </QueryClientProvider>
   );
 }

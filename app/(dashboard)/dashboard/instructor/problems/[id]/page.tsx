@@ -9,7 +9,10 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { addProblemToAssignment, fetchAssignments } from '@/lib/api/assignments-client';
 import { fetchProblemDetail } from '@/lib/api/problems-client';
+import { EXECUTION_LANGUAGE_LABELS } from '@/lib/execution/languages';
+import { detectSupportedLanguageFromCode } from '@/lib/execution/language-detection';
 import { queryKeys } from '@/lib/state/query';
+import { ReadOnlyCodeViewer } from '@/components/read-only-code-viewer';
 
 import { MarkdownRenderer } from '@/components/markdown-renderer';
 
@@ -148,6 +151,10 @@ export default function ProblemDetailPage() {
     );
   }
 
+  const solutionLanguage = problem.solution_code
+    ? detectSupportedLanguageFromCode(problem.solution_code)
+    : 'cpp';
+
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Header */}
@@ -265,9 +272,10 @@ export default function ProblemDetailPage() {
             </svg>
             <h2 className="text-base font-black tracking-tight text-amber-900">Solution (Instructor Only)</h2>
           </div>
-          <pre className="bg-white p-4 rounded-xl overflow-x-auto border border-amber-200">
-            <code className="text-sm text-gray-800 whitespace-pre">{problem.solution_code}</code>
-          </pre>
+          <div className="mb-3 inline-flex items-center rounded-md border border-amber-300 bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+            {EXECUTION_LANGUAGE_LABELS[solutionLanguage]}
+          </div>
+          <ReadOnlyCodeViewer code={problem.solution_code} language={solutionLanguage} />
         </div>
       )}
 

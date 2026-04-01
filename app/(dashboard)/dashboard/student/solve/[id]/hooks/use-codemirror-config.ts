@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
 import type { SupportedLanguage } from '@/lib/execution/types';
-import { python } from '@codemirror/lang-python';
-import { java } from '@codemirror/lang-java';
-import { cpp } from '@codemirror/lang-cpp';
+import { getCodeMirrorLanguageExtension } from '@/lib/execution/codemirror-language-extension';
+import { createEditableCodeMirrorTheme } from '@/lib/execution/codemirror-theme';
 import { acceptCompletion, autocompletion } from '@codemirror/autocomplete';
 import { vscodeDark } from '@uiw/codemirror-theme-vscode';
 import { EditorView, keymap } from '@codemirror/view';
@@ -30,26 +29,12 @@ export function useCodeMirrorConfig(options: UseCodeMirrorConfigOptions) {
     []
   );
 
-  const languageExtension = useMemo(() => {
-    switch (language) {
-      case 'python': return python();
-      case 'java': return java();
-      case 'cpp': return cpp();
-      case 'c': return cpp();
-      default: return cpp();
-    }
-  }, [language]);
+  const languageExtension = useMemo(
+    () => getCodeMirrorLanguageExtension(language),
+    [language]
+  );
 
-  const editorThemeExt = useMemo(() => EditorView.theme({
-    '&': { height: '100%', fontSize: '14px' },
-    '.cm-scroller': { overflow: 'auto', fontFamily: '"Fira Code", "Cascadia Code", "JetBrains Mono", Consolas, monospace' },
-    '.cm-gutters': { background: '#1e1e1e', border: 'none', color: '#858585' },
-    '.cm-activeLineGutter': { background: '#2a2d32' },
-    '.cm-activeLine': { background: '#2a2d3220' },
-    '.cm-selectionBackground': { backgroundColor: '#2f5d86 !important' },
-    '&.cm-focused .cm-selectionBackground': { backgroundColor: '#2f5d86 !important' },
-    '.cm-content ::selection': { backgroundColor: '#2f5d86', color: '#ffffff' },
-  }), []);
+  const editorThemeExt = useMemo(() => createEditableCodeMirrorTheme(), []);
 
   const editorKeymapExt = useMemo(() => Prec.highest(keymap.of([
     { key: 'Tab', run: acceptCompletionOrIndent },

@@ -1,10 +1,8 @@
 'use client';
 
 import { create } from 'zustand';
-import { createJSONStorage, devtools, persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import type { SupportedLanguage } from '@/lib/execution/types';
-
-const IS_DEVELOPMENT = process.env.NODE_ENV === 'development';
 
 interface SolveEditorDraftScope {
   userId: string | null;
@@ -70,62 +68,56 @@ export function buildSolveEditorPaneKey(scope: SolveEditorPaneScope): string {
 }
 
 export const useSolveEditorStore = create<SolveEditorStoreState>()(
-  devtools(
-    persist(
-      (set) => ({
-        drafts: {},
-        paneState: {},
-        setDraft: (draftKey, code) => {
-          set((state) => ({
-            drafts: {
-              ...state.drafts,
-              [draftKey]: code,
-            },
-          }));
-        },
-        removeDraft: (draftKey) => {
-          set((state) => {
-            if (!(draftKey in state.drafts)) {
-              return state;
-            }
+  persist(
+    (set) => ({
+      drafts: {},
+      paneState: {},
+      setDraft: (draftKey, code) => {
+        set((state) => ({
+          drafts: {
+            ...state.drafts,
+            [draftKey]: code,
+          },
+        }));
+      },
+      removeDraft: (draftKey) => {
+        set((state) => {
+          if (!(draftKey in state.drafts)) {
+            return state;
+          }
 
-            const nextDrafts = { ...state.drafts };
-            delete nextDrafts[draftKey];
+          const nextDrafts = { ...state.drafts };
+          delete nextDrafts[draftKey];
 
-            return {
-              drafts: nextDrafts,
-            };
-          });
-        },
-        setPaneState: (paneKey, patch) => {
-          set((state) => {
-            const current = state.paneState[paneKey] ?? DEFAULT_SOLVE_EDITOR_PANE_STATE;
+          return {
+            drafts: nextDrafts,
+          };
+        });
+      },
+      setPaneState: (paneKey, patch) => {
+        set((state) => {
+          const current = state.paneState[paneKey] ?? DEFAULT_SOLVE_EDITOR_PANE_STATE;
 
-            return {
-              paneState: {
-                ...state.paneState,
-                [paneKey]: {
-                  ...current,
-                  ...patch,
-                },
+          return {
+            paneState: {
+              ...state.paneState,
+              [paneKey]: {
+                ...current,
+                ...patch,
               },
-            };
-          });
-        },
-      }),
-      {
-        name: 'solve-editor-store-v1',
-        version: 1,
-        storage: createJSONStorage(() => localStorage),
-        partialize: (state) => ({
-          drafts: state.drafts,
-          paneState: state.paneState,
-        }),
-      }
-    ),
+            },
+          };
+        });
+      },
+    }),
     {
-      name: 'solve-editor-store',
-      enabled: IS_DEVELOPMENT,
+      name: 'solve-editor-store-v1',
+      version: 1,
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        drafts: state.drafts,
+        paneState: state.paneState,
+      }),
     }
   )
 );

@@ -5,6 +5,7 @@ import { PistonClientImpl } from '@/lib/execution/client';
 import {
   UnsupportedLanguageError,
   InvalidResponseError,
+  type ExecutionRequest,
   type ExecutionResponse,
 } from '@/lib/execution/types';
 
@@ -294,6 +295,67 @@ describe('PistonClient Unit Tests', () => {
       const validated = client.validateResponse(response);
       expect(validated.compile?.code).toBe(1);
       expect(validated.compile?.stderr).toContain('error');
+    });
+  });
+
+  describe('Execute Response Normalization', () => {
+    const baseRequest: ExecutionRequest = {
+      language: 'python',
+      version: '*',
+      files: [{ content: 'print("ok")' }],
+      stdin: '',
+    };
+
+    it('should backfill missing language/version from request metadata', async () => {
+      mockFetch.mockResolvedValue({
+        json: vi.fn().mockResolvedValue({
+          run: {
+            stdout: 'ok\n',
+            stderr: '',
+            code: 0,
+            signal: null,
+            output: 'ok\n',
+          },
+        }),
+      });
+
+      const result = await client.execute(baseRequest);
+
+      expect(result.language).toBe('python');
+      expect(result.version).toBe('*');
+      expect(result.run.stdout).toBe('ok\n');
+    });
+
+    it('should preserve language/version returned by API response', async () => {
+      mockFetch.mockResolvedValue({
+        json: vi.fn().mockResolvedValue({
+          language: 'python',
+          version: '3.12.0',
+          run: {
+            stdout: 'ok\n',
+            stderr: '',
+            code: 0,
+            signal: null,
+            output: 'ok\n',
+          },
+        }),
+      });
+
+      const result = await client.execute(baseRequest);
+
+      expect(result.language).toBe('python');
+      expect(result.version).toBe('3.12.0');
+    });
+
+    it('should still reject responses with invalid run payloads', async () => {
+      mockFetch.mockResolvedValue({
+        json: vi.fn().mockResolvedValue({
+          language: 'python',
+          version: '3.10.0',
+        }),
+      });
+
+      await expect(client.execute(baseRequest)).rejects.toThrow(InvalidResponseError);
     });
   });
 });
