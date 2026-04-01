@@ -17,6 +17,10 @@ import type {
 } from './types';
 import { ExecutionDatabaseError, ExecutionValidationError } from './errors';
 import { createExecutionLogger, type ExecutionLogger } from './logging';
+import {
+  materializeTestCaseInputTemplate,
+  validateTestCaseInputTemplate,
+} from '@/lib/testcases/template-dsl';
 
 interface ExecutionServiceConfig {
   pistonClient: PistonClient;
@@ -141,6 +145,8 @@ export class ExecutionServiceImpl implements ExecutionService {
     let data: Array<{
       id: string;
       input_data: string;
+      input_template?: unknown;
+      generation_seed?: string | null;
       expected_output: string;
       is_sample: boolean;
       points: number;
@@ -150,7 +156,7 @@ export class ExecutionServiceImpl implements ExecutionService {
     try {
       let query = this.supabase
         .from('test_cases')
-        .select('id, input_data, expected_output, is_sample, points')
+        .select('id, input_data, input_template, generation_seed, expected_output, is_sample, points')
         .eq('problem_id', problemId);
 
       if (sampleOnly) {
@@ -177,13 +183,39 @@ export class ExecutionServiceImpl implements ExecutionService {
 
     this.validateRawTestCases(data);
 
-    return data.map(tc => ({
-      id: tc.id,
-      input: tc.input_data,
-      expectedOutput: tc.expected_output,
-      points: tc.points,
-      isSample: tc.is_sample,
-    }));
+    return data.map(tc => {
+      let resolvedInput = tc.input_data;
+
+      if (tc.input_template !== undefined && tc.input_template !== null) {
+        if (typeof tc.generation_seed !== 'string' || tc.generation_seed.trim().length === 0) {
+          throw new ExecutionValidationError(
+            `Invalid test case template for test case ${tc.id}: generation_seed must be present`
+          );
+        }
+
+        try {
+          validateTestCaseInputTemplate(tc.input_template);
+          const materialized = materializeTestCaseInputTemplate(tc.input_template, {
+            seedMaterial: tc.generation_seed,
+          });
+          resolvedInput = materialized.inputData;
+        } catch (error) {
+          throw new ExecutionValidationError(
+            `Invalid test case template for test case ${tc.id}: ${
+              error instanceof Error ? error.message : 'Unknown template error'
+            }`
+          );
+        }
+      }
+
+      return {
+        id: tc.id,
+        input: resolvedInput,
+        expectedOutput: tc.expected_output,
+        points: tc.points,
+        isSample: tc.is_sample,
+      };
+    });
   }
 
   // Execute code against multiple test cases
@@ -304,8 +336,21 @@ export class ExecutionServiceImpl implements ExecutionService {
         throw new ExecutionValidationError('Invalid test case data: missing id');
       }
 
-      if (typeof testCase.input_data !== 'string') {
+      const hasTemplate =
+        Object.prototype.hasOwnProperty.call(testCase, 'input_template') &&
+        testCase.input_template !== null &&
+        testCase.input_template !== undefined;
+
+      if (!hasTemplate && typeof testCase.input_data !== 'string') {
         throw new ExecutionValidationError(`Invalid test case data: input_data must be a string for test case ${testCase.id}`);
+      }
+
+      if (hasTemplate && (typeof testCase.input_template !== 'object' || Array.isArray(testCase.input_template))) {
+        throw new ExecutionValidationError(`Invalid test case data: input_template must be an object for test case ${testCase.id}`);
+      }
+
+      if (hasTemplate && (typeof testCase.generation_seed !== 'string' || testCase.generation_seed.trim().length === 0)) {
+        throw new ExecutionValidationError(`Invalid test case data: generation_seed must be a non-empty string for template test case ${testCase.id}`);
       }
 
       if (typeof testCase.expected_output !== 'string') {

@@ -3,6 +3,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ExecutionServiceImpl } from '@/lib/execution/service';
+import { materializeTestCaseInputTemplate } from '@/lib/testcases/template-dsl';
 import type {
   PistonClient,
   TestCaseEvaluator,
@@ -30,6 +31,8 @@ describe('ExecutionService Unit Tests', () => {
         {
           id: 'test-1',
           input_data: 'input',
+          input_template: null,
+          generation_seed: null,
           expected_output: 'output',
           is_sample: true,
           points: 10,
@@ -152,6 +155,119 @@ describe('ExecutionService Unit Tests', () => {
 
       expect(mockEq).toHaveBeenCalledWith('problem_id', 'problem-1');
       expect(mockEq).toHaveBeenCalledWith('is_sample', true);
+    });
+
+    it('should materialize input from template specs before execution', async () => {
+      const template = {
+        version: 1,
+        variables: {
+          n: { type: 'const', value: 5 },
+          arr: { type: 'int_array', length: { ref: 'n' }, min: 1, max: 9 },
+        },
+        output: [
+          { type: 'line', values: [{ ref: 'n' }] },
+          { type: 'line', values: [{ ref: 'arr' }] },
+        ],
+      } as const;
+
+      const expectedMaterializedInput = materializeTestCaseInputTemplate(template, {
+        seedMaterial: 'template-seed',
+      }).inputData;
+
+      mockEq.mockImplementation(() => {
+        const chainable = {
+          eq: mockEq,
+          then: (resolve: (value: { data: Array<Record<string, unknown>>; error: null }) => void) =>
+            resolve({
+              data: [
+                {
+                  id: 'test-template-1',
+                  input_data: '__GENERATED_FROM_TEMPLATE__',
+                  input_template: template,
+                  generation_seed: 'template-seed',
+                  expected_output: '5',
+                  is_sample: true,
+                  points: 10,
+                },
+              ],
+              error: null,
+            }),
+        };
+        return chainable;
+      });
+
+      vi.mocked(mockPistonClient.mapLanguage).mockReturnValue('python');
+      vi.mocked(mockPistonClient.execute).mockResolvedValue({
+        language: 'python',
+        version: '3.10.0',
+        run: { stdout: '5', stderr: '', code: 0, signal: null, output: '5' },
+      } as ExecutionResponse);
+
+      vi.mocked(mockEvaluator.evaluateTestCase).mockReturnValue({
+        testCaseId: 'test-template-1',
+        passed: true,
+        actualOutput: '5',
+        expectedOutput: '5',
+        pointsEarned: 10,
+        pointsAvailable: 10,
+      } as TestResult);
+
+      vi.mocked(mockEvaluator.calculateScore).mockReturnValue({
+        totalPoints: 10,
+        earnedPoints: 10,
+        percentage: 100,
+        status: 'passed',
+      } as ScoreResult);
+
+      await service.runCode(
+        { code: 'print(5)', language: 'python', problemId: 'problem-1' }
+      );
+
+      expect(mockPistonClient.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stdin: expectedMaterializedInput,
+        })
+      );
+    });
+
+    it('should reject template test cases without generation_seed', async () => {
+      const template = {
+        version: 1,
+        variables: {
+          n: { type: 'const', value: 5 },
+        },
+        output: [
+          { type: 'line', values: [{ ref: 'n' }] },
+        ],
+      } as const;
+
+      mockEq.mockImplementation(() => {
+        const chainable = {
+          eq: mockEq,
+          then: (resolve: (value: { data: Array<Record<string, unknown>>; error: null }) => void) =>
+            resolve({
+              data: [
+                {
+                  id: 'test-template-missing-seed',
+                  input_data: '',
+                  input_template: template,
+                  generation_seed: null,
+                  expected_output: '5',
+                  is_sample: true,
+                  points: 10,
+                },
+              ],
+              error: null,
+            }),
+        };
+        return chainable;
+      });
+
+      await expect(
+        service.runCode(
+          { code: 'print(5)', language: 'python', problemId: 'problem-1' }
+        )
+      ).rejects.toThrow(/generation_seed/i);
     });
 
     it('should throw error if no test cases found', async () => {
