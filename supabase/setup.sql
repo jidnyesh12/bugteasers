@@ -169,6 +169,7 @@ CREATE TABLE IF NOT EXISTS public.test_cases (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   problem_id      UUID NOT NULL REFERENCES public.problems(id) ON DELETE CASCADE,
   input_data      TEXT NOT NULL,
+  input_template  JSONB,
   expected_output TEXT NOT NULL,
   is_sample       BOOLEAN NOT NULL DEFAULT false,
   points          INTEGER NOT NULL DEFAULT 1,
@@ -177,6 +178,33 @@ CREATE TABLE IF NOT EXISTS public.test_cases (
 
 CREATE INDEX IF NOT EXISTS idx_test_cases_problem ON public.test_cases(problem_id);
 CREATE INDEX IF NOT EXISTS idx_test_cases_sample ON public.test_cases(is_sample);
+CREATE INDEX IF NOT EXISTS idx_test_cases_input_template_gin ON public.test_cases USING GIN(input_template);
+
+ALTER TABLE public.test_cases
+  DROP CONSTRAINT IF EXISTS chk_test_cases_input_template_shape;
+
+ALTER TABLE public.test_cases
+  ADD CONSTRAINT chk_test_cases_input_template_shape
+  CHECK (
+    input_template IS NULL
+    OR (
+      jsonb_typeof(input_template) = 'object'
+      AND (
+        NOT (input_template ? 'version')
+        OR input_template->>'version' = '1'
+      )
+      AND (
+        NOT (input_template ? 'seed')
+        OR jsonb_typeof(input_template->'seed') = 'string'
+      )
+      AND (input_template ? 'variables')
+      AND jsonb_typeof(input_template->'variables') = 'object'
+      AND input_template->'variables' <> '{}'::jsonb
+      AND (input_template ? 'output')
+      AND jsonb_typeof(input_template->'output') = 'array'
+      AND jsonb_array_length(input_template->'output') > 0
+    )
+  );
 
 ALTER TABLE public.test_cases ENABLE ROW LEVEL SECURITY;
 

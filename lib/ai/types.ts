@@ -1,6 +1,7 @@
 // Types for AI problem generation
 
 import type { SupportedLanguage } from '@/lib/execution/types';
+import type { TestCaseInputTemplate } from '@/lib/testcases/template-dsl';
 
 export interface ProblemGenerationRequest {
   topic: string;
@@ -13,6 +14,7 @@ export interface ProblemGenerationRequest {
 
 export interface GeneratedTestCase {
   input_data: string;
+  input_template?: TestCaseInputTemplate;
   expected_output: string;
   is_sample: boolean;
   points: number;
