@@ -208,4 +208,190 @@ describe('Problems API Client - Generation Polling', () => {
       )
     ).rejects.toThrow(/timed out after around \d+ seconds\. It may still be running;/);
   });
+
+  it('fails immediately when initial generation status is discarded', async () => {
+    const discardedStatus: ProblemGenerationJobStatusResponse = {
+      jobId: 'job-discarded',
+      status: 'discarded',
+      progressMessage: 'Validation failed',
+      error: 'Model output mismatch',
+    };
+
+    mockFetch.mockResolvedValueOnce(buildResponse(discardedStatus, 200));
+
+    await expect(
+      generateProblems(
+        {
+          topic: 'math',
+          difficulty: 'hard',
+          numProblems: 1,
+          languages: ['python'],
+        },
+        {
+          pollIntervalMs: 250,
+          maxPollAttempts: 5,
+        }
+      )
+    ).rejects.toThrow('Model output mismatch');
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops retrying after transient network failures exceed retry cap', async () => {
+    const queuedStatus: ProblemGenerationJobStatusResponse = {
+      jobId: 'job-network-cap',
+      status: 'queued',
+      progressMessage: 'Queued',
+    };
+
+    mockFetch
+      .mockResolvedValueOnce(buildResponse(queuedStatus, 202))
+      .mockRejectedValueOnce(new TypeError('Temporary network issue #1'))
+      .mockRejectedValueOnce(new TypeError('Temporary network issue #2'))
+      .mockRejectedValueOnce(new TypeError('Temporary network issue #3'))
+      .mockRejectedValueOnce(new TypeError('Temporary network issue #4'));
+
+    await expect(
+      generateProblems(
+        {
+          topic: 'strings',
+          difficulty: 'medium',
+          numProblems: 1,
+          languages: ['python'],
+        },
+        {
+          pollIntervalMs: 250,
+          maxPollAttempts: 10,
+        }
+      )
+    ).rejects.toThrow('Temporary network issue #4');
+
+    expect(mockFetch).toHaveBeenCalledTimes(5);
+  });
+
+  it('calls onStatus for initial and each successful polled status update', async () => {
+    const onStatus = vi.fn();
+
+    mockFetch
+      .mockResolvedValueOnce(
+        buildResponse(
+          {
+            jobId: 'job-status-callback',
+            status: 'queued',
+            progressMessage: 'Queued',
+          },
+          202
+        )
+      )
+      .mockResolvedValueOnce(
+        buildResponse(
+          {
+            jobId: 'job-status-callback',
+            status: 'validating',
+            progressMessage: 'Validating testcase outputs',
+          },
+          200
+        )
+      )
+      .mockResolvedValueOnce(
+        buildResponse(
+          {
+            jobId: 'job-status-callback',
+            status: 'completed',
+            progressMessage: 'Done',
+            problems: [buildGeneratedProblem()],
+          },
+          200
+        )
+      );
+
+    const result = await generateProblems(
+      {
+        topic: 'trees',
+        difficulty: 'medium',
+        numProblems: 1,
+        languages: ['python'],
+      },
+      {
+        onStatus,
+        pollIntervalMs: 250,
+        maxPollAttempts: 5,
+      }
+    );
+
+    expect(result).toHaveLength(1);
+    expect(onStatus).toHaveBeenCalledTimes(3);
+    expect(onStatus).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ status: 'queued', jobId: 'job-status-callback' })
+    );
+    expect(onStatus).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ status: 'validating', jobId: 'job-status-callback' })
+    );
+    expect(onStatus).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ status: 'completed', jobId: 'job-status-callback' })
+    );
+  });
+
+  it('uses bounded increasing poll delays across attempts', async () => {
+    const mathRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+
+    mockFetch
+      .mockResolvedValueOnce(
+        buildResponse(
+          {
+            jobId: 'job-delay-shape',
+            status: 'queued',
+            progressMessage: 'Queued',
+          },
+          202
+        )
+      )
+      .mockResolvedValueOnce(
+        buildResponse(
+          {
+            jobId: 'job-delay-shape',
+            status: 'validating',
+            progressMessage: 'Validating',
+          },
+          200
+        )
+      )
+      .mockResolvedValueOnce(
+        buildResponse(
+          {
+            jobId: 'job-delay-shape',
+            status: 'completed',
+            progressMessage: 'Done',
+            problems: [buildGeneratedProblem()],
+          },
+          200
+        )
+      );
+
+    await generateProblems(
+      {
+        topic: 'graphs',
+        difficulty: 'easy',
+        numProblems: 1,
+        languages: ['python'],
+      },
+      {
+        pollIntervalMs: 250,
+        maxPollAttempts: 5,
+      }
+    );
+
+    const sleepDelays = setTimeoutSpy.mock.calls.map((call: Parameters<typeof setTimeout>) =>
+      Number(call[1] ?? 0)
+    );
+    expect(sleepDelays.length).toBeGreaterThanOrEqual(2);
+    expect(sleepDelays[0]).toBeGreaterThanOrEqual(250);
+    expect(sleepDelays[1]).toBeGreaterThanOrEqual(sleepDelays[0]);
+    expect(sleepDelays[1]).toBeLessThanOrEqual(5000);
+
+    mathRandomSpy.mockRestore();
+  });
 });

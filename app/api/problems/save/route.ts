@@ -5,29 +5,11 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { supabase } from '@/lib/supabase/client';
-
-const PLACEHOLDER_PATTERNS = [
-    /\{\{\s*PLACEHOLDER(?::|_)[^}]+\}\}/i,
-    /\$\{\s*PLACEHOLDER(?::|_)[^}]+\}/i,
-    /__PLACEHOLDER_[A-Z0-9_]+__/,
-    /\[PLACEHOLDER:[^\]]+\]/i,
-];
-
-function hasUnresolvedPlaceholder(value: string): boolean {
-    return PLACEHOLDER_PATTERNS.some((pattern) => pattern.test(value));
-}
-
-type SaveTestCase = {
-    input_data: string;
-    expected_output: string;
-    is_sample?: boolean;
-    points?: number;
-    generated_at?: string;
-    generation_model?: string;
-    generation_seed?: string;
-    is_generated?: boolean;
-    input_hash?: string;
-};
+import {
+    normalizeProblemTestCasesForSave,
+    SaveProblemValidationError,
+    type SaveGeneratedTestCase,
+} from '@/lib/problems/save-testcases';
 
 export async function POST(request: Request) {
     try {
@@ -53,36 +35,19 @@ export async function POST(request: Request) {
         const savedProblems = [];
 
         for (const problem of problems) {
-            if (!problem.test_cases || !Array.isArray(problem.test_cases) || problem.test_cases.length === 0) {
-                return NextResponse.json(
-                    { error: 'Each problem must include at least one fully materialized test case' },
-                    { status: 400 }
-                );
-            }
-
-            const unresolvedCase = (problem.test_cases as SaveTestCase[]).find((tc) => {
-                if (!tc || typeof tc.input_data !== 'string' || typeof tc.expected_output !== 'string') {
-                    return true;
+            let normalizedTestCases: SaveGeneratedTestCase[];
+            try {
+                normalizedTestCases = normalizeProblemTestCasesForSave({
+                    testCases: problem.test_cases,
+                    problemTitle: problem.title,
+                    userId: session.user.id,
+                });
+            } catch (error) {
+                if (error instanceof SaveProblemValidationError) {
+                    return NextResponse.json({ error: error.message }, { status: 400 });
                 }
 
-                if (tc.input_data.trim().length === 0 || tc.expected_output.trim().length === 0) {
-                    return true;
-                }
-
-                return (
-                    hasUnresolvedPlaceholder(tc.input_data) ||
-                    hasUnresolvedPlaceholder(tc.expected_output)
-                );
-            });
-
-            if (unresolvedCase) {
-                return NextResponse.json(
-                    {
-                        error:
-                            'Problem contains unresolved or invalid test case data. Please complete validation before saving.',
-                    },
-                    { status: 400 }
-                );
+                throw error;
             }
 
             // Insert problem
@@ -113,11 +78,12 @@ export async function POST(request: Request) {
             }
 
             // Insert test cases
-            if (problem.test_cases && problem.test_cases.length > 0) {
-                const testCasesToInsert = problem.test_cases.map(
-                    (tc: SaveTestCase) => ({
+            if (normalizedTestCases.length > 0) {
+                const testCasesToInsert = normalizedTestCases.map(
+                    (tc: SaveGeneratedTestCase) => ({
                         problem_id: insertedProblem.id,
                         input_data: tc.input_data,
+                        input_template: tc.input_template ?? null,
                         expected_output: tc.expected_output,
                         is_sample: tc.is_sample ?? false,
                         points: tc.points ?? 1,

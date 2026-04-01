@@ -1,7 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { supabase } from '@/lib/supabase/client';
-import { PistonClientImpl } from '@/lib/execution/client';
-import { TestCaseEvaluatorImpl } from '@/lib/execution/evaluator';
 import {
   dedupeSupportedLanguages,
   SUPPORTED_EXECUTION_LANGUAGES,
@@ -13,6 +11,10 @@ import type {
   ProblemGenerationJobStatus,
   ProblemGenerationRequest,
 } from './types';
+import {
+  annotateGeneratedProblems,
+  validateProblemsAgainstModel,
+} from './generation-problem-processing';
 
 const JOB_SELECT_FIELDS = [
   'id',
@@ -62,11 +64,6 @@ interface ProblemGenerationJobRow {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
-}
-
-interface ValidationOutcome {
-  ok: boolean;
-  message?: string;
 }
 
 export interface ProblemGenerationJobSummary {
@@ -353,141 +350,6 @@ async function claimJobProcessingLock(
   return mapJobRow(data);
 }
 
-function annotateGeneratedProblems(
-  problems: GeneratedProblem[],
-  model: string,
-  seed: string
-): GeneratedProblem[] {
-  const generatedAt = new Date().toISOString();
-
-  return problems.map((problem) => ({
-    ...problem,
-    test_cases: problem.test_cases.map((testCase) => ({
-      ...testCase,
-      generated_at: generatedAt,
-      generation_model: model,
-      generation_seed: seed,
-      is_generated: true,
-      input_hash: createHash('sha256').update(testCase.input_data).digest('hex'),
-    })),
-  }));
-}
-
-async function detectReferenceLanguage(
-  solutionCode: string,
-  candidateLanguages: readonly SupportedLanguage[],
-  pistonClient: PistonClientImpl
-): Promise<{ language: SupportedLanguage } | { error: string }> {
-  const compileErrors: string[] = [];
-
-  for (const language of candidateLanguages) {
-    try {
-      const response = await pistonClient.execute({
-        language: pistonClient.mapLanguage(language),
-        version: '*',
-        files: [{ content: solutionCode }],
-        stdin: '',
-        compile_timeout: 10_000,
-        run_timeout: 500,
-      });
-
-      if (!response.compile || response.compile.code === 0) {
-        return { language };
-      }
-
-      compileErrors.push(`${language}: ${response.compile.stderr || 'Compilation failed'}`);
-    } catch (error) {
-      compileErrors.push(
-        `${language}: ${error instanceof Error ? error.message : 'Unknown compile failure'}`
-      );
-    }
-  }
-
-  return {
-    error: `Model solution failed to compile in all candidate languages (${candidateLanguages.join(', ')}). ${compileErrors.join(' | ')}`,
-  };
-}
-
-async function validateProblemsAgainstModel(
-  problems: readonly GeneratedProblem[],
-  languages: readonly SupportedLanguage[]
-): Promise<ValidationOutcome> {
-  const pistonClient = new PistonClientImpl();
-  const evaluator = new TestCaseEvaluatorImpl();
-
-  for (let problemIndex = 0; problemIndex < problems.length; problemIndex += 1) {
-    const problem = problems[problemIndex];
-    const referenceLanguage = await detectReferenceLanguage(
-      problem.solution_code,
-      languages,
-      pistonClient
-    );
-
-    if ('error' in referenceLanguage) {
-      return {
-        ok: false,
-        message: `Problem ${problemIndex + 1}: ${referenceLanguage.error}`,
-      };
-    }
-
-    const runTimeout = Math.min(Math.max(problem.time_limit || 2000, 500), 10_000);
-    const runMemoryLimit = Math.min(Math.max(problem.memory_limit || 256, 64), 1024) * 1024 * 1024;
-
-    for (let testCaseIndex = 0; testCaseIndex < problem.test_cases.length; testCaseIndex += 1) {
-      const testCase = problem.test_cases[testCaseIndex];
-
-      try {
-        const response = await pistonClient.execute({
-          language: pistonClient.mapLanguage(referenceLanguage.language),
-          version: '*',
-          files: [{ content: problem.solution_code }],
-          stdin: testCase.input_data,
-          compile_timeout: 10_000,
-          run_timeout: runTimeout,
-          run_memory_limit: runMemoryLimit,
-        });
-
-        if (response.compile && response.compile.code !== 0) {
-          return {
-            ok: false,
-            message: `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: compile error - ${response.compile.stderr || 'Compilation failed'}`,
-          };
-        }
-
-        if (response.run.code !== 0) {
-          return {
-            ok: false,
-            message: `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: runtime error - ${response.run.stderr || 'Runtime error'}`,
-          };
-        }
-
-        const normalizedActual = evaluator.normalizeOutput(
-          response.run.stdout || response.run.output || ''
-        );
-        const normalizedExpected = evaluator.normalizeOutput(testCase.expected_output);
-
-        if (normalizedActual !== normalizedExpected) {
-          return {
-            ok: false,
-            message:
-              `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: model solution output mismatch. ` +
-              `Expected "${normalizedExpected}" but received "${normalizedActual}".`,
-          };
-        }
-      } catch (error) {
-        return {
-          ok: false,
-          message:
-            `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: execution failed - ` +
-            `${error instanceof Error ? error.message : 'Unknown execution failure'}`,
-        };
-      }
-    }
-  }
-
-  return { ok: true };
-}
-
 async function runAiGenerationStage(
   job: ProblemGenerationJobRow,
   lockToken: string
@@ -574,7 +436,12 @@ async function runValidationStage(
     }
 
     const requestLanguages = normalizeLanguages(job.request_payload.languages);
-    const validationResult = await validateProblemsAgainstModel(problems, requestLanguages);
+    const requestSeed = buildGenerationSeed(job.request_payload);
+    const validationResult = await validateProblemsAgainstModel(
+      problems,
+      requestLanguages,
+      requestSeed
+    );
 
     if (!validationResult.ok) {
       const transitioned = await transitionJob(job.id, ['validating'], {
@@ -597,20 +464,72 @@ async function runValidationStage(
       return transitioned;
     }
 
-    const transitioned = await transitionJob(job.id, ['validating'], {
+    if (!validationResult.problems || validationResult.problems.length === 0) {
+      const transitioned = await transitionJob(job.id, ['validating'], {
+        status: 'discarded',
+        progress_message: 'Generation discarded: validation completed without finalized testcases.',
+        error_message: 'Validation did not return finalized testcase payload.',
+        completed_at: new Date().toISOString(),
+        processing_token: null,
+        processing_started_at: null,
+      }, { lockToken });
+
+      if (!transitioned) {
+        const latestJob = await fetchJobById(job.id);
+        if (!latestJob) {
+          throw new Error('Generation job disappeared after empty validation payload transition');
+        }
+        return latestJob;
+      }
+
+      return transitioned;
+    }
+
+    const completionUpdate = {
       status: 'completed',
       progress_message: 'Validation complete. Problems are ready for preview.',
+      result_payload: { problems: validationResult.problems },
       error_message: null,
       completed_at: new Date().toISOString(),
       processing_token: null,
       processing_started_at: null,
-    }, { lockToken });
+    };
+
+    const transitioned = await transitionJob(job.id, ['validating'], completionUpdate, { lockToken });
 
     if (!transitioned) {
       const latestJob = await fetchJobById(job.id);
       if (!latestJob) {
         throw new Error('Generation job disappeared after completion transition');
       }
+
+      if (latestJob.status === 'validating' && latestJob.processing_token === lockToken) {
+        const retriedTransition = await transitionJob(
+          job.id,
+          ['validating'],
+          completionUpdate,
+          { lockToken }
+        );
+
+        if (retriedTransition) {
+          return retriedTransition;
+        }
+
+        const retriedLatestJob = await fetchJobById(job.id);
+        if (!retriedLatestJob) {
+          throw new Error('Generation job disappeared after completion transition retry');
+        }
+
+        return retriedLatestJob;
+      }
+
+      if (
+        latestJob.status === 'completed' &&
+        (!latestJob.result_payload?.problems || latestJob.result_payload.problems.length === 0)
+      ) {
+        throw new Error('Generation job completed without validated result payload after transition race');
+      }
+
       return latestJob;
     }
 

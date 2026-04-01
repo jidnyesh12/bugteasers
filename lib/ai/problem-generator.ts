@@ -9,6 +9,10 @@ import {
 import { SYSTEM_PROMPT, buildProblemGenerationPrompt } from './prompt-templates';
 import { GEMINI_API_KEY } from '@/lib/env';
 import { SUPPORTED_EXECUTION_LANGUAGES } from '@/lib/execution/languages';
+import {
+  hasUnresolvedPlaceholder,
+  validateTestCaseInputTemplate,
+} from '@/lib/testcases/template-dsl';
 
 // Initialize Gemini with API key
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -127,9 +131,37 @@ function validateGeneratedProblems(problems: GeneratedProblem[]): void {
     }
 
     for (const testCase of problem.test_cases) {
-      if (!testCase.input_data || !testCase.expected_output) {
-        throw new Error('Test case missing input or output');
+      const hasTemplate = testCase.input_template !== undefined && testCase.input_template !== null;
+      const inputData = typeof testCase.input_data === 'string' ? testCase.input_data : '';
+      const expectedOutput =
+        typeof testCase.expected_output === 'string' ? testCase.expected_output : '';
+
+      if (hasTemplate) {
+        try {
+          validateTestCaseInputTemplate(testCase.input_template);
+        } catch (error) {
+          throw new Error(
+            `Test case has invalid input_template: ${error instanceof Error ? error.message : 'Unknown template error'}`
+          );
+        }
       }
+
+      if (!hasTemplate && inputData.trim().length === 0) {
+        throw new Error('Test case missing input_data and input_template');
+      }
+
+      if (!hasTemplate && hasUnresolvedPlaceholder(inputData)) {
+        throw new Error('Test case input_data contains unresolved placeholders');
+      }
+
+      if (!hasTemplate && expectedOutput.trim().length === 0) {
+        throw new Error('Test case missing expected output');
+      }
+
+      if (!hasTemplate && hasUnresolvedPlaceholder(expectedOutput)) {
+        throw new Error('Test case expected_output contains unresolved placeholders');
+      }
+
       if (typeof testCase.is_sample !== 'boolean') {
         throw new Error('Test case missing is_sample flag');
       }
