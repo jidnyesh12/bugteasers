@@ -1,7 +1,7 @@
 // Types for AI problem generation
 
 import type { SupportedLanguage } from '@/lib/execution/types';
-import type { TestCaseInputTemplate } from '@/lib/testcases/template-dsl';
+import type { TestCaseInputTemplate } from '@/lib/ai/template-dsl';
 
 export interface ProblemGenerationRequest {
   topic: string;

@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
-import type { TestCaseInputTemplate } from '@/lib/testcases/template-dsl';
+import type { TestCaseInputTemplate } from '@/lib/ai/template-dsl';
 import {
   hasUnresolvedPlaceholder,
   hashTemplateSpec,
   materializeTestCaseInputTemplate,
   validateTestCaseInputTemplate,
-} from '@/lib/testcases/template-dsl';
+} from '@/lib/ai/template-dsl';
 
 export type SaveGeneratedTestCase = {
   input_data: string;

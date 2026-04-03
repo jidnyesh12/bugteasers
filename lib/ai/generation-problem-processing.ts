@@ -6,7 +6,7 @@ import {
   hasUnresolvedPlaceholder,
   hashTemplateSpec,
   materializeTestCaseInputTemplate,
-} from '@/lib/testcases/template-dsl';
+} from '@/lib/ai/template-dsl';
 import type { GeneratedProblem } from './types';
 
 export interface ValidationOutcome {

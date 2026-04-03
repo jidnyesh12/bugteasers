@@ -12,7 +12,7 @@ import { SUPPORTED_EXECUTION_LANGUAGES } from '@/lib/execution/languages';
 import {
   hasUnresolvedPlaceholder,
   validateTestCaseInputTemplate,
-} from '@/lib/testcases/template-dsl';
+} from '@/lib/ai/template-dsl';
 
 // Initialize Gemini with API key
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);

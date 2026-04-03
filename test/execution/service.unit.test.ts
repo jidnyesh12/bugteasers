@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ExecutionServiceImpl } from '@/lib/execution/service';
-import { materializeTestCaseInputTemplate } from '@/lib/testcases/template-dsl';
+import { materializeTestCaseInputTemplate } from '@/lib/ai/template-dsl';
 import type {
   PistonClient,
   TestCaseEvaluator,

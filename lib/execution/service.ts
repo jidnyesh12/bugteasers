@@ -20,7 +20,7 @@ import { createExecutionLogger, type ExecutionLogger } from './logging';
 import {
   materializeTestCaseInputTemplate,
   validateTestCaseInputTemplate,
-} from '@/lib/testcases/template-dsl';
+} from '@/lib/ai/template-dsl';
 
 interface ExecutionServiceConfig {
   pistonClient: PistonClient;
