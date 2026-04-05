@@ -5,6 +5,8 @@ import {
   SUPPORTED_EXECUTION_LANGUAGES,
 } from '@/lib/execution/languages';
 import type { SupportedLanguage } from '@/lib/execution/types';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GEMINI_API_KEY, MOCK_AI_GENERATION } from '@/lib/env';
 import { generateProblems, generateProblemsWithRetryContext, repairProblemSolutionCode } from './problem-generator';
 import type {
   GeneratedProblem,
@@ -16,6 +18,149 @@ import {
   annotateGeneratedProblems,
   validateProblemsAgainstModel,
 } from './generation-problem-processing';
+import type { OracleValidationFailure } from './generation-problem-processing';
+import { SYSTEM_PROMPT, buildOracleRepairPrompt } from './prompt-templates';
+
+// ─────────────────────────────────────────────────────────────
+// Mock Response for Testing (MOCK_AI_GENERATION=true)
+// ─────────────────────────────────────────────────────────────
+
+function getMockProblemResponse(): { problems: GeneratedProblem[] } {
+  return {
+    problems: [
+      {
+        title: 'Sum of Two Numbers',
+        description: 'Given two integers $a$ and $b$, output their sum.',
+        difficulty: 'easy',
+        tags: ['arrays', 'math'],
+        constraints: '$1 \\le a, b \\le 1000$',
+        examples: [
+          {
+            input: '3 5',
+            output: '8',
+            explanation: '3 + 5 = 8'
+          },
+          {
+            input: '10 20',
+            output: '30',
+            explanation: '10 + 20 = 30'
+          }
+        ],
+        hints: ['Use simple addition.'],
+        time_limit: 1000,
+        memory_limit: 256,
+        solution_code: `#include <iostream>
+using namespace std;
+int main() {
+    int a, b;
+    cin >> a >> b;
+    cout << a + b << endl;
+    return 0;
+}`,
+        test_cases: [
+          // Sample test cases (2)
+          {
+            input_data: '',
+            input_template: {
+              version: 1,
+              variables: {
+                a: { type: 'const', value: 3 },
+                b: { type: 'const', value: 5 }
+              },
+              output: [
+                { type: 'line', values: [{ ref: 'a' }, { ref: 'b' }] }
+              ]
+            },
+            expected_output: '8',
+            is_sample: true,
+            points: 10
+          },
+          {
+            input_data: '',
+            input_template: {
+              version: 1,
+              variables: {
+                a: { type: 'const', value: 10 },
+                b: { type: 'const', value: 20 }
+              },
+              output: [
+                { type: 'line', values: [{ ref: 'a' }, { ref: 'b' }] }
+              ]
+            },
+            expected_output: '30',
+            is_sample: true,
+            points: 10
+          },
+          // Hidden test cases (4)
+          {
+            input_data: '',
+            input_template: {
+              version: 1,
+              variables: {
+                a: { type: 'int', min: 1, max: 500 },
+                b: { type: 'int', min: 1, max: 500 }
+              },
+              output: [
+                { type: 'line', values: [{ ref: 'a' }, { ref: 'b' }] }
+              ]
+            },
+            expected_output: '',
+            is_sample: false,
+            points: 20
+          },
+          {
+            input_data: '',
+            input_template: {
+              version: 1,
+              variables: {
+                a: { type: 'int', min: 500, max: 1000 },
+                b: { type: 'int', min: 500, max: 1000 }
+              },
+              output: [
+                { type: 'line', values: [{ ref: 'a' }, { ref: 'b' }] }
+              ]
+            },
+            expected_output: '',
+            is_sample: false,
+            points: 20
+          },
+          {
+            input_data: '',
+            input_template: {
+              version: 1,
+              variables: {
+                a: { type: 'const', value: 1 },
+                b: { type: 'const', value: 1 }
+              },
+              output: [
+                { type: 'line', values: [{ ref: 'a' }, { ref: 'b' }] }
+              ]
+            },
+            expected_output: '',
+            is_sample: false,
+            points: 20
+          },
+          {
+            input_data: '',
+            input_template: {
+              version: 1,
+              variables: {
+                a: { type: 'const', value: 1000 },
+                b: { type: 'const', value: 1000 }
+              },
+              output: [
+                { type: 'line', values: [{ ref: 'a' }, { ref: 'b' }] }
+              ]
+            },
+            expected_output: '',
+            is_sample: false,
+            points: 20
+          }
+        ]
+      }
+    ]
+  };
+}
 
 const JOB_SELECT_FIELDS = [
   'id',
@@ -49,6 +194,9 @@ const ACTIVE_JOB_STATUSES: readonly ProblemGenerationJobStatus[] = [
 ];
 
 const DEFAULT_MAX_RETRIES = 3;
+
+/** Maximum number of in-pipeline Oracle self-correction repair attempts. */
+const MAX_ORACLE_REPAIR_ATTEMPTS = 3;
 
 const MAX_ACTIVE_GENERATION_JOBS_PER_USER = 2;
 const STALE_JOB_TIMEOUT_MS = 24 * 60 * 60 * 1000;
@@ -504,8 +652,20 @@ async function runAiGenerationStage(
         job.retry_history
       );
     } else {
-      // First attempt — generate from scratch
-      generationResult = await generateProblems(job.request_payload);
+      // First attempt — generate from scratch (or use mock if enabled)
+      if (MOCK_AI_GENERATION) {
+        console.log('[GENERATION] MOCK MODE: Using mock problem response instead of AI generation');
+        const mockResponse = getMockProblemResponse();
+        generationResult = {
+          problems: mockResponse.problems,
+          metadata: {
+            generated_at: new Date().toISOString(),
+            model: 'mock-mode',
+          },
+        };
+      } else {
+        generationResult = await generateProblems(job.request_payload);
+      }
     }
 
     const seed = buildGenerationSeed(job.request_payload);
@@ -679,6 +839,130 @@ async function transitionToRetryOrError(
   return transitioned;
 }
 
+/**
+ * Handles in-pipeline Oracle self-correction.
+ *
+ * When the Two-Pass validation pipeline detects a compile_error,
+ * model_answer_error, or logic_consistency_error, this function:
+ * 1. Sends a targeted repair prompt to the LLM containing the exact
+ *    failure context (stderr, expected vs actual, failing input).
+ * 2. Parses the repaired solution_code and patches it into the problems.
+ * 3. Re-runs the entire validation pipeline from Phase 2.
+ *
+ * Returns null if repair succeeded and problems were patched,
+ * or the original failure if the LLM could not fix the code.
+ */
+async function handleOracleRepairLoop(
+  problems: GeneratedProblem[],
+  failure: OracleValidationFailure,
+  requestSeed: string,
+  maxAttempts: number = MAX_ORACLE_REPAIR_ATTEMPTS
+): Promise<{ ok: true; repairedProblems: GeneratedProblem[] } | { ok: false; lastFailure: OracleValidationFailure; attemptsMade: number }> {
+  let currentProblems = [...problems];
+  let currentFailure = failure;
+
+  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const errorType = currentFailure.errorType;
+    console.log(
+      `[ORACLE] Error caught: ${errorType}. Initiating Repair Loop (Attempt ${attempt}/${maxAttempts})...`
+    );
+
+    // Locate the failing problem
+    const failIdx = currentFailure.problemIndex;
+    const failingProblem = currentProblems[failIdx];
+    if (!failingProblem) {
+      console.error(`[ORACLE] Repair Loop: Cannot find problem at index ${failIdx}. Aborting.`);
+      return { ok: false, lastFailure: currentFailure, attemptsMade: attempt };
+    }
+
+    // Build the targeted repair prompt with full failure context
+    const repairPrompt = buildOracleRepairPrompt(
+      {
+        title: failingProblem.title,
+        description: failingProblem.description,
+        constraints: failingProblem.constraints,
+      },
+      {
+        errorType: currentFailure.errorType,
+        message: currentFailure.message,
+        failedCode: currentFailure.failedCode,
+        stderr: currentFailure.stderr,
+        expectedOutput: currentFailure.expectedOutput,
+        actualOutput: currentFailure.actualOutput,
+        inputData: currentFailure.inputData,
+      },
+      attempt,
+      maxAttempts
+    );
+
+    try {
+      console.log(`[ORACLE] Repair Loop: Sending repair prompt to LLM (attempt ${attempt})...`);
+      const result = await model.generateContent(`${SYSTEM_PROMPT}\n\n${repairPrompt}`);
+      const text = result.response.text();
+
+      // Parse { "solution_code": "..." }
+      let cleaned = text.trim();
+      cleaned = cleaned.replace(/^```json\s*/i, '');
+      cleaned = cleaned.replace(/^```\s*/, '');
+      cleaned = cleaned.replace(/\s*```\s*$/g, '');
+      cleaned = cleaned.trim();
+
+      const parsed = JSON.parse(cleaned);
+      if (
+        !parsed ||
+        typeof parsed !== 'object' ||
+        typeof parsed.solution_code !== 'string' ||
+        parsed.solution_code.trim().length === 0
+      ) {
+        throw new Error('LLM returned invalid repair response (missing solution_code)');
+      }
+
+      console.log(`[ORACLE] Repair Loop: LLM returned new solution_code (${parsed.solution_code.length} chars). Re-validating...`);
+
+      // Patch the solution into the problem
+      currentProblems = currentProblems.map((p, i) =>
+        i === failIdx ? { ...p, solution_code: parsed.solution_code } : p
+      );
+
+      // Re-run the full Two-Pass validation pipeline
+      const revalidation = await validateProblemsAgainstModel(
+        currentProblems,
+        requestSeed
+      );
+
+      if (revalidation.ok && revalidation.problems) {
+        console.log(`[ORACLE] Repair Loop: Validation PASSED on attempt ${attempt}. Self-correction successful.`);
+        return { ok: true, repairedProblems: revalidation.problems };
+      }
+
+      // Still failing — update failure for next iteration
+      if (revalidation.failure) {
+        currentFailure = revalidation.failure;
+        console.log(
+          `[ORACLE] Repair Loop: Validation still failing after attempt ${attempt}. ` +
+          `New error: ${revalidation.failure.errorType} — ${revalidation.failure.message}`
+        );
+      } else {
+        console.log(
+          `[ORACLE] Repair Loop: Validation failed without structured failure on attempt ${attempt}. ` +
+          `Message: ${revalidation.message}`
+        );
+      }
+    } catch (repairError) {
+      console.error(
+        `[ORACLE] Repair Loop: LLM repair failed on attempt ${attempt}:`,
+        repairError instanceof Error ? repairError.message : repairError
+      );
+    }
+  }
+
+  console.log('[ORACLE] Repair Loop exhausted. Flagging job for Human Intervention.');
+  return { ok: false, lastFailure: currentFailure, attemptsMade: maxAttempts };
+}
+
 async function runValidationStage(
   job: ProblemGenerationJobRow,
   lockToken: string
@@ -698,71 +982,140 @@ async function runValidationStage(
       requestSeed
     );
 
-    if (!validationResult.ok) {
+    // ── Happy path: validation passed ──
+    if (validationResult.ok && validationResult.problems && validationResult.problems.length > 0) {
+      const completionUpdate = {
+        status: 'completed',
+        progress_message: job.retry_count > 0
+          ? `Validation complete after ${job.retry_count + 1} attempts. Problems are ready for preview.`
+          : 'Validation complete. Problems are ready for preview.',
+        result_payload: { problems: validationResult.problems },
+        error_message: null,
+        completed_at: new Date().toISOString(),
+        processing_token: null,
+        processing_started_at: null,
+      };
+
+      const transitioned = await transitionJob(job.id, ['validating'], completionUpdate, { lockToken });
+
+      if (!transitioned) {
+        const latestJob = await fetchJobById(job.id);
+        if (!latestJob) {
+          throw new Error('Generation job disappeared after completion transition');
+        }
+
+        if (latestJob.status === 'validating' && latestJob.processing_token === lockToken) {
+          const retriedTransition = await transitionJob(
+            job.id,
+            ['validating'],
+            completionUpdate,
+            { lockToken }
+          );
+
+          if (retriedTransition) {
+            return retriedTransition;
+          }
+
+          const retriedLatestJob = await fetchJobById(job.id);
+          if (!retriedLatestJob) {
+            throw new Error('Generation job disappeared after completion transition retry');
+          }
+
+          return retriedLatestJob;
+        }
+
+        if (
+          latestJob.status === 'completed' &&
+          (!latestJob.result_payload?.problems || latestJob.result_payload.problems.length === 0)
+        ) {
+          throw new Error('Generation job completed without validated result payload after transition race');
+        }
+
+        return latestJob;
+      }
+
+      return transitioned;
+    }
+
+    // ── Validation failed — attempt Oracle Repair Loop ──
+    const failure = validationResult.failure;
+    const isRepairableError = failure && (
+      failure.errorType === 'compile_error' ||
+      failure.errorType === 'model_answer_error' ||
+      failure.errorType === 'logic_consistency_error'
+    );
+
+    if (isRepairableError && failure) {
+      console.log(
+        `[ORACLE] Validation failed with repairable error: ${failure.errorType}. ` +
+        `Entering Oracle Repair Loop...`
+      );
+
+      const repairResult = await handleOracleRepairLoop(
+        problems,
+        failure,
+        requestSeed
+      );
+
+      if (repairResult.ok) {
+        // Repair succeeded — complete the job with repaired problems
+        const completionUpdate = {
+          status: 'completed',
+          progress_message:
+            `Validation complete after Oracle self-correction ` +
+            `(${job.retry_count > 0 ? `generation attempt ${job.retry_count + 1}` : 'first attempt'}). ` +
+            `Problems are ready for preview.`,
+          result_payload: { problems: repairResult.repairedProblems },
+          error_message: null,
+          completed_at: new Date().toISOString(),
+          processing_token: null,
+          processing_started_at: null,
+        };
+
+        const transitioned = await transitionJob(job.id, ['validating'], completionUpdate, { lockToken });
+        if (!transitioned) {
+          const latestJob = await fetchJobById(job.id);
+          if (!latestJob) {
+            throw new Error('Generation job disappeared after repair-completion transition');
+          }
+          return latestJob;
+        }
+        return transitioned;
+      }
+
+      // ── Human Fallback: Repair loop exhausted ──
+      console.log(
+        `[ORACLE] Repair Loop exhausted after ${repairResult.attemptsMade} attempts. ` +
+        `Falling back to transitionToRetryOrError for outer retry or human intervention.`
+      );
+
+      const exhaustionMessage =
+        `Oracle self-correction failed after ${repairResult.attemptsMade} repair attempts. ` +
+        `Last error: [${repairResult.lastFailure.errorType}] ${repairResult.lastFailure.message}`;
+
       return await transitionToRetryOrError(
         job, lockToken, 'validating',
-        `Model solution failed validation: ${validationResult.message}`
+        exhaustionMessage
       );
     }
 
-    if (!validationResult.problems || validationResult.problems.length === 0) {
+    // Non-repairable errors — abort immediately, do NOT ask the LLM to fix code
+    if (failure && failure.errorType === 'infrastructure_error') {
+      console.error(
+        `[ORACLE] ⛔ INFRASTRUCTURE ERROR — Piston API is down. ` +
+        `Aborting job immediately. No repair attempted. No retry.`
+      );
       return await transitionToRetryOrError(
         job, lockToken, 'validating',
-        'Validation did not return finalized testcase payload.'
+        `Piston execution sandbox unavailable (infrastructure error). ${failure.message}`
       );
     }
 
-    const completionUpdate = {
-      status: 'completed',
-      progress_message: job.retry_count > 0
-        ? `Validation complete after ${job.retry_count + 1} attempts. Problems are ready for preview.`
-        : 'Validation complete. Problems are ready for preview.',
-      result_payload: { problems: validationResult.problems },
-      error_message: null,
-      completed_at: new Date().toISOString(),
-      processing_token: null,
-      processing_started_at: null,
-    };
-
-    const transitioned = await transitionJob(job.id, ['validating'], completionUpdate, { lockToken });
-
-    if (!transitioned) {
-      const latestJob = await fetchJobById(job.id);
-      if (!latestJob) {
-        throw new Error('Generation job disappeared after completion transition');
-      }
-
-      if (latestJob.status === 'validating' && latestJob.processing_token === lockToken) {
-        const retriedTransition = await transitionJob(
-          job.id,
-          ['validating'],
-          completionUpdate,
-          { lockToken }
-        );
-
-        if (retriedTransition) {
-          return retriedTransition;
-        }
-
-        const retriedLatestJob = await fetchJobById(job.id);
-        if (!retriedLatestJob) {
-          throw new Error('Generation job disappeared after completion transition retry');
-        }
-
-        return retriedLatestJob;
-      }
-
-      if (
-        latestJob.status === 'completed' &&
-        (!latestJob.result_payload?.problems || latestJob.result_payload.problems.length === 0)
-      ) {
-        throw new Error('Generation job completed without validated result payload after transition race');
-      }
-
-      return latestJob;
-    }
-
-    return transitioned;
+    // Other non-repairable errors (e.g., materialization_error) — fall through to standard retry
+    return await transitionToRetryOrError(
+      job, lockToken, 'validating',
+      `Model solution failed validation: ${validationResult.message}`
+    );
   } catch (error) {
     const message =
       error instanceof Error

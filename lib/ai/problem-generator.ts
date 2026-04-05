@@ -61,11 +61,41 @@ export async function generateProblems(
     // Normalize test cases - add required fields that AI doesn't need to provide
     console.log('[GENERATION] Normalizing test cases...');
     for (const problem of parsedResponse.problems) {
-      for (const testCase of problem.test_cases) {
+      for (let i = 0; i < problem.test_cases.length; i++) {
+        const testCase = problem.test_cases[i];
+            
         // Ensure input_data is empty when using template
         if (testCase.input_template) {
           testCase.input_data = '';
-          testCase.expected_output = '__AUTO_EXPECTED_OUTPUT__';
+              
+          // For SAMPLE test cases: preserve the LLM's expected_output from examples
+          // For HIDDEN test cases: use __AUTO_EXPECTED_OUTPUT__ placeholder for auto-derivation
+          if (testCase.is_sample) {
+            const llmProvidedOutput = testCase.expected_output;
+            const isValidOutput = llmProvidedOutput && 
+                                   typeof llmProvidedOutput === 'string' &&
+                                   llmProvidedOutput.trim().length > 0 &&
+                                   !llmProvidedOutput.includes('__AUTO_');
+                
+            if (isValidOutput) {
+              console.log(`[GENERATION] Sample test case ${i + 1}: preserving LLM-provided expected_output: "${llmProvidedOutput}"`);
+              // Keep the LLM-provided expected_output (already set)
+            } else {
+              // Extract from examples array - sample test cases correspond to examples
+              const exampleIndex = problem.test_cases.slice(0, i + 1).filter(tc => tc.is_sample).length - 1;
+              const matchingExample = problem.examples[exampleIndex];
+                  
+              if (matchingExample && matchingExample.output) {
+                testCase.expected_output = matchingExample.output;
+                console.log(`[GENERATION] Sample test case ${i + 1}: extracted expected_output from example ${exampleIndex + 1}: "${matchingExample.output}"`);
+              } else {
+                console.warn(`[GENERATION] Sample test case ${i + 1}: WARNING - no matching example found, expected_output may be invalid`);
+              }
+            }
+          } else {
+            // Hidden test case - use placeholder for auto-derivation
+            testCase.expected_output = '__AUTO_EXPECTED_OUTPUT__';
+          }
         }
       }
     }
@@ -132,10 +162,37 @@ export async function generateProblemsWithRetryContext(
 
     console.log('[GENERATION/RETRY] Normalizing test cases...');
     for (const problem of parsedResponse.problems) {
-      for (const testCase of problem.test_cases) {
+      for (let i = 0; i < problem.test_cases.length; i++) {
+        const testCase = problem.test_cases[i];
         if (testCase.input_template) {
           testCase.input_data = '';
-          testCase.expected_output = '__AUTO_EXPECTED_OUTPUT__';
+              
+          // For SAMPLE test cases: preserve the LLM's expected_output
+          // For HIDDEN test cases: use __AUTO_EXPECTED_OUTPUT__ placeholder for auto-derivation
+          if (testCase.is_sample) {
+            const llmProvidedOutput = testCase.expected_output;
+            const isValidOutput = llmProvidedOutput && 
+                                   typeof llmProvidedOutput === 'string' &&
+                                   llmProvidedOutput.trim().length > 0 &&
+                                   !llmProvidedOutput.includes('__AUTO_');
+                
+            if (isValidOutput) {
+              console.log(`[GENERATION/RETRY] Sample test case ${i + 1}: preserving LLM-provided expected_output: "${llmProvidedOutput}"`);
+            } else {
+              // Extract from examples array - sample test cases correspond to examples
+              const exampleIndex = problem.test_cases.slice(0, i + 1).filter(tc => tc.is_sample).length - 1;
+              const matchingExample = problem.examples[exampleIndex];
+                  
+              if (matchingExample && matchingExample.output) {
+                testCase.expected_output = matchingExample.output;
+                console.log(`[GENERATION/RETRY] Sample test case ${i + 1}: extracted expected_output from example ${exampleIndex + 1}: "${matchingExample.output}"`);
+              } else {
+                console.warn(`[GENERATION/RETRY] Sample test case ${i + 1}: WARNING - no matching example found`);
+              }
+            }
+          } else {
+            testCase.expected_output = '__AUTO_EXPECTED_OUTPUT__';
+          }
         }
       }
     }

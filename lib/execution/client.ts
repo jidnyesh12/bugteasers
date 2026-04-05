@@ -23,6 +23,30 @@ import {
   RETRY_BASE_DELAY,
 } from './constants';
 
+/**
+ * Thrown when the Piston API returns an infrastructure-level failure
+ * (non-200 status, HTML error page, unparseable response body).
+ *
+ * This is NOT a code error — the C++ solution was never executed.
+ * The Repair Loop must NOT attempt to fix the user's code for this.
+ */
+export class PistonInfrastructureError extends Error {
+  readonly statusCode: number;
+  readonly rawBody: string;
+
+  constructor(statusCode: number, rawBody: string) {
+    const preview = rawBody.substring(0, 200);
+    super(
+      `Piston API infrastructure error (HTTP ${statusCode}): ${preview}${
+        rawBody.length > 200 ? '...' : ''
+      }`
+    );
+    this.name = 'PistonInfrastructureError';
+    this.statusCode = statusCode;
+    this.rawBody = rawBody;
+  }
+}
+
 // Default configuration for Piston client
 const DEFAULT_CONFIG: PistonClientConfig = {
   apiUrl: PISTON_API_URL,
@@ -58,7 +82,39 @@ export class PistonClientImpl implements PistonClient {
 
         clearTimeout(timeoutId);
 
-        const data = await response.json();
+        // ── SAFETY: Read raw text BEFORE parsing ──────────────
+        // Piston can return HTML error pages (503/502) when the
+        // deployment is restarting. Calling response.json()
+        // directly would throw a confusing SyntaxError that gets
+        // misclassified as a model_answer_error.
+        const rawText = await response.text();
+        console.log('[DEBUG] Raw Piston HTTP Response:', rawText.substring(0, 300));
+
+        // Gate 1: HTTP status must be 2xx
+        if (!response.ok) {
+          console.error(
+            `[PISTON] Infrastructure failure — HTTP ${response.status} ${response.statusText}`,
+            rawText.substring(0, 500)
+          );
+          throw new PistonInfrastructureError(response.status, rawText);
+        }
+
+        // Gate 2: Body must be parseable JSON
+        let data: unknown;
+        try {
+          data = JSON.parse(rawText);
+        } catch (parseError) {
+          console.error(
+            '[PISTON] Response body is not valid JSON.',
+            'Content-Type:', response.headers.get('content-type'),
+            'Body preview:', rawText.substring(0, 300)
+          );
+          throw new PistonInfrastructureError(
+            response.status,
+            rawText
+          );
+        }
+
         const normalizedData = this.withRequestMetadata(data, request);
 
         // Validate and return response (even for compilation errors)
@@ -83,6 +139,22 @@ export class PistonClientImpl implements PistonClient {
           continue;
         }
         
+        // Infrastructure errors from Piston (50x, HTML responses) — retry with backoff
+        if (error instanceof PistonInfrastructureError) {
+          if (isLastAttempt) {
+            throw error; // Bubble up as-is — the orchestrator must NOT treat this as a code error
+          }
+
+          const delay = Math.pow(2, attempt) * RETRY_BASE_DELAY;
+          console.warn(
+            `[PISTON] Retrying after infrastructure error HTTP ${error.statusCode} ` +
+            `(attempt ${attempt + 1}/${this.config.maxRetries})`,
+            { url, delay }
+          );
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+
         // Handle network errors - retry
         if (error instanceof TypeError && error.message.includes('fetch')) {
           if (isLastAttempt) {

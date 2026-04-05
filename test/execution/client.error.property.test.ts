@@ -46,7 +46,11 @@ describe('Execution Client Error Handling Properties', () => {
         }
 
         mockFetch.mockResolvedValueOnce({
-          json: async () => ({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          text: async () => JSON.stringify({
             language: 'python',
             version: '3.10.0',
             run: {
@@ -82,7 +86,11 @@ describe('Execution Client Error Handling Properties', () => {
         });
 
         mockFetch.mockResolvedValueOnce({
-          json: async () => ({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          text: async () => JSON.stringify({
             language: 'python',
             version: '3.10.0',
             compile: {

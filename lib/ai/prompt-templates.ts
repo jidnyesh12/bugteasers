@@ -168,7 +168,9 @@ export function buildProblemGenerationPrompt(
     '   - CRITICAL: Your code is inside a JSON string. Escape backslashes as \\\\ and quotes as \\"',
     '   - DO NOT include ANY comments (no // lines, no /* */ blocks). Comments cause JSON escaping issues.',
     '   - Do not include #include line comments or any inline comments whatsoever',
-    '   - Use standard competitive programming C++ patterns (cin/cout, #include <bits/stdc++.h>)',
+    '   - FORBIDDEN: Do NOT use #include <bits/stdc++.h> — it causes compilation timeouts in our sandbox.',
+    '   - You MUST use explicit, individual includes: <iostream>, <vector>, <algorithm>, <string>, <map>, <set>, <queue>, <stack>, <cmath>, <climits>, <numeric>, <functional>, <sstream>, <cstring>, <cstdio>, <cassert>, <deque>, <unordered_map>, <unordered_set>',
+    '   - Use standard competitive programming C++ patterns (cin/cout)',
     '',
     '7. **Metadata**:',
     `   - Time limit: ${difficulty === 'easy' ? '1000-2000' : difficulty === 'medium' ? '2000-3000' : '3000-5000'}ms`,
@@ -268,7 +270,8 @@ export function buildRetryContextSection(retryHistory: RetryHistoryEntry[]): str
     lines.push('🔴 CODE ERRORS: Your solution code had compilation or runtime errors.');
     lines.push('   - REQUIRED LANGUAGE: Write the solution in C++ ONLY.');
     lines.push('   - Write a COMPLETE C++ program that reads from stdin and writes to stdout');
-    lines.push('   - Use #include <bits/stdc++.h> and standard cin/cout patterns');
+    lines.push('   - FORBIDDEN: Do NOT use #include <bits/stdc++.h> — it causes compilation timeouts.');
+    lines.push('   - Use explicit includes: <iostream>, <vector>, <algorithm>, <string>, <map>, <set>, etc.');
     lines.push('   - DO NOT include ANY comments (no // lines, no /* */ blocks) — they cause JSON escaping issues');
     lines.push('   - Remember: code is inside a JSON string, escape \\\\ and " properly');
     lines.push('');
@@ -351,7 +354,8 @@ export function buildSolutionRepairPrompt(
     '',
     '--- STRICT RULES ---',
     '- Write the solution in C++ ONLY',
-    '- Use #include <bits/stdc++.h> at the top',
+    '- FORBIDDEN: Do NOT use #include <bits/stdc++.h> — it causes compilation timeouts',
+    '- Use explicit includes: <iostream>, <vector>, <algorithm>, <string>, <map>, <set>, <cmath>, etc.',
     '- Use int main() with cin/cout',
     '- DO NOT include ANY comments (no // lines, no /* */ blocks)',
     '- DO NOT include any string literals with special characters',
@@ -365,6 +369,124 @@ export function buildSolutionRepairPrompt(
   ].join('\n');
 }
 
+
+/**
+ * Builds a targeted repair prompt driven by the structured OracleValidationFailure
+ * produced by the Two-Pass validation pipeline.
+ *
+ * Unlike the generic buildSolutionRepairPrompt, this variant includes the exact
+ * failure data (stderr, expected vs actual stdout, input that caused the mismatch)
+ * so the LLM can make a surgical fix.
+ */
+export function buildOracleRepairPrompt(
+  problem: {
+    title: string;
+    description: string;
+    constraints: string;
+  },
+  failure: {
+    errorType: string;
+    message: string;
+    failedCode?: string;
+    stderr?: string;
+    expectedOutput?: string;
+    actualOutput?: string;
+    inputData?: string;
+  },
+  attemptNumber: number,
+  maxAttempts: number
+): string {
+  const lines: string[] = [
+    '╔══════════════════════════════════════════════════════════════╗',
+    '║  🔧  ORACLE REPAIR — SELF-CORRECTION ATTEMPT               ║',
+    '╚══════════════════════════════════════════════════════════════╝',
+    '',
+    `This is repair attempt ${attemptNumber} of ${maxAttempts}.`,
+    'The problem structure (title, description, test case templates) is CORRECT.',
+    'ONLY the C++ solution_code failed Oracle validation.',
+    '',
+    '--- PROBLEM CONTEXT ---',
+    `Title: ${problem.title}`,
+    '',
+    `Description:`,
+    problem.description,
+    '',
+    `Constraints:`,
+    problem.constraints,
+    '',
+  ];
+
+  // ── Error-specific sections ──
+  lines.push('--- FAILURE DIAGNOSIS ---');
+  lines.push(`Error Type: ${failure.errorType}`);
+  lines.push(`Error Message: ${failure.message}`);
+  lines.push('');
+
+  if (failure.errorType === 'compile_error' && failure.stderr) {
+    lines.push('--- COMPILER STDERR ---');
+    lines.push(failure.stderr.substring(0, 2000));
+    lines.push('');
+    lines.push('FIX INSTRUCTIONS:');
+    lines.push('- The code above did not compile. Read the stderr carefully.');
+    lines.push('- Fix all compilation errors. Do NOT change the algorithm unless it is fundamentally broken.');
+    lines.push('- FORBIDDEN: Do NOT use #include <bits/stdc++.h> — it causes compilation timeouts.');
+    lines.push('- Use explicit includes: <iostream>, <vector>, <algorithm>, <string>, <map>, <set>, etc.');
+    lines.push('');
+  }
+
+  if (failure.errorType === 'model_answer_error' && failure.stderr) {
+    lines.push('--- RUNTIME STDERR ---');
+    lines.push(failure.stderr.substring(0, 2000));
+    lines.push('');
+    lines.push('FIX INSTRUCTIONS:');
+    lines.push('- The code compiled but crashed at runtime (segfault, TLE, or non-zero exit).');
+    lines.push('- Check for: out-of-bounds access, integer overflow, infinite loops, division by zero.');
+    lines.push('');
+  }
+
+  if (failure.errorType === 'logic_consistency_error') {
+    lines.push('--- LOGIC MISMATCH ---');
+    if (failure.inputData) {
+      lines.push(`Input that caused the mismatch:`);
+      lines.push(failure.inputData.substring(0, 1000));
+      lines.push('');
+    }
+    if (failure.expectedOutput) {
+      lines.push(`Expected output: "${failure.expectedOutput}"`);
+    }
+    if (failure.actualOutput) {
+      lines.push(`Actual output:   "${failure.actualOutput}"`);
+    }
+    lines.push('');
+    lines.push('FIX INSTRUCTIONS:');
+    lines.push('- The code compiled and ran, but produced WRONG output for the above input.');
+    lines.push('- Your algorithm is logically incorrect. Fix the algorithm itself.');
+    lines.push('- Verify edge cases: empty inputs, single elements, maximum constraint values.');
+    lines.push('');
+  }
+
+  if (failure.failedCode) {
+    lines.push('--- FAILED C++ CODE (DO NOT REPEAT THIS) ---');
+    lines.push(failure.failedCode.substring(0, 3000));
+    lines.push('');
+  }
+
+  lines.push('--- STRICT RULES ---');
+  lines.push('- Write the solution in C++ ONLY');
+  lines.push('- FORBIDDEN: Do NOT use #include <bits/stdc++.h> — it causes compilation timeouts');
+  lines.push('- Use explicit includes: <iostream>, <vector>, <algorithm>, <string>, <map>, <set>, <cmath>, etc.');
+  lines.push('- Use int main() with cin/cout');
+  lines.push('- DO NOT include ANY comments (no // lines, no /* */ blocks)');
+  lines.push('- The solution must read from stdin and write to stdout');
+  lines.push('- The solution must be correct and efficient for the given constraints');
+  lines.push('');
+  lines.push('Return ONLY the following JSON (nothing else, no markdown fences):');
+  lines.push('{ "solution_code": "... your C++ code here ..." }');
+  lines.push('');
+  lines.push('CRITICAL: The JSON must be valid. Escape all backslashes as \\\\\\\\ and quotes as \\".');
+
+  return lines.join('\n');
+}
 
 export const EXAMPLE_PROBLEM = `
 Example of a well-structured problem:

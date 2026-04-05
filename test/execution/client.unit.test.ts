@@ -307,16 +307,21 @@ describe('PistonClient Unit Tests', () => {
     };
 
     it('should backfill missing language/version from request metadata', async () => {
+      const responseBody = {
+        run: {
+          stdout: 'ok\n',
+          stderr: '',
+          code: 0,
+          signal: null,
+          output: 'ok\n',
+        },
+      };
       mockFetch.mockResolvedValue({
-        json: vi.fn().mockResolvedValue({
-          run: {
-            stdout: 'ok\n',
-            stderr: '',
-            code: 0,
-            signal: null,
-            output: 'ok\n',
-          },
-        }),
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: vi.fn().mockResolvedValue(JSON.stringify(responseBody)),
       });
 
       const result = await client.execute(baseRequest);
@@ -327,18 +332,23 @@ describe('PistonClient Unit Tests', () => {
     });
 
     it('should preserve language/version returned by API response', async () => {
+      const responseBody = {
+        language: 'python',
+        version: '3.12.0',
+        run: {
+          stdout: 'ok\n',
+          stderr: '',
+          code: 0,
+          signal: null,
+          output: 'ok\n',
+        },
+      };
       mockFetch.mockResolvedValue({
-        json: vi.fn().mockResolvedValue({
-          language: 'python',
-          version: '3.12.0',
-          run: {
-            stdout: 'ok\n',
-            stderr: '',
-            code: 0,
-            signal: null,
-            output: 'ok\n',
-          },
-        }),
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: vi.fn().mockResolvedValue(JSON.stringify(responseBody)),
       });
 
       const result = await client.execute(baseRequest);
@@ -348,11 +358,16 @@ describe('PistonClient Unit Tests', () => {
     });
 
     it('should create run object when missing from response', async () => {
+      const responseBody = {
+        language: 'python',
+        version: '3.10.0',
+      };
       mockFetch.mockResolvedValue({
-        json: vi.fn().mockResolvedValue({
-          language: 'python',
-          version: '3.10.0',
-        }),
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: vi.fn().mockResolvedValue(JSON.stringify(responseBody)),
       });
 
       const result = await client.execute(baseRequest);

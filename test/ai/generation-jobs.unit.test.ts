@@ -42,6 +42,22 @@ vi.mock('@/lib/execution/client', () => ({
   },
 }));
 
+vi.mock('@google/generative-ai', () => ({
+  GoogleGenerativeAI: class MockGoogleGenerativeAI {
+    getGenerativeModel() {
+      return {
+        generateContent: vi.fn().mockResolvedValue({
+          response: { text: () => '{"solution_code": "mock"}' },
+        }),
+      };
+    }
+  },
+}));
+
+vi.mock('@/lib/env', () => ({
+  GEMINI_API_KEY: 'test-api-key',
+}));
+
 vi.mock('@/lib/execution/evaluator', () => ({
   TestCaseEvaluatorImpl: class MockTestCaseEvaluatorImpl {
     normalizeOutput(value: string) {
@@ -613,8 +629,10 @@ describe('generation-jobs orchestration', () => {
     expect(pistonExecuteMock).toHaveBeenCalledTimes(1);
   });
 
-  it('auto-derives expected output when testcase expected_output is unresolved', async () => {
+  it('auto-derives expected output when hidden testcase expected_output is unresolved', async () => {
     const generatedProblem = buildGeneratedProblem();
+    // Auto-derivation is Pass 2 behavior — test case must be is_sample: false
+    generatedProblem.test_cases[0].is_sample = false;
     generatedProblem.test_cases[0].expected_output = '__AUTO_EXPECTED_OUTPUT__';
 
     const query = installSupabaseQueryMocks({

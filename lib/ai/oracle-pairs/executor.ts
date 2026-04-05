@@ -150,13 +150,40 @@ export async function executeCode(
       version: '*',
       files: [{ content: preparedCode }],
       stdin: testInput,
-      compile_timeout: config.timeout,
-      run_timeout: config.timeout,
+      // Compile timeout must be generous — g++ can be slow even with explicit includes.
+      // Run timeout is tight to catch infinite loops quickly.
+      compile_timeout: 10_000,
+      run_timeout: Math.min(config.timeout, 5_000),
       run_memory_limit: 256 * 1024 * 1024,
     });
 
     const duration = Date.now() - startTime;
     let status: 'success' | 'timeout' | 'error' = 'success';
+
+    // ── Compile-phase timeout detection ──────────────────────
+    // When g++ is SIGKILL'd during compilation (e.g., bits/stdc++.h),
+    // Piston returns compile.signal === 'SIGKILL' and/or
+    // compile.output containing "Time limit exceeded".
+    // We must distinguish this from a normal syntax error.
+    if (response.compile && response.compile.signal === 'SIGKILL') {
+      const compileOutput = response.compile.output || response.compile.stderr || '';
+      const isTimeLimitExceeded = compileOutput.toLowerCase().includes('time limit exceeded');
+      console.error(
+        `[EXECUTOR] Compile-phase SIGKILL detected.`,
+        isTimeLimitExceeded ? 'Cause: compilation timeout (TLE).' : 'Cause: unknown SIGKILL.',
+        'stderr:', (response.compile.stderr || '').substring(0, 200)
+      );
+      return {
+        output: '',
+        exitCode: response.compile.code ?? 137,
+        stderr:
+          isTimeLimitExceeded
+            ? 'Compilation timed out (SIGKILL). This usually means #include <bits/stdc++.h> was used. Use explicit includes instead.'
+            : `Compilation killed by signal SIGKILL: ${compileOutput.substring(0, 500)}`,
+        duration,
+        status: 'timeout',
+      };
+    }
     
     if (response.compile && response.compile.code !== 0) {
       return {

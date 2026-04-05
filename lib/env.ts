@@ -74,4 +74,7 @@ export const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || '';
 // Google AI configuration (Gemini)
 export const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
+// Mock mode for testing (skips AI generation, uses sample response)
+export const MOCK_AI_GENERATION = process.env.MOCK_AI_GENERATION === 'true';
+
 export const IS_DEVELOPMENT = process.env.NODE_ENV === 'development';

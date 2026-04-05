@@ -146,18 +146,25 @@ export function compareOutputs(
   maxLength: number = 100_000
 ): {
   matches: boolean;
-  mismatch?: OutputMismatch;
+  mismatch?: OutputMismatch; // <-- Kept your strict typing here!
   context: string;
 } {
-  // Limit comparison to maxLength
-  const exp = expected.substring(0, maxLength);
-  const act = actual.substring(0, maxLength);
+  // 1. CP Normalization: Trim outer whitespace and standardize newlines
+  const normalize = (str: string) => str.trim().replace(/\r\n/g, '\n');
 
+  // 2. Apply normalization and cut to max length
+  const exp = normalize(expected).substring(0, maxLength);
+  const act = normalize(actual).substring(0, maxLength);
+
+  console.log("Sakshi: " + exp);
+  console.log("Sakshi: " + act);
+
+  // 3. NOW do the equality check
   if (exp === act) {
     return { matches: true, context: '' };
   }
 
-  // Find first difference
+  // Find first difference for debugging
   let diffStart = 0;
   for (let i = 0; i < Math.min(exp.length, act.length); i++) {
     if (exp[i] !== act[i]) {
@@ -166,7 +173,6 @@ export function compareOutputs(
     }
   }
 
-  // If length differs but content matches up to min length
   if (diffStart === Math.min(exp.length, act.length)) {
     diffStart = Math.min(exp.length, act.length);
   }
@@ -188,7 +194,6 @@ export function compareOutputs(
     context,
   };
 }
-
 /**
  * Attribute failure to test case or model answer
  *
