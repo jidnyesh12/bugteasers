@@ -64,6 +64,7 @@ export default function ProblemSelector({ problems, selectedIds, onSelectionChan
           {['all', 'easy', 'medium', 'hard'].map(level => (
             <button
               key={level}
+              type="button"
               onClick={() => setDifficultyFilter(level)}
               className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-colors capitalize
                 ${difficultyFilter === level
@@ -85,6 +86,7 @@ export default function ProblemSelector({ problems, selectedIds, onSelectionChan
               Selected ({selectedProblems.length})
             </p>
             <button
+              type="button"
               onClick={() => onSelectionChange([])}
               className="text-xs font-semibold text-[var(--text-muted)] hover:text-red-600 transition-colors"
             >
@@ -102,6 +104,7 @@ export default function ProblemSelector({ problems, selectedIds, onSelectionChan
                   {difficultyConfig[problem.difficulty].label}
                 </span>
                 <button
+                  type="button"
                   onClick={() => toggleProblem(problem.id)}
                   className="w-6 h-6 rounded-md hover:bg-red-50 flex items-center justify-center transition-colors"
                 >
@@ -132,6 +135,7 @@ export default function ProblemSelector({ problems, selectedIds, onSelectionChan
               return (
                 <button
                   key={problem.id}
+                  type="button"
                   onClick={() => toggleProblem(problem.id)}
                   className={`flex items-center gap-3 p-3 rounded-lg border transition-all text-left
                     ${isSelected
