@@ -6,7 +6,7 @@ import {
 } from '@/lib/execution/languages';
 import type { SupportedLanguage } from '@/lib/execution/types';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { GEMINI_API_KEY, MOCK_AI_GENERATION } from '@/lib/env';
+import { GEMINI_API_KEY } from '@/lib/env';
 import { generateProblems, generateProblemsWithRetryContext, repairProblemSolutionCode } from './problem-generator';
 import type {
   GeneratedProblem,
@@ -20,147 +20,6 @@ import {
 } from './generation-problem-processing';
 import type { OracleValidationFailure } from './generation-problem-processing';
 import { SYSTEM_PROMPT, buildOracleRepairPrompt } from './prompt-templates';
-
-// ─────────────────────────────────────────────────────────────
-// Mock Response for Testing (MOCK_AI_GENERATION=true)
-// ─────────────────────────────────────────────────────────────
-
-function getMockProblemResponse(): { problems: GeneratedProblem[] } {
-  return {
-    problems: [
-      {
-        title: 'Sum of Two Numbers',
-        description: 'Given two integers $a$ and $b$, output their sum.',
-        difficulty: 'easy',
-        tags: ['arrays', 'math'],
-        constraints: '$1 \\le a, b \\le 1000$',
-        examples: [
-          {
-            input: '3 5',
-            output: '8',
-            explanation: '3 + 5 = 8'
-          },
-          {
-            input: '10 20',
-            output: '30',
-            explanation: '10 + 20 = 30'
-          }
-        ],
-        hints: ['Use simple addition.'],
-        time_limit: 1000,
-        memory_limit: 256,
-        solution_code: `#include <iostream>
-using namespace std;
-int main() {
-    int a, b;
-    cin >> a >> b;
-    cout << a + b << endl;
-    return 0;
-}`,
-        test_cases: [
-          // Sample test cases (2)
-          {
-            input_data: '',
-            input_template: {
-              version: 1,
-              variables: {
-                a: { type: 'const', value: 3 },
-                b: { type: 'const', value: 5 }
-              },
-              output: [
-                { type: 'line', values: [{ ref: 'a' }, { ref: 'b' }] }
-              ]
-            },
-            expected_output: '8',
-            is_sample: true,
-            points: 10
-          },
-          {
-            input_data: '',
-            input_template: {
-              version: 1,
-              variables: {
-                a: { type: 'const', value: 10 },
-                b: { type: 'const', value: 20 }
-              },
-              output: [
-                { type: 'line', values: [{ ref: 'a' }, { ref: 'b' }] }
-              ]
-            },
-            expected_output: '30',
-            is_sample: true,
-            points: 10
-          },
-          // Hidden test cases (4)
-          {
-            input_data: '',
-            input_template: {
-              version: 1,
-              variables: {
-                a: { type: 'int', min: 1, max: 500 },
-                b: { type: 'int', min: 1, max: 500 }
-              },
-              output: [
-                { type: 'line', values: [{ ref: 'a' }, { ref: 'b' }] }
-              ]
-            },
-            expected_output: '',
-            is_sample: false,
-            points: 20
-          },
-          {
-            input_data: '',
-            input_template: {
-              version: 1,
-              variables: {
-                a: { type: 'int', min: 500, max: 1000 },
-                b: { type: 'int', min: 500, max: 1000 }
-              },
-              output: [
-                { type: 'line', values: [{ ref: 'a' }, { ref: 'b' }] }
-              ]
-            },
-            expected_output: '',
-            is_sample: false,
-            points: 20
-          },
-          {
-            input_data: '',
-            input_template: {
-              version: 1,
-              variables: {
-                a: { type: 'const', value: 1 },
-                b: { type: 'const', value: 1 }
-              },
-              output: [
-                { type: 'line', values: [{ ref: 'a' }, { ref: 'b' }] }
-              ]
-            },
-            expected_output: '',
-            is_sample: false,
-            points: 20
-          },
-          {
-            input_data: '',
-            input_template: {
-              version: 1,
-              variables: {
-                a: { type: 'const', value: 1000 },
-                b: { type: 'const', value: 1000 }
-              },
-              output: [
-                { type: 'line', values: [{ ref: 'a' }, { ref: 'b' }] }
-              ]
-            },
-            expected_output: '',
-            is_sample: false,
-            points: 20
-          }
-        ]
-      }
-    ]
-  };
-}
 
 const JOB_SELECT_FIELDS = [
   'id',
@@ -652,20 +511,8 @@ async function runAiGenerationStage(
         job.retry_history
       );
     } else {
-      // First attempt — generate from scratch (or use mock if enabled)
-      if (MOCK_AI_GENERATION) {
-        console.log('[GENERATION] MOCK MODE: Using mock problem response instead of AI generation');
-        const mockResponse = getMockProblemResponse();
-        generationResult = {
-          problems: mockResponse.problems,
-          metadata: {
-            generated_at: new Date().toISOString(),
-            model: 'mock-mode',
-          },
-        };
-      } else {
-        generationResult = await generateProblems(job.request_payload);
-      }
+      // First attempt — generate from scratch
+      generationResult = await generateProblems(job.request_payload);
     }
 
     const seed = buildGenerationSeed(job.request_payload);
