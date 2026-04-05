@@ -214,7 +214,7 @@ export class PistonClientImpl implements PistonClient {
     return resp as unknown as ExecutionResponse;
   }
 
-  // Some runtimes omit top-level metadata, so copy it from the request before validation.
+  // Normalize response metadata and ensure run object exists with proper structure
   private withRequestMetadata(
     response: unknown,
     request: Pick<ExecutionRequest, 'language' | 'version'>
@@ -225,12 +225,25 @@ export class PistonClientImpl implements PistonClient {
 
     const normalized = { ...(response as Record<string, unknown>) };
 
+    // Normalize language and version
     if (typeof normalized.language !== 'string' || normalized.language.length === 0) {
       normalized.language = request.language;
     }
 
     if (typeof normalized.version !== 'string' || normalized.version.length === 0) {
       normalized.version = request.version;
+    }
+
+    // Ensure run object exists with proper structure
+    if (!normalized.run || typeof normalized.run !== 'object') {
+      // Create run object from available data
+      normalized.run = {
+        stdout: normalized.stdout || '',
+        stderr: normalized.stderr || '',
+        code: typeof normalized.code === 'number' ? normalized.code : 1,
+        signal: normalized.signal || null,
+        output: normalized.output || normalized.stdout || '',
+      };
     }
 
     return normalized;
@@ -263,10 +276,15 @@ export class PistonClientImpl implements PistonClient {
       );
     }
 
-    if (typeof result.code !== 'number') {
+    if (typeof result.code !== 'number' && result.code !== null) {
       throw new InvalidResponseError(
-        `Response ${fieldName}.code must be a number`
+        `Response ${fieldName}.code must be a number or null`
       );
+    }
+
+    // Normalize null code to 1 (non-zero exit) so callers don't need to handle null
+    if (result.code === null) {
+      result.code = 1;
     }
 
     if (result.signal !== null && typeof result.signal !== 'string') {

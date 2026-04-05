@@ -3,12 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   fromMock,
   generateProblemsMock,
+  generateProblemsWithRetryContextMock,
+  repairProblemSolutionCodeMock,
   pistonMapLanguageMock,
   pistonExecuteMock,
   normalizeOutputMock,
 } = vi.hoisted(() => ({
   fromMock: vi.fn(),
   generateProblemsMock: vi.fn(),
+  generateProblemsWithRetryContextMock: vi.fn(),
+  repairProblemSolutionCodeMock: vi.fn(),
   pistonMapLanguageMock: vi.fn(),
   pistonExecuteMock: vi.fn(),
   normalizeOutputMock: vi.fn((value: string) => String(value).trim()),
@@ -22,6 +26,8 @@ vi.mock('@/lib/supabase/client', () => ({
 
 vi.mock('@/lib/ai/problem-generator', () => ({
   generateProblems: generateProblemsMock,
+  generateProblemsWithRetryContext: generateProblemsWithRetryContextMock,
+  repairProblemSolutionCode: repairProblemSolutionCodeMock,
 }));
 
 vi.mock('@/lib/execution/client', () => ({
@@ -45,7 +51,7 @@ vi.mock('@/lib/execution/evaluator', () => ({
 }));
 
 import { progressProblemGenerationJob } from '@/lib/ai/generation-jobs';
-import type { GeneratedProblem } from '@/lib/ai/types';
+import type { GeneratedProblem, RetryHistoryEntry } from '@/lib/ai/types';
 
 type QueryResult = {
   data: unknown;
@@ -81,7 +87,7 @@ function buildGeneratedProblem(): GeneratedProblem {
 }
 
 function buildJobRow(
-  status: 'queued' | 'ai_generating' | 'validating' | 'completed' | 'discarded' | 'error',
+  status: 'queued' | 'ai_generating' | 'validating' | 'retrying' | 'completed' | 'discarded' | 'error',
   overrides: Partial<{
     result_payload: { problems?: GeneratedProblem[] } | null;
     progress_message: string | null;
@@ -89,6 +95,9 @@ function buildJobRow(
     processing_token: string | null;
     processing_started_at: string | null;
     completed_at: string | null;
+    retry_count: number;
+    max_retries: number;
+    retry_history: RetryHistoryEntry[];
   }> = {}
 ) {
   return {
@@ -113,6 +122,9 @@ function buildJobRow(
     completed_at:
       overrides.completed_at ??
       (status === 'completed' ? '2026-01-01T00:10:00.000Z' : null),
+    retry_count: overrides.retry_count ?? 0,
+    max_retries: overrides.max_retries ?? 3,
+    retry_history: overrides.retry_history ?? [],
   };
 }
 
@@ -181,7 +193,7 @@ describe('generation-jobs orchestration', () => {
     expect(result).toBeNull();
   });
 
-  it('returns terminal job summary without attempting a transition', async () => {
+  it('returns terminal job summary with retry fields', async () => {
     const query = installSupabaseQueryMocks({
       singleResults: [{ data: buildJobRow('completed'), error: null }],
     });
@@ -194,6 +206,9 @@ describe('generation-jobs orchestration', () => {
       progressMessage: 'Progress',
       errorMessage: null,
       problems: null,
+      retryCount: 0,
+      maxRetries: 3,
+      retryHistory: [],
     });
     expect(query.update).not.toHaveBeenCalled();
     expect(query.maybeSingle).not.toHaveBeenCalled();
@@ -213,6 +228,9 @@ describe('generation-jobs orchestration', () => {
       progressMessage: 'Progress',
       errorMessage: null,
       problems: null,
+      retryCount: 0,
+      maxRetries: 3,
+      retryHistory: [],
     });
     expect(query.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -240,6 +258,9 @@ describe('generation-jobs orchestration', () => {
       progressMessage: 'Progress',
       errorMessage: null,
       problems: null,
+      retryCount: 0,
+      maxRetries: 3,
+      retryHistory: [],
     });
     expect(query.single).toHaveBeenCalledTimes(2);
     expect(query.maybeSingle).toHaveBeenCalledTimes(1);
@@ -262,6 +283,9 @@ describe('generation-jobs orchestration', () => {
       progressMessage: 'Progress',
       errorMessage: null,
       problems: null,
+      retryCount: 0,
+      maxRetries: 3,
+      retryHistory: [],
     });
     expect(generateProblemsMock).not.toHaveBeenCalled();
   });
@@ -303,22 +327,28 @@ describe('generation-jobs orchestration', () => {
     expect(generateProblemsMock).toHaveBeenCalledTimes(1);
   });
 
-  it('discards the job when ai generation stage throws', async () => {
+  it('transitions to retrying when ai generation fails with retries remaining', async () => {
     installSupabaseQueryMocks({
-      singleResults: [{ data: buildJobRow('ai_generating'), error: null }],
+      singleResults: [{ data: buildJobRow('ai_generating', { retry_count: 0, max_retries: 3 }), error: null }],
       maybeSingleResults: [
         {
           data: buildJobRow('ai_generating', {
             processing_token: 'lock-1',
             processing_started_at: '2026-01-01T00:00:01.000Z',
+            retry_count: 0,
+            max_retries: 3,
           }),
           error: null,
         },
         {
-          data: buildJobRow('discarded', {
-            progress_message: 'Generation discarded before validation.',
+          data: buildJobRow('retrying', {
+            progress_message: 'Generation failed: AI service timeout. Retrying... (Attempt 2/4)',
             error_message: 'AI service timeout',
-            completed_at: '2026-01-01T00:00:03.000Z',
+            retry_count: 1,
+            max_retries: 3,
+            retry_history: [
+              { attempt: 1, stage: 'ai_generating', error: 'AI service timeout', timestamp: '2026-01-01T00:00:01.000Z' },
+            ],
           }),
           error: null,
         },
@@ -329,13 +359,139 @@ describe('generation-jobs orchestration', () => {
 
     const result = await progressProblemGenerationJob('job-1');
 
-    expect(result).toEqual({
-      jobId: 'job-1',
-      status: 'discarded',
-      progressMessage: 'Generation discarded before validation.',
-      errorMessage: 'AI service timeout',
-      problems: null,
+    expect(result?.status).toBe('retrying');
+    expect(result?.retryCount).toBe(1);
+    expect(result?.retryHistory).toHaveLength(1);
+  });
+
+  it('transitions to error when ai generation fails with all retries exhausted', async () => {
+    installSupabaseQueryMocks({
+      singleResults: [{ data: buildJobRow('ai_generating', { retry_count: 3, max_retries: 3 }), error: null }],
+      maybeSingleResults: [
+        {
+          data: buildJobRow('ai_generating', {
+            processing_token: 'lock-1',
+            processing_started_at: '2026-01-01T00:00:01.000Z',
+            retry_count: 3,
+            max_retries: 3,
+          }),
+          error: null,
+        },
+        {
+          data: buildJobRow('error', {
+            progress_message: 'Generation failed after 4 attempts.',
+            error_message: 'Still failing',
+            retry_count: 3,
+            max_retries: 3,
+          }),
+          error: null,
+        },
+      ],
     });
+
+    generateProblemsMock.mockRejectedValue(new Error('Still failing'));
+
+    const result = await progressProblemGenerationJob('job-1');
+
+    expect(result?.status).toBe('error');
+    expect(result?.retryCount).toBe(3);
+  });
+
+  it('transitions retrying jobs back to ai_generating', async () => {
+    const retryHistory: RetryHistoryEntry[] = [
+      { attempt: 1, stage: 'ai_generating', error: 'Syntax error', timestamp: '2026-01-01T00:00:01.000Z' },
+    ];
+
+    const query = installSupabaseQueryMocks({
+      singleResults: [
+        {
+          data: buildJobRow('retrying', {
+            retry_count: 1,
+            max_retries: 3,
+            retry_history: retryHistory,
+          }),
+          error: null,
+        },
+      ],
+      maybeSingleResults: [
+        {
+          data: buildJobRow('ai_generating', {
+            retry_count: 1,
+            max_retries: 3,
+            retry_history: retryHistory,
+            progress_message: 'Retrying generation... (Attempt 2/4)',
+          }),
+          error: null,
+        },
+      ],
+    });
+
+    const result = await progressProblemGenerationJob('job-1');
+
+    expect(result?.status).toBe('ai_generating');
+    expect(query.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'ai_generating',
+      })
+    );
+  });
+
+  it('uses error-context-aware generation when retry history exists', async () => {
+    const generatedProblem = buildGeneratedProblem();
+    const retryHistory: RetryHistoryEntry[] = [
+      { attempt: 1, stage: 'ai_generating', error: 'JSON parse error', timestamp: '2026-01-01T00:00:01.000Z' },
+    ];
+
+    installSupabaseQueryMocks({
+      singleResults: [
+        {
+          data: buildJobRow('ai_generating', {
+            retry_count: 1,
+            max_retries: 3,
+            retry_history: retryHistory,
+          }),
+          error: null,
+        },
+      ],
+      maybeSingleResults: [
+        {
+          data: buildJobRow('ai_generating', {
+            processing_token: 'lock-1',
+            processing_started_at: '2026-01-01T00:00:01.000Z',
+            retry_count: 1,
+            max_retries: 3,
+            retry_history: retryHistory,
+          }),
+          error: null,
+        },
+        {
+          data: buildJobRow('validating', {
+            progress_message: 'Model code is ready. Now testing model answer on generated testcases.',
+            result_payload: { problems: [generatedProblem] },
+          }),
+          error: null,
+        },
+      ],
+    });
+
+    generateProblemsWithRetryContextMock.mockResolvedValue({
+      problems: [generatedProblem],
+      metadata: {
+        generated_at: '2026-01-01T00:00:02.000Z',
+        model: 'gemini-test',
+      },
+    });
+
+    const result = await progressProblemGenerationJob('job-1');
+
+    expect(result?.status).toBe('validating');
+    expect(generateProblemsWithRetryContextMock).toHaveBeenCalledTimes(1);
+    expect(generateProblemsWithRetryContextMock).toHaveBeenCalledWith(
+      expect.objectContaining({ topic: 'graphs' }),
+      retryHistory
+    );
+    // Should NOT call the basic generator
+    expect(generateProblemsMock).not.toHaveBeenCalled();
   });
 
   it('falls back to latest snapshot when validating lock cannot be claimed', async () => {
@@ -363,22 +519,35 @@ describe('generation-jobs orchestration', () => {
     expect(pistonExecuteMock).not.toHaveBeenCalled();
   });
 
-  it('discards validating jobs that are missing generated payload', async () => {
+  it('retries validation failures when retries remain', async () => {
     installSupabaseQueryMocks({
-      singleResults: [{ data: buildJobRow('validating', { result_payload: null }), error: null }],
+      singleResults: [
+        {
+          data: buildJobRow('validating', {
+            result_payload: { problems: [] },
+            retry_count: 0,
+            max_retries: 3,
+          }),
+          error: null,
+        },
+      ],
       maybeSingleResults: [
         {
           data: buildJobRow('validating', {
             processing_token: 'lock-2',
             processing_started_at: '2026-01-01T00:00:01.000Z',
+            result_payload: { problems: [] },
+            retry_count: 0,
+            max_retries: 3,
           }),
           error: null,
         },
         {
-          data: buildJobRow('discarded', {
-            progress_message: 'Generation discarded: missing generated problems payload.',
+          data: buildJobRow('retrying', {
+            progress_message: 'Validation failed. Retrying...',
             error_message: 'Validation could not start because generated problems were missing.',
-            completed_at: '2026-01-01T00:00:03.000Z',
+            retry_count: 1,
+            max_retries: 3,
           }),
           error: null,
         },
@@ -387,13 +556,8 @@ describe('generation-jobs orchestration', () => {
 
     const result = await progressProblemGenerationJob('job-1');
 
-    expect(result).toEqual({
-      jobId: 'job-1',
-      status: 'discarded',
-      progressMessage: 'Generation discarded: missing generated problems payload.',
-      errorMessage: 'Validation could not start because generated problems were missing.',
-      problems: null,
-    });
+    expect(result?.status).toBe('retrying');
+    expect(result?.retryCount).toBe(1);
   });
 
   it('completes validating jobs when model outputs match testcase expectations', async () => {
@@ -430,10 +594,6 @@ describe('generation-jobs orchestration', () => {
 
     pistonExecuteMock
       .mockResolvedValueOnce({
-        compile: { code: 0, stderr: '' },
-        run: { code: 0, stdout: '', stderr: '', output: '' },
-      })
-      .mockResolvedValueOnce({
         compile: null,
         run: { code: 0, stdout: '42\n', stderr: '', output: '42\n' },
       });
@@ -446,8 +606,11 @@ describe('generation-jobs orchestration', () => {
       progressMessage: 'Validation complete. Problems are ready for preview.',
       errorMessage: null,
       problems: [generatedProblem],
+      retryCount: 0,
+      maxRetries: 3,
+      retryHistory: [],
     });
-    expect(pistonExecuteMock).toHaveBeenCalledTimes(2);
+    expect(pistonExecuteMock).toHaveBeenCalledTimes(1);
   });
 
   it('auto-derives expected output when testcase expected_output is unresolved', async () => {
@@ -485,10 +648,6 @@ describe('generation-jobs orchestration', () => {
 
     pistonExecuteMock
       .mockResolvedValueOnce({
-        compile: { code: 0, stderr: '' },
-        run: { code: 0, stdout: '', stderr: '', output: '' },
-      })
-      .mockResolvedValueOnce({
         compile: null,
         run: { code: 0, stdout: '42\n', stderr: '', output: '42\n' },
       });
@@ -509,5 +668,175 @@ describe('generation-jobs orchestration', () => {
         }),
       })
     );
+  });
+
+  it('uses full regen with error context for structural (ai_generating stage) retry failures', async () => {
+    const generatedProblem = buildGeneratedProblem();
+    const retryHistory: RetryHistoryEntry[] = [
+      { attempt: 1, stage: 'ai_generating', error: 'JSON parse error', timestamp: '2026-01-01T00:00:01.000Z' },
+    ];
+
+    installSupabaseQueryMocks({
+      singleResults: [
+        {
+          data: buildJobRow('ai_generating', {
+            retry_count: 1,
+            max_retries: 3,
+            retry_history: retryHistory,
+          }),
+          error: null,
+        },
+      ],
+      maybeSingleResults: [
+        {
+          data: buildJobRow('ai_generating', {
+            processing_token: 'lock-1',
+            processing_started_at: '2026-01-01T00:00:01.000Z',
+            retry_count: 1,
+            max_retries: 3,
+            retry_history: retryHistory,
+          }),
+          error: null,
+        },
+        {
+          data: buildJobRow('validating', {
+            result_payload: { problems: [generatedProblem] },
+          }),
+          error: null,
+        },
+      ],
+    });
+
+    generateProblemsWithRetryContextMock.mockResolvedValue({
+      problems: [generatedProblem],
+      metadata: { generated_at: '2026-01-01T00:00:02.000Z', model: 'gemini-test' },
+    });
+
+    const result = await progressProblemGenerationJob('job-1');
+
+    expect(result?.status).toBe('validating');
+    // Structural failure => full regen with context, NOT repair
+    expect(generateProblemsWithRetryContextMock).toHaveBeenCalledTimes(1);
+    expect(repairProblemSolutionCodeMock).not.toHaveBeenCalled();
+    expect(generateProblemsMock).not.toHaveBeenCalled();
+  });
+
+  it('dispatches targeted solution repair when last retry was a validation failure', async () => {
+    const originalProblem = buildGeneratedProblem();
+    const repairedProblem = { ...originalProblem, solution_code: 'fixed cpp code' };
+    const retryHistory: RetryHistoryEntry[] = [
+      {
+        attempt: 1,
+        stage: 'validating',
+        error: 'Model solution failed validation: Problem 1, test case 1: runtime error - SyntaxError',
+        timestamp: '2026-01-01T00:00:01.000Z',
+      },
+    ];
+
+    installSupabaseQueryMocks({
+      singleResults: [
+        {
+          data: buildJobRow('ai_generating', {
+            result_payload: { problems: [originalProblem] },
+            retry_count: 1,
+            max_retries: 3,
+            retry_history: retryHistory,
+          }),
+          error: null,
+        },
+      ],
+      maybeSingleResults: [
+        {
+          data: buildJobRow('ai_generating', {
+            processing_token: 'lock-1',
+            processing_started_at: '2026-01-01T00:00:01.000Z',
+            result_payload: { problems: [originalProblem] },
+            retry_count: 1,
+            max_retries: 3,
+            retry_history: retryHistory,
+          }),
+          error: null,
+        },
+        {
+          data: buildJobRow('validating', {
+            result_payload: { problems: [repairedProblem] },
+          }),
+          error: null,
+        },
+      ],
+    });
+
+    repairProblemSolutionCodeMock.mockResolvedValue({
+      problems: [repairedProblem],
+      metadata: { generated_at: '2026-01-01T00:00:02.000Z', model: 'gemini-test' },
+    });
+
+    const result = await progressProblemGenerationJob('job-1');
+
+    expect(result?.status).toBe('validating');
+    // Solution failure => targeted repair, NOT full regen
+    expect(repairProblemSolutionCodeMock).toHaveBeenCalledTimes(1);
+    expect(repairProblemSolutionCodeMock).toHaveBeenCalledWith(
+      [originalProblem],
+      0,
+      retryHistory
+    );
+    expect(generateProblemsWithRetryContextMock).not.toHaveBeenCalled();
+    expect(generateProblemsMock).not.toHaveBeenCalled();
+  });
+
+  it('preserves result_payload in db when transitioning to retrying from a validation failure', async () => {
+    const originalProblem = buildGeneratedProblem();
+
+    const query = installSupabaseQueryMocks({
+      singleResults: [
+        {
+          data: buildJobRow('validating', {
+            result_payload: { problems: [originalProblem] },
+            retry_count: 0,
+            max_retries: 3,
+          }),
+          error: null,
+        },
+      ],
+      maybeSingleResults: [
+        {
+          data: buildJobRow('validating', {
+            processing_token: 'lock-2',
+            processing_started_at: '2026-01-01T00:00:01.000Z',
+            result_payload: { problems: [originalProblem] },
+            retry_count: 0,
+            max_retries: 3,
+          }),
+          error: null,
+        },
+        {
+          data: buildJobRow('retrying', {
+            error_message: 'runtime error',
+            retry_count: 1,
+            max_retries: 3,
+          }),
+          error: null,
+        },
+      ],
+    });
+
+    // Trigger a runtime error during model validation
+    pistonExecuteMock.mockResolvedValue({
+      compile: { code: 0, stderr: '' },
+      run: { code: 1, stdout: '', stderr: 'Error: segmentation fault', output: '' },
+    });
+
+    await progressProblemGenerationJob('job-1');
+
+    // Find the update call that sets status to 'retrying'
+    const retryingUpdateCall = query.update.mock.calls.find((call: unknown[]) => {
+      const payload = call[0] as Record<string, unknown>;
+      return payload.status === 'retrying';
+    });
+    expect(retryingUpdateCall).toBeDefined();
+    const updatePayload = (retryingUpdateCall as unknown[])[0] as Record<string, unknown>;
+    // result_payload must NOT be wiped — repair path needs the existing problems
+    expect(updatePayload).not.toHaveProperty('result_payload');
   });
 });

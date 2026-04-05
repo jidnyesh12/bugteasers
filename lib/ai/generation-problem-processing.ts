@@ -1,13 +1,20 @@
 import { createHash } from 'node:crypto';
-import { PistonClientImpl } from '@/lib/execution/client';
 import { TestCaseEvaluatorImpl } from '@/lib/execution/evaluator';
-import type { SupportedLanguage } from '@/lib/execution/types';
 import {
   hasUnresolvedPlaceholder,
   hashTemplateSpec,
   materializeTestCaseInputTemplate,
 } from '@/lib/ai/template-dsl';
+import {
+  createTestCase,
+  createModelAnswer,
+  createOraclePair,
+} from '@/lib/ai/oracle-pairs';
+import { validateOraclePair, DEFAULT_VALIDATOR_CONFIG } from '@/lib/ai/oracle-pairs/validator';
 import type { GeneratedProblem } from './types';
+
+// Model answer validation always runs in C++.
+const MODEL_ANSWER_LANGUAGE = 'cpp' as const;
 
 export interface ValidationOutcome {
   ok: boolean;
@@ -52,47 +59,19 @@ export function annotateGeneratedProblems(
   }));
 }
 
-async function detectReferenceLanguage(
-  solutionCode: string,
-  candidateLanguages: readonly SupportedLanguage[],
-  pistonClient: PistonClientImpl
-): Promise<{ language: SupportedLanguage } | { error: string }> {
-  const compileErrors: string[] = [];
-
-  for (const language of candidateLanguages) {
-    try {
-      const response = await pistonClient.execute({
-        language: pistonClient.mapLanguage(language),
-        version: '*',
-        files: [{ content: solutionCode }],
-        stdin: '',
-        compile_timeout: 10_000,
-        run_timeout: 500,
-      });
-
-      if (!response.compile || response.compile.code === 0) {
-        return { language };
-      }
-
-      compileErrors.push(`${language}: ${response.compile.stderr || 'Compilation failed'}`);
-    } catch (error) {
-      compileErrors.push(
-        `${language}: ${error instanceof Error ? error.message : 'Unknown compile failure'}`
-      );
-    }
-  }
-
-  return {
-    error: `Model solution failed to compile in all candidate languages (${candidateLanguages.join(', ')}). ${compileErrors.join(' | ')}`,
-  };
+/**
+ * Strip single-line and multi-line comments from C++ source code.
+ */
+function stripCppComments(code: string): string {
+  let result = code.replace(/\/\*[\s\S]*?\*\//g, '');
+  result = result.replace(/\/\/.*/g, '');
+  return result;
 }
 
 export async function validateProblemsAgainstModel(
   problems: readonly GeneratedProblem[],
-  languages: readonly SupportedLanguage[],
   seedMaterial: string
 ): Promise<ValidationOutcome> {
-  const pistonClient = new PistonClientImpl();
   const evaluator = new TestCaseEvaluatorImpl();
   const validatedProblems: GeneratedProblem[] = [];
 
@@ -103,21 +82,9 @@ export async function validateProblemsAgainstModel(
       test_cases: [],
     };
 
-    const referenceLanguage = await detectReferenceLanguage(
-      problem.solution_code,
-      languages,
-      pistonClient
-    );
-
-    if ('error' in referenceLanguage) {
-      return {
-        ok: false,
-        message: `Problem ${problemIndex + 1}: ${referenceLanguage.error}`,
-      };
-    }
-
+    const referenceLanguage = MODEL_ANSWER_LANGUAGE;
+    const solutionCode = stripCppComments(problem.solution_code);
     const runTimeout = Math.min(Math.max(problem.time_limit || 2000, 500), 10_000);
-    const runMemoryLimit = Math.min(Math.max(problem.memory_limit || 256, 64), 1024) * 1024 * 1024;
 
     for (let testCaseIndex = 0; testCaseIndex < problem.test_cases.length; testCaseIndex += 1) {
       const testCase = problem.test_cases[testCaseIndex];
@@ -142,9 +109,8 @@ export async function validateProblemsAgainstModel(
 
           expandedInput = materialized.inputData;
           inputHash = hashTemplateSpec(testCase.input_template);
-          persistedInput = testCase.is_sample
-            ? expandedInput
-            : '';
+          // Always persist materialized input so the preview page can display it.
+          persistedInput = expandedInput;
         } catch (error) {
           return {
             ok: false,
@@ -164,48 +130,70 @@ export async function validateProblemsAgainstModel(
         };
       }
 
+      const expectedOutput =
+        typeof testCase.expected_output === 'string' ? testCase.expected_output : '';
+      const shouldAutoDeriveExpected =
+        expectedOutput.trim().length === 0 || hasUnresolvedPlaceholder(expectedOutput);
+
       try {
-        const response = await pistonClient.execute({
-          language: pistonClient.mapLanguage(referenceLanguage.language),
-          version: '*',
-          files: [{ content: problem.solution_code }],
-          stdin: expandedInput,
-          compile_timeout: 10_000,
-          run_timeout: runTimeout,
-          run_memory_limit: runMemoryLimit,
+        // Build oracle pair: test case input + model answer code
+        const oraclePair = createOraclePair(
+          createTestCase(
+            expandedInput,
+            shouldAutoDeriveExpected ? '' : expectedOutput,
+            fallbackSeed,
+            fallbackSeed,
+            {},
+            1
+          ),
+          createModelAnswer(solutionCode, referenceLanguage, fallbackSeed, 'gemini-3-flash')
+        );
+
+        // Validate via oracle pair — this now actually executes code via Piston
+        const validationResult = await validateOraclePair(oraclePair, {
+          ...DEFAULT_VALIDATOR_CONFIG,
+          timeout: runTimeout,
+          maxDifferentialOracles: 1,
+          confidenceThreshold: 0.8,
         });
 
-        if (response.compile && response.compile.code !== 0) {
+        // Check execution status from the oracle result
+        if (validationResult.modelAnswerStatus === 'runtime_error') {
+          const errMsg = validationResult.diagnostics?.executionErrors?.[0] || 'Runtime error';
           return {
             ok: false,
-            message: `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: compile error - ${response.compile.stderr || 'Compilation failed'}`,
+            message: `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: runtime error - ${errMsg}`,
           };
         }
 
-        if (response.run.code !== 0) {
+        if (validationResult.modelAnswerStatus === 'timeout') {
           return {
             ok: false,
-            message: `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: runtime error - ${response.run.stderr || 'Runtime error'}`,
+            message: `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: execution timed out`,
           };
         }
 
-        const rawActualOutput = response.run.stdout || response.run.output || '';
-        const normalizedActual = evaluator.normalizeOutput(rawActualOutput);
-        const expectedOutput =
-          typeof testCase.expected_output === 'string' ? testCase.expected_output : '';
-        const shouldAutoDeriveExpected =
-          expectedOutput.trim().length === 0 || hasUnresolvedPlaceholder(expectedOutput);
-        const normalizedExpected = shouldAutoDeriveExpected
-          ? normalizedActual
-          : evaluator.normalizeOutput(expectedOutput);
-
-        if (!shouldAutoDeriveExpected && normalizedActual !== normalizedExpected) {
+        if (validationResult.modelAnswerStatus === 'syntax_error') {
           return {
             ok: false,
-            message:
-              `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: model solution output mismatch. ` +
-              `Expected "${normalizedExpected}" but received "${normalizedActual}".`,
+            message: `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: compile error`,
           };
+        }
+
+        // Use the actual output from execution
+        const normalizedActual = evaluator.normalizeOutput(validationResult.actualOutput || '');
+
+        // If expected output was provided, compare
+        if (!shouldAutoDeriveExpected) {
+          const normalizedExpected = evaluator.normalizeOutput(expectedOutput);
+          if (normalizedActual !== normalizedExpected) {
+            return {
+              ok: false,
+              message:
+                `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: model solution output mismatch. ` +
+                `Expected "${normalizedExpected}" but received "${normalizedActual}".`,
+            };
+          }
         }
 
         validatedProblem.test_cases.push({

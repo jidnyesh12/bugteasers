@@ -8,10 +8,8 @@
  * - Deterministic execution with seeded RNG
  */
 
-import { execSync } from 'node:child_process';
-import { writeFileSync, unlinkSync, existsSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+
+import { PistonClientImpl } from '../../execution/client';
 import type { ExecutionResult, SupportedLanguage, ModelAnswer } from './types';
 import { TemplateDslError } from '../template-dsl/errors';
 
@@ -127,196 +125,87 @@ export async function executeCode(
     config.seedRNG
   );
 
-  // Create temporary file for code
-  const tmpDir = tmpdir();
-  const ext = LANGUAGE_EXTENSIONS[language];
-  const codeFile = join(tmpDir, `code_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`);
-  const inputFile = join(tmpDir, `input_${Date.now()}_${Math.random().toString(36).substring(7)}.txt`);
-
   try {
-    // Write code and input to temp files
-    writeFileSync(codeFile, preparedCode);
-    writeFileSync(inputFile, testInput);
+    const pistonClient = new PistonClientImpl();
+    // Map oracle-pair SupportedLanguage to Piston language strings.
+    // Languages not in PistonLanguage union are included for future expansion.
+    const languageMap: Partial<Record<SupportedLanguage, string>> = {
+      python: 'python',
+      java: 'java',
+      cpp: 'c++',
+      javascript: 'javascript',
+      typescript: 'typescript',
+      csharp: 'csharp',
+      go: 'go',
+      rust: 'rust',
+    };
 
-    let output = '';
-    let stderr = '';
-    let exitCode = 0;
-    let status: 'success' | 'timeout' | 'error' = 'success';
-
-    try {
-      switch (language) {
-        case 'python':
-          output = executeCommand(
-            `python "${codeFile}"`,
-            testInput,
-            config.timeout
-          );
-          break;
-
-        case 'javascript':
-          output = executeCommand(
-            `node "${codeFile}"`,
-            testInput,
-            config.timeout
-          );
-          break;
-
-        case 'cpp': {
-          const exePath = codeFile.replace(/.cpp$/, '.exe');
-          executeCommand(
-            `g++ -O2 -o "${exePath}" "${codeFile}"`,
-            '',
-            config.timeout
-          );
-          output = executeCommand(
-            `"${exePath}"`,
-            testInput,
-            config.timeout
-          );
-          break;
-        }
-
-        case 'java': {
-          const className = 'Solution';
-          const javaFile = codeFile.replace(/.java$/, `.java`);
-          writeFileSync(javaFile, `public class ${className} { ${preparedCode} }`);
-          executeCommand(
-            `javac "${javaFile}"`,
-            '',
-            config.timeout
-          );
-          output = executeCommand(
-            `java -cp "${tmpDir}" ${className}`,
-            testInput,
-            config.timeout
-          );
-          break;
-        }
-
-        case 'csharp': {
-          const exePath = codeFile.replace(/.cs$/, '.exe');
-          executeCommand(
-            `csc /out:"${exePath}" "${codeFile}"`,
-            '',
-            config.timeout
-          );
-          output = executeCommand(
-            `"${exePath}"`,
-            testInput,
-            config.timeout
-          );
-          break;
-        }
-
-        case 'go': {
-          const exePath = codeFile.replace(/.go$/, '.exe');
-          executeCommand(
-            `go build -o "${exePath}" "${codeFile}"`,
-            '',
-            config.timeout
-          );
-          output = executeCommand(
-            `"${exePath}"`,
-            testInput,
-            config.timeout
-          );
-          break;
-        }
-
-        case 'rust': {
-          const exePath = codeFile.replace(/.rs$/, '.exe');
-          executeCommand(
-            `rustc -O -o "${exePath}" "${codeFile}"`,
-            '',
-            config.timeout
-          );
-          output = executeCommand(
-            `"${exePath}"`,
-            testInput,
-            config.timeout
-          );
-          break;
-        }
-
-        case 'typescript': {
-          // Compile to JS first
-          const jsFile = codeFile.replace(/.ts$/, '.js');
-          executeCommand(
-            `tsc "${codeFile}" --outFile "${jsFile}"`,
-            '',
-            config.timeout
-          );
-          output = executeCommand(
-            `node "${jsFile}"`,
-            testInput,
-            config.timeout
-          );
-          break;
-        }
-
-        default:
-          throw new TemplateDslError(`Unsupported language: ${language}`);
-      }
-
-      // Limit output length
-      if (output.length > config.maxOutputLength) {
-        output = output.substring(0, config.maxOutputLength);
-      }
-    } catch (error) {
-      status = 'error';
-      stderr = error instanceof Error ? error.message : String(error);
-      exitCode = 1;
-
-      // Check if timeout
-      if (stderr.includes('timeout') || stderr.includes('timed out')) {
-        status = 'timeout';
-      }
+    const pistonLang = languageMap[language];
+    if (!pistonLang) {
+      throw new TemplateDslError(`Unsupported language for Piston execution: ${language}`);
     }
 
+    const response = await pistonClient.execute({
+      language: pistonLang,
+      version: '*',
+      files: [{ content: preparedCode }],
+      stdin: testInput,
+      compile_timeout: config.timeout,
+      run_timeout: config.timeout,
+      run_memory_limit: 256 * 1024 * 1024,
+    });
+
     const duration = Date.now() - startTime;
+    let status: 'success' | 'timeout' | 'error' = 'success';
+    
+    if (response.compile && response.compile.code !== 0) {
+      return {
+        output: '',
+        exitCode: response.compile.code ?? 1,
+        stderr: response.compile.stderr || 'Compilation failed',
+        duration,
+        status: 'error',
+      };
+    }
+
+    const runCode = typeof response.run.code === 'number' ? response.run.code : 1;
+    if (runCode !== 0) {
+      status = 'error';
+    }
+
+    let output = response.run.stdout || response.run.output || '';
+    if (output.length > config.maxOutputLength) {
+      output = output.substring(0, config.maxOutputLength);
+    }
 
     return {
       output: output.trim(),
-      exitCode,
+      exitCode: runCode,
+      stderr: config.captureStderr ? (response.run.stderr || undefined) : undefined,
+      duration,
+      status,
+    };
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    let status: 'success' | 'timeout' | 'error' = 'error';
+    const stderr = error instanceof Error ? error.message : String(error);
+
+    if (stderr.includes('timeout') || stderr.includes('timed out')) {
+      status = 'timeout';
+    }
+
+    return {
+      output: '',
+      exitCode: 1,
       stderr: config.captureStderr ? stderr : undefined,
       duration,
       status,
     };
-  } finally {
-    // Cleanup temp files
-    if (existsSync(codeFile)) {
-      try {
-        unlinkSync(codeFile);
-      } catch {}
-    }
-    if (existsSync(inputFile)) {
-      try {
-        unlinkSync(inputFile);
-      } catch {}
-    }
   }
 }
 
-/**
- * Helper: Execute a command with timeout
- */
-function executeCommand(cmd: string, stdin: string, timeout: number): string {
-  try {
-    const result = execSync(cmd, {
-      timeout,
-      encoding: 'utf-8',
-      input: stdin || undefined,
-      maxBuffer: 1024 * 1024 * 10, // 10MB
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    return result;
-  } catch (error) {
-    if (error instanceof Error && 'killed' in error && (error as { killed?: boolean }).killed) {
-      throw new TemplateDslError(`Execution timeout after ${timeout}ms`);
-    }
-    throw error;
-  }
-}
+
+
 
 /**
  * Execute and compare outputs (with tolerance for whitespace)

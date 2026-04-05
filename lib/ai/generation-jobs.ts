@@ -5,11 +5,12 @@ import {
   SUPPORTED_EXECUTION_LANGUAGES,
 } from '@/lib/execution/languages';
 import type { SupportedLanguage } from '@/lib/execution/types';
-import { generateProblems } from './problem-generator';
+import { generateProblems, generateProblemsWithRetryContext, repairProblemSolutionCode } from './problem-generator';
 import type {
   GeneratedProblem,
   ProblemGenerationJobStatus,
   ProblemGenerationRequest,
+  RetryHistoryEntry,
 } from './types';
 import {
   annotateGeneratedProblems,
@@ -29,6 +30,9 @@ const JOB_SELECT_FIELDS = [
   'created_at',
   'updated_at',
   'completed_at',
+  'retry_count',
+  'max_retries',
+  'retry_history',
 ].join(', ');
 
 const TERMINAL_JOB_STATUSES: ReadonlySet<ProblemGenerationJobStatus> = new Set([
@@ -41,7 +45,10 @@ const ACTIVE_JOB_STATUSES: readonly ProblemGenerationJobStatus[] = [
   'queued',
   'ai_generating',
   'validating',
+  'retrying',
 ];
+
+const DEFAULT_MAX_RETRIES = 3;
 
 const MAX_ACTIVE_GENERATION_JOBS_PER_USER = 2;
 const STALE_JOB_TIMEOUT_MS = 24 * 60 * 60 * 1000;
@@ -64,6 +71,9 @@ interface ProblemGenerationJobRow {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+  retry_count: number;
+  max_retries: number;
+  retry_history: RetryHistoryEntry[];
 }
 
 export interface ProblemGenerationJobSummary {
@@ -72,6 +82,9 @@ export interface ProblemGenerationJobSummary {
   progressMessage: string | null;
   errorMessage: string | null;
   problems: GeneratedProblem[] | null;
+  retryCount: number;
+  maxRetries: number;
+  retryHistory: RetryHistoryEntry[];
 }
 
 export class ProblemGenerationConcurrencyLimitError extends Error {
@@ -86,6 +99,7 @@ function isJobStatus(value: unknown): value is ProblemGenerationJobStatus {
     value === 'queued' ||
     value === 'ai_generating' ||
     value === 'validating' ||
+    value === 'retrying' ||
     value === 'completed' ||
     value === 'discarded' ||
     value === 'error'
@@ -184,6 +198,9 @@ function mapJobRow(row: unknown): ProblemGenerationJobRow {
     created_at: typeof raw.created_at === 'string' ? raw.created_at : new Date().toISOString(),
     updated_at: typeof raw.updated_at === 'string' ? raw.updated_at : new Date().toISOString(),
     completed_at: typeof raw.completed_at === 'string' ? raw.completed_at : null,
+    retry_count: typeof raw.retry_count === 'number' ? raw.retry_count : 0,
+    max_retries: typeof raw.max_retries === 'number' ? raw.max_retries : DEFAULT_MAX_RETRIES,
+    retry_history: Array.isArray(raw.retry_history) ? (raw.retry_history as RetryHistoryEntry[]) : [],
   };
 }
 
@@ -194,6 +211,9 @@ function toSummary(job: ProblemGenerationJobRow): ProblemGenerationJobSummary {
     progressMessage: job.progress_message,
     errorMessage: job.error_message,
     problems: job.result_payload?.problems ?? null,
+    retryCount: job.retry_count,
+    maxRetries: job.max_retries,
+    retryHistory: job.retry_history,
   };
 }
 
@@ -350,12 +370,144 @@ async function claimJobProcessingLock(
   return mapJobRow(data);
 }
 
+function categorizeGenerationError(error: unknown): { message: string; category: string } {
+  if (!(error instanceof Error)) {
+    return {
+      message: 'AI generation failed due to an unknown error',
+      category: 'unknown',
+    };
+  }
+
+  const errorMessage = (error.message || '').toLowerCase();
+
+  // API service errors (503, rate limits, etc.)
+  if (errorMessage.includes('503') || errorMessage.includes('service unavailable')) {
+    return {
+      message: 'The AI service is currently experiencing high demand. Please try again in a moment.',
+      category: 'service_unavailable',
+    };
+  }
+
+  if (errorMessage.includes('429') || errorMessage.includes('rate limit') || errorMessage.includes('quota exceeded')) {
+    let cooldown = 0;
+    // Look for "Please retry in 12.11s"
+    const match = errorMessage.match(/please retry in ([\d\.]+)s/i);
+    if (match && match[1]) {
+      cooldown = Math.ceil(parseFloat(match[1]));
+    } else {
+      // Look for `"retryDelay":"12s"`
+      const retryDelayMatch = errorMessage.match(/"retryDelay"\s*:\s*"(\d+)s"/i);
+      if (retryDelayMatch && retryDelayMatch[1]) {
+        cooldown = parseInt(retryDelayMatch[1], 10);
+      }
+    }
+    
+    return {
+      message: cooldown > 0 
+        ? `Rate limit reached. Please wait a moment before trying again. [COOLDOWN:${cooldown}]`
+        : 'Rate limit reached. Please wait a moment before trying again.',
+      category: 'rate_limit',
+    };
+  }
+
+  if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
+    return {
+      message: 'The AI request timed out. Please try again.',
+      category: 'timeout',
+    };
+  }
+
+  // JSON parsing errors
+  if (errorMessage.includes('invalid json') || errorMessage.includes('parse') || errorMessage.includes('json')) {
+    return {
+      message: 'The AI produced an improperly formatted response. Please try again.',
+      category: 'invalid_format',
+    };
+  }
+
+  // Validation errors
+  if (errorMessage.includes('validation') || errorMessage.includes('invalid')) {
+    return {
+      message: error.message,
+      category: 'validation_error',
+    };
+  }
+
+  // Network errors
+  if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+    return {
+      message: 'Network error occurred. Please check your connection and try again.',
+      category: 'network_error',
+    };
+  }
+
+  // Default
+  return {
+    message: error.message,
+    category: 'unknown',
+  };
+}
+
+/**
+ * Parses the 0-based index of the failing problem from a validation error message.
+ * Validation errors are formatted as "Problem N, test case M: ..." (1-indexed).
+ * Defaults to 0 if the pattern is not found.
+ */
+function parseFailingProblemIndex(errorMessage: string): number {
+  const match = errorMessage.match(/Problem\s+(\d+)/i);
+  if (match && match[1]) {
+    const oneBased = parseInt(match[1], 10);
+    if (Number.isFinite(oneBased) && oneBased >= 1) {
+      return oneBased - 1;
+    }
+  }
+  return 0;
+}
+
 async function runAiGenerationStage(
   job: ProblemGenerationJobRow,
   lockToken: string
 ): Promise<ProblemGenerationJobRow> {
   try {
-    const generationResult = await generateProblems(job.request_payload);
+    const lastRetryEntry = job.retry_history[job.retry_history.length - 1];
+    const isSolutionRepair = lastRetryEntry?.stage === 'validating';
+
+    let generationResult;
+
+    if (isSolutionRepair) {
+      // The problem structure (templates, examples) is valid — only solution_code failed.
+      // Repair it in-place rather than regenerating everything from scratch.
+      const existingProblems = job.result_payload?.problems;
+      if (existingProblems && existingProblems.length > 0) {
+        const failingProblemIndex = parseFailingProblemIndex(lastRetryEntry.error);
+        console.log(
+          `[GENERATION/REPAIR] Dispatching targeted solution repair (attempt ${job.retry_count + 1}),`,
+          `failing problem index: ${failingProblemIndex}`
+        );
+        generationResult = await repairProblemSolutionCode(
+          existingProblems,
+          failingProblemIndex,
+          job.retry_history
+        );
+      } else {
+        // Stored problems missing (shouldn't happen) — fall back to full regen
+        console.warn('[GENERATION/REPAIR] No stored problems found for repair, falling back to full regen');
+        generationResult = await generateProblemsWithRetryContext(
+          job.request_payload,
+          job.retry_history
+        );
+      }
+    } else if (job.retry_history.length > 0) {
+      // Structural failure (bad JSON / bad template) — regenerate everything with error context
+      generationResult = await generateProblemsWithRetryContext(
+        job.request_payload,
+        job.retry_history
+      );
+    } else {
+      // First attempt — generate from scratch
+      generationResult = await generateProblems(job.request_payload);
+    }
+
     const seed = buildGenerationSeed(job.request_payload);
     const problems = annotateGeneratedProblems(
       generationResult.problems,
@@ -365,7 +517,9 @@ async function runAiGenerationStage(
 
     const transitioned = await transitionJob(job.id, ['ai_generating'], {
       status: 'validating',
-      progress_message: 'Model code is ready. Now testing model answer on generated testcases.',
+      progress_message: job.retry_count > 0
+        ? `Draft ready (attempt ${job.retry_count + 1}/${job.max_retries + 1}). Testing model answer on test cases...`
+        : 'Model code is ready. Now testing model answer on generated test cases.',
       result_payload: { problems },
       error_message: null,
       processing_token: null,
@@ -382,14 +536,46 @@ async function runAiGenerationStage(
 
     return transitioned;
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : 'AI generation failed due to an unknown error';
+    const { message, category } = categorizeGenerationError(error);
 
+    // Check if we can retry
+    const canRetry = job.retry_count < job.max_retries && isRetryableCategory(category);
+
+    if (canRetry) {
+      const retryEntry: RetryHistoryEntry = {
+        attempt: job.retry_count + 1,
+        stage: 'ai_generating',
+        error: message,
+        timestamp: new Date().toISOString(),
+      };
+
+      const transitioned = await transitionJob(job.id, ['ai_generating'], {
+        status: 'retrying',
+        progress_message: `Generation failed: ${message}. Retrying... (Attempt ${job.retry_count + 2}/${job.max_retries + 1})`,
+        error_message: message,
+        retry_count: job.retry_count + 1,
+        retry_history: [...job.retry_history, retryEntry],
+        processing_token: null,
+        processing_started_at: null,
+      }, { lockToken });
+
+      if (!transitioned) {
+        const latestJob = await fetchJobById(job.id);
+        if (!latestJob) {
+          throw new Error('Generation job disappeared after retry transition');
+        }
+        return latestJob;
+      }
+
+      return transitioned;
+    }
+
+    // No retries left — mark as error
     const transitioned = await transitionJob(job.id, ['ai_generating'], {
-      status: 'discarded',
-      progress_message: 'Generation discarded before validation.',
+      status: 'error',
+      progress_message: job.retry_count > 0
+        ? `Generation failed after ${job.retry_count + 1} attempts.`
+        : 'Generation failed.',
       error_message: message,
       completed_at: new Date().toISOString(),
       processing_token: null,
@@ -408,6 +594,91 @@ async function runAiGenerationStage(
   }
 }
 
+function isRetryableCategory(category: string): boolean {
+  // Only retry errors that the AI can actually fix (formatting, validation).
+  // Don't auto-retry infrastructure or rate limit errors as they need cooldowns or manual user intervention.
+  const nonRetryableCategories = new Set([
+    'rate_limit', 
+    'service_unavailable', 
+    'timeout', 
+    'network_error', 
+    'unknown'
+  ]);
+  return !nonRetryableCategories.has(category);
+}
+
+async function transitionToRetryOrError(
+  job: ProblemGenerationJobRow,
+  lockToken: string,
+  fromStatus: 'ai_generating' | 'validating',
+  errorMessage: string
+): Promise<ProblemGenerationJobRow> {
+  const canRetry = job.retry_count < job.max_retries;
+
+  if (canRetry) {
+    const retryEntry: RetryHistoryEntry = {
+      attempt: job.retry_count + 1,
+      stage: fromStatus,
+      error: errorMessage,
+      timestamp: new Date().toISOString(),
+    };
+
+    // When the failure is a validation (solution_code) error, the problem
+    // structure is still valid — preserve result_payload so the repair
+    // path in runAiGenerationStage can read the existing problems.
+    // For structural (ai_generating) failures, there's nothing valid to keep.
+    const retryUpdates: Record<string, unknown> = {
+      status: 'retrying',
+      progress_message: `${fromStatus === 'validating' ? 'Solution' : 'Generation'} failed: ${errorMessage}. Retrying... (Attempt ${job.retry_count + 2}/${job.max_retries + 1})`,
+      error_message: errorMessage,
+      retry_count: job.retry_count + 1,
+      retry_history: [...job.retry_history, retryEntry],
+      processing_token: null,
+      processing_started_at: null,
+    };
+
+    if (fromStatus === 'ai_generating') {
+      // Structural failure — no valid problems to preserve
+      retryUpdates.result_payload = null;
+    }
+    // fromStatus === 'validating': result_payload intentionally NOT cleared
+
+    const transitioned = await transitionJob(job.id, [fromStatus], retryUpdates, { lockToken });
+
+    if (!transitioned) {
+      const latestJob = await fetchJobById(job.id);
+      if (!latestJob) {
+        throw new Error('Generation job disappeared after retry transition');
+      }
+      return latestJob;
+    }
+
+    return transitioned;
+  }
+
+  // No retries left
+  const transitioned = await transitionJob(job.id, [fromStatus], {
+    status: 'error',
+    progress_message: job.retry_count > 0
+      ? `${fromStatus === 'validating' ? 'Validation' : 'Generation'} failed after ${job.retry_count + 1} attempts.`
+      : `${fromStatus === 'validating' ? 'Validation' : 'Generation'} failed.`,
+    error_message: errorMessage,
+    completed_at: new Date().toISOString(),
+    processing_token: null,
+    processing_started_at: null,
+  }, { lockToken });
+
+  if (!transitioned) {
+    const latestJob = await fetchJobById(job.id);
+    if (!latestJob) {
+      throw new Error('Generation job disappeared after error transition');
+    }
+    return latestJob;
+  }
+
+  return transitioned;
+}
+
 async function runValidationStage(
   job: ProblemGenerationJobRow,
   lockToken: string
@@ -415,79 +686,37 @@ async function runValidationStage(
   try {
     const problems = job.result_payload?.problems;
     if (!problems || !Array.isArray(problems) || problems.length === 0) {
-      const transitioned = await transitionJob(job.id, ['validating'], {
-        status: 'discarded',
-        progress_message: 'Generation discarded: missing generated problems payload.',
-        error_message: 'Validation could not start because generated problems were missing.',
-        completed_at: new Date().toISOString(),
-        processing_token: null,
-        processing_started_at: null,
-      }, { lockToken });
-
-      if (!transitioned) {
-        const latestJob = await fetchJobById(job.id);
-        if (!latestJob) {
-          throw new Error('Generation job disappeared after missing payload transition');
-        }
-        return latestJob;
-      }
-
-      return transitioned;
+      return await transitionToRetryOrError(
+        job, lockToken, 'validating',
+        'Validation could not start because generated problems were missing.'
+      );
     }
 
-    const requestLanguages = normalizeLanguages(job.request_payload.languages);
     const requestSeed = buildGenerationSeed(job.request_payload);
     const validationResult = await validateProblemsAgainstModel(
       problems,
-      requestLanguages,
       requestSeed
     );
 
     if (!validationResult.ok) {
-      const transitioned = await transitionJob(job.id, ['validating'], {
-        status: 'discarded',
-        progress_message: 'Generation discarded: model solution failed generated testcase validation.',
-        error_message: validationResult.message,
-        completed_at: new Date().toISOString(),
-        processing_token: null,
-        processing_started_at: null,
-      }, { lockToken });
-
-      if (!transitioned) {
-        const latestJob = await fetchJobById(job.id);
-        if (!latestJob) {
-          throw new Error('Generation job disappeared after validation failure transition');
-        }
-        return latestJob;
-      }
-
-      return transitioned;
+      return await transitionToRetryOrError(
+        job, lockToken, 'validating',
+        `Model solution failed validation: ${validationResult.message}`
+      );
     }
 
     if (!validationResult.problems || validationResult.problems.length === 0) {
-      const transitioned = await transitionJob(job.id, ['validating'], {
-        status: 'discarded',
-        progress_message: 'Generation discarded: validation completed without finalized testcases.',
-        error_message: 'Validation did not return finalized testcase payload.',
-        completed_at: new Date().toISOString(),
-        processing_token: null,
-        processing_started_at: null,
-      }, { lockToken });
-
-      if (!transitioned) {
-        const latestJob = await fetchJobById(job.id);
-        if (!latestJob) {
-          throw new Error('Generation job disappeared after empty validation payload transition');
-        }
-        return latestJob;
-      }
-
-      return transitioned;
+      return await transitionToRetryOrError(
+        job, lockToken, 'validating',
+        'Validation did not return finalized testcase payload.'
+      );
     }
 
     const completionUpdate = {
       status: 'completed',
-      progress_message: 'Validation complete. Problems are ready for preview.',
+      progress_message: job.retry_count > 0
+        ? `Validation complete after ${job.retry_count + 1} attempts. Problems are ready for preview.`
+        : 'Validation complete. Problems are ready for preview.',
       result_payload: { problems: validationResult.problems },
       error_message: null,
       completed_at: new Date().toISOString(),
@@ -540,24 +769,7 @@ async function runValidationStage(
         ? error.message
         : 'Validation failed due to an unknown error';
 
-    const transitioned = await transitionJob(job.id, ['validating'], {
-      status: 'discarded',
-      progress_message: 'Generation discarded during validation due to an unexpected error.',
-      error_message: message,
-      completed_at: new Date().toISOString(),
-      processing_token: null,
-      processing_started_at: null,
-    }, { lockToken });
-
-    if (!transitioned) {
-      const latestJob = await fetchJobById(job.id);
-      if (!latestJob) {
-        throw new Error('Generation job disappeared after validation error transition');
-      }
-      return latestJob;
-    }
-
-    return transitioned;
+    return await transitionToRetryOrError(job, lockToken, 'validating', message);
   }
 }
 
@@ -581,6 +793,9 @@ export async function enqueueProblemGenerationJob(params: {
       processing_started_at: null,
       started_at: null,
       completed_at: null,
+      retry_count: 0,
+      max_retries: DEFAULT_MAX_RETRIES,
+      retry_history: [],
     })
     .select(JOB_SELECT_FIELDS)
     .single();
@@ -663,6 +878,24 @@ export async function progressProblemGenerationJob(jobId: string): Promise<Probl
     return toSummary(transitioned);
   }
 
+  // Handle retrying: transition back to ai_generating for another attempt
+  if (job.status === 'retrying') {
+    const transitioned = await transitionJob(job.id, ['retrying'], {
+      status: 'ai_generating',
+      progress_message: `Retrying generation... (Attempt ${job.retry_count + 1}/${job.max_retries + 1})`,
+      error_message: null,
+      processing_token: null,
+      processing_started_at: null,
+    });
+
+    if (!transitioned) {
+      const latest = await fetchJobById(job.id);
+      return latest ? toSummary(latest) : null;
+    }
+
+    return toSummary(transitioned);
+  }
+
   if (job.status === 'ai_generating') {
     const lockToken = randomUUID();
     const claimed = await claimJobProcessingLock(job.id, 'ai_generating', lockToken);
@@ -688,4 +921,60 @@ export async function progressProblemGenerationJob(jobId: string): Promise<Probl
   }
 
   return toSummary(job);
+}
+
+export async function cancelProblemGenerationJob(
+  jobId: string,
+  userId: string
+): Promise<ProblemGenerationJobSummary | null> {
+  const job = await fetchJobById(jobId);
+  if (!job) {
+    return null;
+  }
+
+  if (job.created_by !== userId) {
+    return null;
+  }
+
+  if (TERMINAL_JOB_STATUSES.has(job.status)) {
+    return toSummary(job);
+  }
+
+  const transitioned = await transitionJob(
+    job.id,
+    [...ACTIVE_JOB_STATUSES],
+    {
+      status: 'error',
+      progress_message: job.retry_count > 0
+        ? `Generation stopped by user at attempt ${job.retry_count + 1} of ${job.max_retries + 1}.`
+        : 'Generation stopped by user.',
+      error_message: 'Generation was stopped by the user.',
+      completed_at: new Date().toISOString(),
+      processing_token: null,
+      processing_started_at: null,
+    }
+  );
+
+  if (!transitioned) {
+    const latest = await fetchJobById(job.id);
+    return latest ? toSummary(latest) : null;
+  }
+
+  return toSummary(transitioned);
+}
+
+export async function clearUserStuckJobs(userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('problem_generation_jobs')
+    .update({
+      status: 'error',
+      error_message: 'Manually cleared zombie job',
+      completed_at: new Date().toISOString(),
+    })
+    .eq('created_by', userId)
+    .in('status', ['queued', 'ai_generating', 'validating', 'retrying']);
+
+  if (error) {
+    throw new Error(`Failed to clear stuck jobs: ${error.message}`);
+  }
 }

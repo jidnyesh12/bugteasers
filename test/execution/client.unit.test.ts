@@ -347,7 +347,7 @@ describe('PistonClient Unit Tests', () => {
       expect(result.version).toBe('3.12.0');
     });
 
-    it('should still reject responses with invalid run payloads', async () => {
+    it('should create run object when missing from response', async () => {
       mockFetch.mockResolvedValue({
         json: vi.fn().mockResolvedValue({
           language: 'python',
@@ -355,7 +355,15 @@ describe('PistonClient Unit Tests', () => {
         }),
       });
 
-      await expect(client.execute(baseRequest)).rejects.toThrow(InvalidResponseError);
+      const result = await client.execute(baseRequest);
+      
+      // Should create a valid run object with defaults
+      expect(result.run).toBeDefined();
+      expect(result.run.stdout).toBe('');
+      expect(result.run.stderr).toBe('');
+      expect(result.run.code).toBe(1);
+      expect(result.run.signal).toBeNull();
+      expect(result.run.output).toBe('');
     });
   });
 });

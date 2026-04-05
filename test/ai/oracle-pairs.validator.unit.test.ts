@@ -11,7 +11,7 @@
  * Run with: npm test -- oracle-pairs.validator.unit.test.ts
  */
 
-import { describe, test, expect, beforeEach } from 'vitest';
+import { describe, test, expect, beforeEach, vi } from 'vitest';
 import type {
   MaterializedTestCaseWithVariables,
   TestCaseInputTemplate,
@@ -27,6 +27,25 @@ import {
   createOraclePair,
   ConstraintRegistry,
 } from '../../lib/ai/oracle-pairs';
+
+// Mock the executor so validateOraclePair doesn't call Piston in unit tests.
+// The validator uses dynamic import('./executor'), so vi.mock intercepts it.
+vi.mock('../../lib/ai/oracle-pairs/executor', () => ({
+  executeCode: vi.fn().mockResolvedValue({
+    output: '120',
+    exitCode: 0,
+    status: 'success',
+    duration: 50,
+    stderr: '',
+  }),
+  DEFAULT_EXECUTOR_CONFIG: {
+    timeout: 5000,
+    maxOutputLength: 1_000_000,
+    sandboxed: true,
+    captureStderr: true,
+    seedRNG: true,
+  },
+}));
 
 describe('Bidirectional Validator', () => {
   beforeEach(() => {

@@ -155,6 +155,36 @@ export async function saveGeneratedProblems(problems: GeneratedProblem[]): Promi
   }
 }
 
+export async function stopGenerationJob(jobId: string): Promise<void> {
+  const response = await fetch(`/api/problems/generate/${jobId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action: 'cancel' }),
+  });
+
+  if (!response.ok) {
+    const parsedBody = await parseJson<ErrorPayload>(response);
+    const payloadError = isErrorPayload(parsedBody) ? parsedBody.error : undefined;
+    const message = payloadError || response.statusText || 'Failed to stop generation';
+    throw new ExecutionHttpError(message, response.status);
+  }
+}
+
+export async function clearStuckGenerationJobs(): Promise<void> {
+  const response = await fetch('/api/problems/generate/clear', {
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    const parsedBody = await parseJson<ErrorPayload>(response);
+    const payloadError = isErrorPayload(parsedBody) ? parsedBody.error : undefined;
+    const message = payloadError || response.statusText || 'Failed to clear stuck jobs';
+    throw new ExecutionHttpError(message, response.status);
+  }
+}
+
 async function parseJson<T>(response: Response): Promise<T> {
   try {
     return await response.json() as T;
@@ -227,7 +257,12 @@ async function waitForGeneratedProblems(
       );
     }
 
-    await sleep(calculatePollDelayMs(pollIntervalMs, attempt));
+    // 'retrying' is active — keep polling
+    if (status.status === 'retrying') {
+      await sleep(calculatePollDelayMs(pollIntervalMs, attempt));
+    } else {
+      await sleep(calculatePollDelayMs(pollIntervalMs, attempt));
+    }
 
     let response: Response;
     try {
@@ -355,6 +390,7 @@ function isProblemGenerationJobStatusPayload(
     'queued',
     'ai_generating',
     'validating',
+    'retrying',
     'completed',
     'discarded',
     'error',

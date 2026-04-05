@@ -290,21 +290,37 @@ export async function validateOraclePair(
     );
   }
 
-  // Phase 2: Execute model answer (stub - executor will be created in next file)
+  // Phase 2: Execute model answer via Piston
   let modelAnswerStatus: ModelAnswerStatus = 'correct';
   let executionResult: ExecutionResult | undefined;
   let actualOutput = '';
 
-  // This is a stub - actual execution handled separately
   try {
-    // TODO: Call actual executor
-    actualOutput = pair.testCase.expectedOutput; // Placeholder
-    executionResult = {
-      output: actualOutput,
-      exitCode: 0,
-      status: 'success',
-      duration: 100,
-    };
+    const { executeCode, DEFAULT_EXECUTOR_CONFIG } = await import('./executor');
+    executionResult = await executeCode(pair.modelAnswer, pair.testCase.inputData, {
+      ...DEFAULT_EXECUTOR_CONFIG,
+      timeout: config.timeout,
+      // Never inject RNG seeding into the model answer — the AI's solution code
+      // is self-contained (reads stdin, writes stdout). prepareCodeForExecution
+      // was prepending srand() at C++ global scope, causing compile errors.
+      seedRNG: false,
+    });
+
+    actualOutput = executionResult.output;
+
+    if (executionResult.status === 'timeout') {
+      modelAnswerStatus = 'timeout';
+      diagnostics.executionErrors.push({
+        type: 'TIMEOUT',
+        message: `Execution timed out after ${config.timeout}ms`,
+      });
+    } else if (executionResult.status === 'error' || executionResult.exitCode !== 0) {
+      modelAnswerStatus = 'runtime_error';
+      diagnostics.executionErrors.push({
+        type: 'RUNTIME_ERROR',
+        message: executionResult.stderr || `Non-zero exit code: ${executionResult.exitCode}`,
+      });
+    }
   } catch (error) {
     modelAnswerStatus = 'runtime_error';
     diagnostics.executionErrors.push({

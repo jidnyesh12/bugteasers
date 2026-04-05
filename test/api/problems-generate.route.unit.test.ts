@@ -109,6 +109,9 @@ describe('POST /api/problems/generate', () => {
       progressMessage: 'Generation job queued. Preparing model draft.',
       errorMessage: null,
       problems: null,
+      retryCount: 0,
+      maxRetries: 3,
+      retryHistory: [],
     });
 
     const request = new NextRequest('http://localhost:3000/api/problems/generate', {
@@ -195,6 +198,9 @@ describe('GET /api/problems/generate/[jobId]', () => {
       progressMessage: 'Queued',
       errorMessage: null,
       problems: null,
+      retryCount: 0,
+      maxRetries: 3,
+      retryHistory: [],
     });
 
     vi.mocked(progressProblemGenerationJob).mockResolvedValue({
@@ -203,6 +209,9 @@ describe('GET /api/problems/generate/[jobId]', () => {
       progressMessage: 'Completed',
       errorMessage: null,
       problems: [],
+      retryCount: 0,
+      maxRetries: 3,
+      retryHistory: [],
     });
 
     const request = new NextRequest('http://localhost:3000/api/problems/generate/job-1', {
@@ -219,6 +228,9 @@ describe('GET /api/problems/generate/[jobId]', () => {
       progressMessage: 'Completed',
       problems: [],
       error: null,
+      retryCount: 0,
+      maxRetries: 3,
+      retryHistory: [],
     });
     expect(progressProblemGenerationJob).toHaveBeenCalledWith('job-1');
   });
@@ -237,6 +249,9 @@ describe('GET /api/problems/generate/[jobId]', () => {
       progressMessage: 'Generating drafts',
       errorMessage: null,
       problems: null,
+      retryCount: 0,
+      maxRetries: 3,
+      retryHistory: [],
     });
 
     vi.mocked(progressProblemGenerationJob).mockResolvedValue(null);
@@ -255,6 +270,9 @@ describe('GET /api/problems/generate/[jobId]', () => {
       progressMessage: 'Generating drafts',
       problems: null,
       error: null,
+      retryCount: 0,
+      maxRetries: 3,
+      retryHistory: [],
     });
   });
 
@@ -273,6 +291,9 @@ describe('GET /api/problems/generate/[jobId]', () => {
       progressMessage: 'Queued',
       errorMessage: null,
       problems: null,
+      retryCount: 0,
+      maxRetries: 3,
+      retryHistory: [],
     });
 
     vi.mocked(progressProblemGenerationJob).mockRejectedValue(new Error('database unavailable'));

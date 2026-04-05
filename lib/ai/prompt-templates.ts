@@ -2,12 +2,19 @@
 
 import { SUPPORTED_EXECUTION_LANGUAGES } from '@/lib/execution/languages';
 import type { SupportedLanguage } from '@/lib/execution/types';
+import type { RetryHistoryEntry } from './types';
 
 const SUPPORTED_SOLVE_LANGUAGES_TEXT = SUPPORTED_EXECUTION_LANGUAGES.join(', ');
 
 export const SYSTEM_PROMPT = [
   'You are an expert coding problem creator for an educational platform.',
   'Your role is to generate high-quality, pedagogically sound coding problems that help students learn programming concepts.',
+  '',
+  'CRITICAL RULES:',
+  '- You MUST generate problems about the topic requested by the user',
+  '- You MUST follow the exact JSON structure specified in the prompt',
+  '- You MUST wrap your response in a "problems" array',
+  '- You MUST use the input_template DSL for ALL test cases',
   '',
   'Guidelines:',
   '- Problems should be clear, unambiguous, and well-structured',
@@ -64,7 +71,8 @@ export function buildProblemGenerationPrompt(
   };
 
   const lines = [
-    `Generate ${numProblems} coding problem${numProblems > 1 ? 's' : ''} with the following specifications:`,
+    `CRITICAL: Generate ${numProblems} coding problem${numProblems > 1 ? 's' : ''} about "${topic}".`,
+    `DO NOT generate problems about any other topic. The topic MUST be: ${topic}`,
     '',
     `**Topic**: ${topic}`,
     `**Difficulty**: ${difficulty}`,
@@ -72,6 +80,11 @@ export function buildProblemGenerationPrompt(
     tags.length > 0 ? `**Tags**: ${tags.join(', ')}` : '',
     constraints ? `**Additional Constraints**: ${constraints}` : '',
     `**Supported Solve Languages**: ${languages.join(', ')}`,
+    '',
+    'CRITICAL: Your response MUST be a valid JSON object with this EXACT structure:',
+    '{',
+    '  "problems": [ ... array of problem objects ... ]',
+    '}',
     '',
     'For each problem, provide:',
     '',
@@ -95,53 +108,67 @@ export function buildProblemGenerationPrompt(
     '   - Start with conceptual guidance, progress to more specific algorithmic hints',
     '   - Never give away the complete solution',
     '',
-    '5. **Test Cases** (STRICT competitive-programming stdin/stdout format):',
-    '   You may produce test input in TWO supported ways:',
+    '5. **Test Cases**:',
+    '   All test cases MUST use the input_template DSL format.',
+    '   When using input_template, you MUST set input_data to "" (empty string).',
     '   ',
-    '   A) **Materialized input_data** (default):',
-    '   - input_data and expected_output must be RAW stdin/stdout strings',
-    '   - NO variable names, NO brackets, NO "nums = ..." format',
-    '   - Just raw numbers, space-separated on each line',
+    '   **Input Template DSL Structure**:',
+    '   {',
+    '     "version": 1,',
+    '     "seed": "optional-seed-fragment",',
+    '     "variables": {',
+    '       "n": {"type":"int","min":1,"max":100000},',
+    '       "arr": {"type":"int_array","length":{"ref":"n"},"min":1,"max":100000},',
+    '       "queries": {"type":"const","value":[[1,5],[2,10,20]]},',
+    '       "perm": {"type":"permutation","n":{"ref":"n"}},',
+    '       "g": {"type":"graph","nodes":{"ref":"n"},"edges":200000,"connected":true,"weighted":false}',
+    '     },',
+    '     "output": [',
+    '       {"type":"line","values":[{"ref":"n"}]},',
+    '       {"type":"line","values":[{"ref":"arr"}]},',
+    '       {"type":"lines","from":"queries"}',
+    '     ]',
+    '   }',
     '   ',
-    '   Example for array problem with nums=[1,5,2,4,3] and K=1:',
-    '     CORRECT input_data: "5 1\\n1 5 2 4 3"   (n and K on first line, array on second)',
-    '     WRONG input_data:   "nums = [1, 5, 2, 4, 3], K = 1"',
-    '     CORRECT expected_output: "9"',
-    '     WRONG expected_output: "Output: 9"',
+    '   **Supported Variable Types**:',
+    '   - const: Fixed value (can be number, string, array, or 2D array)',
+    '     Example: {"type":"const","value":5} or {"type":"const","value":[1,2,3]} or {"type":"const","value":[[1,2],[3,4]]}',
+    '   - int: Random integer in range',
+    '     Example: {"type":"int","min":1,"max":100}',
+    '   - choice: Pick from list of options',
+    '     Example: {"type":"choice","values":["A","B","C"]}',
+    '   - string: Random string with charset',
+    '     Example: {"type":"string","length":10,"charset":"lower"}',
+    '   - int_array: Array of random integers',
+    '     Example: {"type":"int_array","length":{"ref":"n"},"min":1,"max":100}',
+    '     CRITICAL: limit lengths to max 2000 to prevent execution buffer overflow! Do not use 10^5.',
+    '   - matrix: 2D array of random integers (for random generation only)',
+    '     Example: {"type":"matrix","rows":{"ref":"n"},"cols":{"ref":"m"},"min":0,"max":1}',
+    '   - permutation: Random permutation of integers',
+    '     Example: {"type":"permutation","n":{"ref":"n"},"start":1}',
+    '   - pairs: Array of coordinate pairs',
+    '     Example: {"type":"pairs","count":{"ref":"n"},"first":{"min":1,"max":100},"second":{"min":1,"max":100}}',
+    '   - graph: Graph with nodes and edges',
+    '     Example: {"type":"graph","nodes":{"ref":"n"},"edges":{"ref":"m"},"directed":false}',
     '   ',
-    '   B) **input_template DSL** (for large hidden stress tests):',
-    '   - Use this when direct input_data would be huge (e.g., n=10^5 or 2*10^5)',
-    '   - Keep input_data compact (or empty) and provide input_template instead',
-    '   - Set expected_output to "__AUTO_EXPECTED_OUTPUT__" when output should be derived from reference solution',
-    '   - DSL shape:',
-    '     {',
-    '       "version": 1,',
-    '       "seed": "optional-seed-fragment",',
-    '       "variables": {',
-    '         "n": {"type":"int","min":100000,"max":100000},',
-    '         "arr": {"type":"int_array","length":{"ref":"n"},"min":1,"max":100000},',
-    '         "perm": {"type":"permutation","n":{"ref":"n"}},',
-    '         "g": {"type":"graph","nodes":{"ref":"n"},"edges":200000,"connected":true,"weighted":false}',
-    '       },',
-    '       "output": [',
-    '         {"type":"line","values":[{"ref":"n"}]},',
-    '         {"type":"line","values":[{"ref":"arr"}]},',
-    '         {"type":"lines","from":"g"}',
-    '       ]',
-    '     }',
-    '   - Supported variable generators: const, int, choice, string, int_array, matrix, permutation, pairs, graph',
-    '   - Use deterministic seeds and constraints-consistent values',
+    '   **IMPORTANT**: For fixed/constant arrays (like sample test queries), use type "const" with value field.',
+    '   Do NOT use "matrix" type with "values" field - matrix is only for random generation with min/max.',
     '   ',
-    '   Global testcase requirements:',
+    '   **Test Case Requirements**:',
     '   - Generate 8-12 test cases total',
-    '   - Mark 2-3 as sample cases (visible to students)',
-    '   - Include edge cases, random middle cases, and max-bound stress cases',
-    '   - Assign points based on difficulty (1-3 points per case)',
+    '   - Mark 2-3 as sample cases (is_sample: true)',
+    '   - Include edge cases, random cases, and stress tests',
+    '   - Assign points: 1 (easy), 2 (medium), 3 (hard)',
+    '   - Provide input_template with appropriate constraints',
     '',
     '6. **Solution Code**:',
-    `   - Provide a complete, well-commented reference solution in one language from: ${languages.join(', ')}`,
+    '   - REQUIRED LANGUAGE: Write the solution in C++ ONLY. Do not use any other language.',
     '   - Must parse input from stdin and print output to stdout',
     '   - Do NOT provide a function-only signature style solution',
+    '   - CRITICAL: Your code is inside a JSON string. Escape backslashes as \\\\ and quotes as \\"',
+    '   - DO NOT include ANY comments (no // lines, no /* */ blocks). Comments cause JSON escaping issues.',
+    '   - Do not include #include line comments or any inline comments whatsoever',
+    '   - Use standard competitive programming C++ patterns (cin/cout, #include <bits/stdc++.h>)',
     '',
     '7. **Metadata**:',
     `   - Time limit: ${difficulty === 'easy' ? '1000-2000' : difficulty === 'medium' ? '2000-3000' : '3000-5000'}ms`,
@@ -151,8 +178,12 @@ export function buildProblemGenerationPrompt(
     'REMINDERS:',
     '- \\n for newlines (standard JSON). Do NOT write \\\\n — that gives literal text "\\n".',
     '- \\\\le, \\\\log, \\\\text{} etc. for LaTeX commands (double backslash in JSON gives one literal backslash).',
-    '- For template-based hidden tests, prefer input_template over giant inline arrays.',
-    '- If output should be computed from model solution for template cases, use expected_output = "__AUTO_EXPECTED_OUTPUT__".',
+    '- EVERY test case MUST have input_template with variables and output instructions',
+    '',
+    'CRITICAL - FINAL CHECK BEFORE RESPONDING:',
+    `1. Is your problem about "${topic}"? If not, START OVER.`,
+    '2. Is your response wrapped in { "problems": [...] }? If not, FIX IT.',
+    '3. Does every test case have input_template? If not, ADD THEM.',
     '',
     'Return the response as a valid JSON object matching this structure:',
     '{',
@@ -176,14 +207,12 @@ export function buildProblemGenerationPrompt(
     '      "solution_code": "string (complete stdin/stdout program in one supported language)",',
     '      "test_cases": [',
     '        {',
-    `          "input_data": "string (RAW stdin or compact note for template-based hidden cases)",`,
     '          "input_template": {',
     '            "version": 1,',
     '            "seed": "optional-seed-fragment",',
-    '            "variables": { "n": { "type": "int", "min": 1, "max": 100000 } },',
+    '            "variables": { "n": { "type": "int", "min": 1, "max": 2000 } },',
     '            "output": [{ "type": "line", "values": [{ "ref": "n" }] }]',
     '          },',
-    `          "expected_output": "string (RAW stdout, or \"__AUTO_EXPECTED_OUTPUT__\" for template-derived outputs)",`,
     '          "is_sample": "boolean",',
     '          "points": "number (1-3)"',
     '        }',
@@ -195,6 +224,147 @@ export function buildProblemGenerationPrompt(
 
   return lines.join('\n');
 }
+
+export function buildRetryContextSection(retryHistory: RetryHistoryEntry[]): string {
+  if (retryHistory.length === 0) {
+    return '';
+  }
+
+  const lines: string[] = [
+    '╔══════════════════════════════════════════════════════════════╗',
+    '║  ⚠️  RETRY ATTEMPT — PREVIOUS GENERATION FAILED            ║',
+    '╚══════════════════════════════════════════════════════════════╝',
+    '',
+    `This is attempt ${retryHistory.length + 1}. Your previous ${retryHistory.length === 1 ? 'attempt' : `${retryHistory.length} attempts`} FAILED.`,
+    'You MUST fix the issues listed below. Do NOT repeat the same mistakes.',
+    '',
+    '--- PREVIOUS ERRORS (FIX ALL OF THESE) ---',
+    '',
+  ];
+
+  for (const entry of retryHistory) {
+    const stageLabel = entry.stage === 'ai_generating' ? 'Generation/Parsing' : 'Validation/Execution';
+    lines.push(`Attempt ${entry.attempt} — Failed at: ${stageLabel}`);
+    lines.push(`Error: ${entry.error}`);
+    lines.push('');
+  }
+
+  // Add specific fix instructions based on common error patterns
+  const allErrors = retryHistory.map(e => e.error.toLowerCase()).join(' ');
+  lines.push('--- SPECIFIC FIX INSTRUCTIONS ---');
+  lines.push('');
+
+  if (allErrors.includes('json') || allErrors.includes('parse') || allErrors.includes('format')) {
+    lines.push('🔴 JSON FORMAT: Your response had JSON formatting issues.');
+    lines.push('   - Ensure your ENTIRE response is a single valid JSON object: {"problems": [...]}');
+    lines.push('   - Do NOT include markdown code fences (```json) around the response');
+    lines.push('   - Escape all backslashes in strings: use \\\\ for LaTeX commands');
+    lines.push('   - Escape all quotes in strings: use \\"');
+    lines.push('   - Use \\n for newlines, not literal line breaks inside strings');
+    lines.push('');
+  }
+
+  if (allErrors.includes('compile') || allErrors.includes('syntax') || allErrors.includes('runtime')) {
+    lines.push('🔴 CODE ERRORS: Your solution code had compilation or runtime errors.');
+    lines.push('   - REQUIRED LANGUAGE: Write the solution in C++ ONLY.');
+    lines.push('   - Write a COMPLETE C++ program that reads from stdin and writes to stdout');
+    lines.push('   - Use #include <bits/stdc++.h> and standard cin/cout patterns');
+    lines.push('   - DO NOT include ANY comments (no // lines, no /* */ blocks) — they cause JSON escaping issues');
+    lines.push('   - Remember: code is inside a JSON string, escape \\\\ and " properly');
+    lines.push('');
+  }
+
+  if (allErrors.includes('template') || allErrors.includes('input_template') || allErrors.includes('dsl')) {
+    lines.push('🔴 TEMPLATE DSL: Your input_template was invalid.');
+    lines.push('   - Every test case MUST have input_template with version, variables, and output');
+    lines.push('   - Variables must be defined before they are referenced');
+    lines.push('   - Use "const" type for fixed arrays, NOT "matrix" with "values"');
+    lines.push('   - Valid types: const, int, choice, string, int_array, matrix, permutation, pairs, graph');
+    lines.push('   - Output must reference defined variables via {"ref": "varName"}');
+    lines.push('');
+  }
+
+  if (allErrors.includes('mismatch') || allErrors.includes('expected') || allErrors.includes('output')) {
+    lines.push('🔴 OUTPUT MISMATCH: Your solution produced wrong output for test cases.');
+    lines.push('   - Verify your algorithm is correct');
+    lines.push('   - Make sure output format matches what the problem description specifies');
+    lines.push('   - Check edge cases: empty inputs, single elements, maximum values');
+    lines.push('');
+  }
+
+  if (allErrors.includes('validation') || allErrors.includes('missing')) {
+    lines.push('🔴 VALIDATION: Required fields were missing or invalid.');
+    lines.push('   - Every problem needs: title, description, difficulty, tags, constraints, examples, hints, solution_code, test_cases');
+    lines.push('   - Every test case needs: input_template, is_sample (boolean), points (1-3)');
+    lines.push('   - At least one test case must have is_sample: true');
+    lines.push('   - Generate 8-12 test cases total');
+    lines.push('');
+  }
+
+  lines.push('CRITICAL: Generate a COMPLETELY NEW and CORRECT response. Do NOT repeat previous mistakes.');
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+/**
+ * Builds a targeted repair prompt when only the solution_code is broken.
+ *
+ * The problem structure (title, description, test case templates) has already
+ * been validated and is correct — only the C++ solution has execution errors.
+ * The AI is asked to return { "solution_code": "..." } only, NOT a full problem.
+ * This minimises the surface area for new mistakes and is much faster.
+ */
+export function buildSolutionRepairPrompt(
+  problem: {
+    title: string;
+    description: string;
+    constraints: string;
+  },
+  retryHistory: RetryHistoryEntry[]
+): string {
+  const validationErrors = retryHistory
+    .filter((e) => e.stage === 'validating')
+    .map((e) => `Attempt ${e.attempt} error: ${e.error}`)
+    .join('\n');
+
+  return [
+    '╔══════════════════════════════════════════════════════════════╗',
+    '║  🔧  SOLUTION REPAIR — FIX C++ CODE ONLY                   ║',
+    '╚══════════════════════════════════════════════════════════════╝',
+    '',
+    'A coding problem was generated successfully. The problem structure,',
+    'test case templates, and examples are ALL CORRECT and must NOT change.',
+    '',
+    'ONLY the C++ solution_code failed execution. Your task: write a',
+    'correct C++ solution for this problem.',
+    '',
+    '--- PROBLEM ---',
+    `Title: ${problem.title}`,
+    '',
+    `Description:\n${problem.description}`,
+    '',
+    `Constraints:\n${problem.constraints}`,
+    '',
+    '--- EXECUTION ERRORS TO FIX ---',
+    validationErrors,
+    '',
+    '--- STRICT RULES ---',
+    '- Write the solution in C++ ONLY',
+    '- Use #include <bits/stdc++.h> at the top',
+    '- Use int main() with cin/cout',
+    '- DO NOT include ANY comments (no // lines, no /* */ blocks)',
+    '- DO NOT include any string literals with special characters',
+    '- The solution must read from stdin and write to stdout',
+    '- The solution must be correct and efficient for the given constraints',
+    '',
+    'Return ONLY the following JSON (nothing else, no markdown fences):',
+    '{ "solution_code": "... your C++ code here ..." }',
+    '',
+    'CRITICAL: The JSON must be valid. Escape all backslashes as \\\\\\\\ and quotes as \\\\".',
+  ].join('\n');
+}
+
 
 export const EXAMPLE_PROBLEM = `
 Example of a well-structured problem:

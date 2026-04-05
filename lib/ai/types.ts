@@ -51,10 +51,18 @@ export interface ProblemGenerationResponse {
   };
 }
 
+export interface RetryHistoryEntry {
+  attempt: number;
+  stage: 'ai_generating' | 'validating';
+  error: string;
+  timestamp: string;
+}
+
 export type ProblemGenerationJobStatus =
   | 'queued'
   | 'ai_generating'
   | 'validating'
+  | 'retrying'
   | 'completed'
   | 'discarded'
   | 'error';
@@ -65,4 +73,7 @@ export interface ProblemGenerationJobStatusResponse {
   progressMessage?: string;
   problems?: GeneratedProblem[];
   error?: string;
+  retryCount?: number;
+  maxRetries?: number;
+  retryHistory?: RetryHistoryEntry[];
 }

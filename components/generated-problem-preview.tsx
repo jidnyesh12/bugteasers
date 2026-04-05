@@ -168,19 +168,19 @@ export default function GeneratedProblemPreview({
             )}
           </div>
           {editMode === 'description' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[500px]">
-              <div className="h-full flex flex-col">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px]">
+              <div className="h-full flex flex-col min-h-0">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Markdown Input</label>
                 <textarea
                   value={currentProblem.description}
                   onChange={(e) => updateProblem('description', e.target.value)}
-                  className={`${EDIT_INPUT_CLASS} flex-1 resize-none p-4`}
+                  className={`${EDIT_INPUT_CLASS} flex-1 resize-none p-4 min-h-0`}
                   placeholder="Type description here..."
                 />
               </div>
-              <div className="h-full flex flex-col">
+              <div className="h-full flex flex-col min-h-0">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Preview</label>
-                <div className="flex-1 overflow-y-auto p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-primary)]">
+                <div className="flex-1 overflow-y-auto p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-primary)] min-h-0">
                   <MarkdownRenderer content={currentProblem.description} />
                 </div>
               </div>

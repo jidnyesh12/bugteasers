@@ -232,9 +232,17 @@ function validateOutputInstructionShape(instruction: unknown, index: number): vo
     }
 
     for (let valueIndex = 0; valueIndex < record.values.length; valueIndex += 1) {
-      const value = asRecord(record.values[valueIndex], `output[${index}].values[${valueIndex}]`);
-      const hasRef = Object.prototype.hasOwnProperty.call(value, 'ref');
-      const hasLiteral = Object.prototype.hasOwnProperty.call(value, 'literal');
+      const value = record.values[valueIndex];
+      
+      // Check if value is an object
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        console.error(`[DSL-VALIDATION] output[${index}].values[${valueIndex}] is not an object! Type:`, typeof value, 'Value:', value);
+        throw new TemplateDslError(`output[${index}].values[${valueIndex}] must be an object`);
+      }
+      
+      const valueRecord = value as Record<string, unknown>;
+      const hasRef = Object.prototype.hasOwnProperty.call(valueRecord, 'ref');
+      const hasLiteral = Object.prototype.hasOwnProperty.call(valueRecord, 'literal');
 
       if (hasRef === hasLiteral) {
         throw new TemplateDslError(
@@ -243,16 +251,16 @@ function validateOutputInstructionShape(instruction: unknown, index: number): vo
       }
 
       if (hasRef) {
-        if (typeof value.ref !== 'string' || value.ref.trim().length === 0) {
+        if (typeof valueRecord.ref !== 'string' || (valueRecord.ref as string).trim().length === 0) {
           throw new TemplateDslError(`output[${index}].values[${valueIndex}].ref must be a non-empty string`);
         }
 
-        if (value.join !== undefined && typeof value.join !== 'string') {
+        if (valueRecord.join !== undefined && typeof valueRecord.join !== 'string') {
           throw new TemplateDslError(`output[${index}].values[${valueIndex}].join must be a string when provided`);
         }
       }
 
-      if (hasLiteral && !isScalar(value.literal)) {
+      if (hasLiteral && !isScalar(valueRecord.literal)) {
         throw new TemplateDslError(`output[${index}].values[${valueIndex}].literal must be a string or number`);
       }
     }
