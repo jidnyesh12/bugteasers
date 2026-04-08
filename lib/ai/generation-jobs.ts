@@ -487,18 +487,13 @@ async function runAiGenerationStage(
       const existingProblems = job.result_payload?.problems;
       if (existingProblems && existingProblems.length > 0) {
         const failingProblemIndex = parseFailingProblemIndex(lastRetryEntry.error);
-        console.log(
-          `[GENERATION/REPAIR] Dispatching targeted solution repair (attempt ${job.retry_count + 1}),`,
-          `failing problem index: ${failingProblemIndex}`
-        );
         generationResult = await repairProblemSolutionCode(
           existingProblems,
           failingProblemIndex,
           job.retry_history
         );
       } else {
-        // Stored problems missing (shouldn't happen) — fall back to full regen
-        console.warn('[GENERATION/REPAIR] No stored problems found for repair, falling back to full regen');
+        // Stored problems missing - fall back to full regen
         generationResult = await generateProblemsWithRetryContext(
           job.request_payload,
           job.retry_history
@@ -686,19 +681,7 @@ async function transitionToRetryOrError(
   return transitioned;
 }
 
-/**
- * Handles in-pipeline Oracle self-correction.
- *
- * When the Two-Pass validation pipeline detects a compile_error,
- * model_answer_error, or logic_consistency_error, this function:
- * 1. Sends a targeted repair prompt to the LLM containing the exact
- *    failure context (stderr, expected vs actual, failing input).
- * 2. Parses the repaired solution_code and patches it into the problems.
- * 3. Re-runs the entire validation pipeline from Phase 2.
- *
- * Returns null if repair succeeded and problems were patched,
- * or the original failure if the LLM could not fix the code.
- */
+
 async function handleOracleRepairLoop(
   problems: GeneratedProblem[],
   failure: OracleValidationFailure,
@@ -713,15 +696,11 @@ async function handleOracleRepairLoop(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const errorType = currentFailure.errorType;
-    console.log(
-      `[ORACLE] Error caught: ${errorType}. Initiating Repair Loop (Attempt ${attempt}/${maxAttempts})...`
-    );
 
     // Locate the failing problem
     const failIdx = currentFailure.problemIndex;
     const failingProblem = currentProblems[failIdx];
     if (!failingProblem) {
-      console.error(`[ORACLE] Repair Loop: Cannot find problem at index ${failIdx}. Aborting.`);
       return { ok: false, lastFailure: currentFailure, attemptsMade: attempt };
     }
 
@@ -746,7 +725,6 @@ async function handleOracleRepairLoop(
     );
 
     try {
-      console.log(`[ORACLE] Repair Loop: Sending repair prompt to LLM (attempt ${attempt})...`);
       const result = await model.generateContent(`${SYSTEM_PROMPT}\n\n${repairPrompt}`);
       const text = result.response.text();
 
@@ -767,8 +745,6 @@ async function handleOracleRepairLoop(
         throw new Error('LLM returned invalid repair response (missing solution_code)');
       }
 
-      console.log(`[ORACLE] Repair Loop: LLM returned new solution_code (${parsed.solution_code.length} chars). Re-validating...`);
-
       // Patch the solution into the problem
       currentProblems = currentProblems.map((p, i) =>
         i === failIdx ? { ...p, solution_code: parsed.solution_code } : p
@@ -781,32 +757,18 @@ async function handleOracleRepairLoop(
       );
 
       if (revalidation.ok && revalidation.problems) {
-        console.log(`[ORACLE] Repair Loop: Validation PASSED on attempt ${attempt}. Self-correction successful.`);
         return { ok: true, repairedProblems: revalidation.problems };
       }
 
-      // Still failing — update failure for next iteration
+      // Still failing - update failure for next iteration
       if (revalidation.failure) {
         currentFailure = revalidation.failure;
-        console.log(
-          `[ORACLE] Repair Loop: Validation still failing after attempt ${attempt}. ` +
-          `New error: ${revalidation.failure.errorType} — ${revalidation.failure.message}`
-        );
-      } else {
-        console.log(
-          `[ORACLE] Repair Loop: Validation failed without structured failure on attempt ${attempt}. ` +
-          `Message: ${revalidation.message}`
-        );
       }
     } catch (repairError) {
-      console.error(
-        `[ORACLE] Repair Loop: LLM repair failed on attempt ${attempt}:`,
-        repairError instanceof Error ? repairError.message : repairError
-      );
+      // Continue to next attempt
     }
   }
 
-  console.log('[ORACLE] Repair Loop exhausted. Flagging job for Human Intervention.');
   return { ok: false, lastFailure: currentFailure, attemptsMade: maxAttempts };
 }
 
@@ -893,11 +855,6 @@ async function runValidationStage(
     );
 
     if (isRepairableError && failure) {
-      console.log(
-        `[ORACLE] Validation failed with repairable error: ${failure.errorType}. ` +
-        `Entering Oracle Repair Loop...`
-      );
-
       const repairResult = await handleOracleRepairLoop(
         problems,
         failure,
@@ -930,12 +887,7 @@ async function runValidationStage(
         return transitioned;
       }
 
-      // ── Human Fallback: Repair loop exhausted ──
-      console.log(
-        `[ORACLE] Repair Loop exhausted after ${repairResult.attemptsMade} attempts. ` +
-        `Falling back to transitionToRetryOrError for outer retry or human intervention.`
-      );
-
+      // Repair loop exhausted
       const exhaustionMessage =
         `Oracle self-correction failed after ${repairResult.attemptsMade} repair attempts. ` +
         `Last error: [${repairResult.lastFailure.errorType}] ${repairResult.lastFailure.message}`;
@@ -946,12 +898,8 @@ async function runValidationStage(
       );
     }
 
-    // Non-repairable errors — abort immediately, do NOT ask the LLM to fix code
+    // Non-repairable errors - abort immediately
     if (failure && failure.errorType === 'infrastructure_error') {
-      console.error(
-        `[ORACLE] ⛔ INFRASTRUCTURE ERROR — Piston API is down. ` +
-        `Aborting job immediately. No repair attempted. No retry.`
-      );
       return await transitionToRetryOrError(
         job, lockToken, 'validating',
         `Piston execution sandbox unavailable (infrastructure error). ${failure.message}`

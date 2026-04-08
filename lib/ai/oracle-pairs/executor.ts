@@ -1,13 +1,3 @@
-/**
- * Code Executor: Deterministic execution of model answer code
- *
- * Supports:
- * - Multiple languages (Python, C++, Java, JavaScript, etc.)
- * - Timeout protection
- * - Output capture (stdout + stderr)
- * - Deterministic execution with seeded RNG
- */
-
 
 import { PistonClientImpl } from '../../execution/client';
 import type { ExecutionResult, SupportedLanguage, ModelAnswer } from './types';
@@ -17,11 +7,11 @@ import { TemplateDslError } from '../template-dsl/errors';
  * Code executor configuration
  */
 export interface ExecutorConfig {
-  timeout: number; // ms
-  maxOutputLength: number; // max chars to capture
-  sandboxed: boolean; // run in isolated environment
+  timeout: number; 
+  maxOutputLength: number; 
+  sandboxed: boolean; 
   captureStderr: boolean;
-  seedRNG: boolean; // use seed for deterministic RNG
+  seedRNG: boolean; 
 }
 
 export const DEFAULT_EXECUTOR_CONFIG: ExecutorConfig = {
@@ -160,19 +150,10 @@ export async function executeCode(
     const duration = Date.now() - startTime;
     let status: 'success' | 'timeout' | 'error' = 'success';
 
-    // ── Compile-phase timeout detection ──────────────────────
-    // When g++ is SIGKILL'd during compilation (e.g., bits/stdc++.h),
-    // Piston returns compile.signal === 'SIGKILL' and/or
-    // compile.output containing "Time limit exceeded".
-    // We must distinguish this from a normal syntax error.
+
     if (response.compile && response.compile.signal === 'SIGKILL') {
       const compileOutput = response.compile.output || response.compile.stderr || '';
       const isTimeLimitExceeded = compileOutput.toLowerCase().includes('time limit exceeded');
-      console.error(
-        `[EXECUTOR] Compile-phase SIGKILL detected.`,
-        isTimeLimitExceeded ? 'Cause: compilation timeout (TLE).' : 'Cause: unknown SIGKILL.',
-        'stderr:', (response.compile.stderr || '').substring(0, 200)
-      );
       return {
         output: '',
         exitCode: response.compile.code ?? 137,

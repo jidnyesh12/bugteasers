@@ -236,7 +236,6 @@ function validateOutputInstructionShape(instruction: unknown, index: number): vo
       
       // Check if value is an object
       if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        console.error(`[DSL-VALIDATION] output[${index}].values[${valueIndex}] is not an object! Type:`, typeof value, 'Value:', value);
         throw new TemplateDslError(`output[${index}].values[${valueIndex}] must be an object`);
       }
       

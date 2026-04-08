@@ -88,7 +88,7 @@ export class PistonClientImpl implements PistonClient {
         // directly would throw a confusing SyntaxError that gets
         // misclassified as a model_answer_error.
         const rawText = await response.text();
-        console.log('[DEBUG] Raw Piston HTTP Response:', rawText.substring(0, 300));
+        
 
         // Gate 1: HTTP status must be 2xx
         if (!response.ok) {

@@ -1,13 +1,3 @@
-/**
- * Bidirectional Oracle Validator
- *
- * Validates that both test cases and model answers are correct via:
- * 1. Hard/soft constraint checking on test cases
- * 2. Execution of model answer on test input
- * 3. Output comparison with expected vs actual
- * 4. Differential oracle consensus when mismatch detected
- * 5. Attribution of failures to test case or model answer
- */
 
 import type {
   OraclePair,
@@ -152,14 +142,11 @@ export function compareOutputs(
   // 1. CP Normalization: Trim outer whitespace and standardize newlines
   const normalize = (str: string) => str.trim().replace(/\r\n/g, '\n');
 
-  // 2. Apply normalization and cut to max length
+  // Apply normalization and cut to max length
   const exp = normalize(expected).substring(0, maxLength);
   const act = normalize(actual).substring(0, maxLength);
 
-  console.log("Sakshi: " + exp);
-  console.log("Sakshi: " + act);
-
-  // 3. NOW do the equality check
+  // Equality check
   if (exp === act) {
     return { matches: true, context: '' };
   }

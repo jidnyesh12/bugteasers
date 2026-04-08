@@ -22,8 +22,6 @@ export async function generateProblems(
   request: ProblemGenerationRequest
 ): Promise<ProblemGenerationResponse> {
   try {
-    console.log('[GENERATION] Starting problem generation with request:', JSON.stringify(request, null, 2));
-    
     // Use Gemini 3 Flash
     const model = genAI.getGenerativeModel({ 
       model: 'gemini-3-flash-preview',
@@ -44,22 +42,14 @@ export async function generateProblems(
     );
 
     const fullPrompt = `${SYSTEM_PROMPT}\n\n${userPrompt}`;
-    console.log('[GENERATION] Prompt built, sending to AI...');
 
     // Generate content
     const result = await model.generateContent(fullPrompt);
     const response = result.response;
     const text = response.text();
     
-    console.log('[GENERATION] AI response received, length:', text.length);
-    console.log('[GENERATION] Raw AI response (first 1000 chars):', text.substring(0, 1000));
-
     // Parse JSON response
     const parsedResponse = parseGeneratedProblems(text);
-    console.log('[GENERATION] JSON parsed successfully, problems count:', parsedResponse.problems.length);
-
-    // Normalize test cases - add required fields that AI doesn't need to provide
-    console.log('[GENERATION] Normalizing test cases...');
     for (const problem of parsedResponse.problems) {
       for (let i = 0; i < problem.test_cases.length; i++) {
         const testCase = problem.test_cases[i];
@@ -78,7 +68,6 @@ export async function generateProblems(
                                    !llmProvidedOutput.includes('__AUTO_');
                 
             if (isValidOutput) {
-              console.log(`[GENERATION] Sample test case ${i + 1}: preserving LLM-provided expected_output: "${llmProvidedOutput}"`);
               // Keep the LLM-provided expected_output (already set)
             } else {
               // Extract from examples array - sample test cases correspond to examples
@@ -87,9 +76,6 @@ export async function generateProblems(
                   
               if (matchingExample && matchingExample.output) {
                 testCase.expected_output = matchingExample.output;
-                console.log(`[GENERATION] Sample test case ${i + 1}: extracted expected_output from example ${exampleIndex + 1}: "${matchingExample.output}"`);
-              } else {
-                console.warn(`[GENERATION] Sample test case ${i + 1}: WARNING - no matching example found, expected_output may be invalid`);
               }
             }
           } else {
@@ -100,10 +86,7 @@ export async function generateProblems(
       }
     }
 
-    // Validate the response
-    console.log('[GENERATION] Starting validation...');
     validateGeneratedProblems(parsedResponse.problems);
-    console.log('[GENERATION] Validation passed!');
 
     return {
       problems: parsedResponse.problems,
@@ -113,7 +96,6 @@ export async function generateProblems(
       },
     };
   } catch (error) {
-    console.error('[GENERATION] Error generating problems:', error);
     throw new Error(
       `Failed to generate problems: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
@@ -125,8 +107,6 @@ export async function generateProblemsWithRetryContext(
   retryHistory: RetryHistoryEntry[]
 ): Promise<ProblemGenerationResponse> {
   try {
-    console.log(`[GENERATION/RETRY] Starting retry generation (attempt ${retryHistory.length + 1}) with request:`, JSON.stringify(request, null, 2));
-    console.log('[GENERATION/RETRY] Previous errors:', retryHistory.map(e => `${e.stage}: ${e.error}`).join(' | '));
 
     const model = genAI.getGenerativeModel({
       model: 'gemini-3-flash-preview',
@@ -148,19 +128,12 @@ export async function generateProblemsWithRetryContext(
     const retryContext = buildRetryContextSection(retryHistory);
 
     const fullPrompt = `${SYSTEM_PROMPT}\n\n${retryContext}\n\n${userPrompt}`;
-    console.log('[GENERATION/RETRY] Retry prompt built with error context, sending to AI...');
 
     const result = await model.generateContent(fullPrompt);
     const response = result.response;
     const text = response.text();
 
-    console.log('[GENERATION/RETRY] AI response received, length:', text.length);
-    console.log('[GENERATION/RETRY] Raw AI response (first 1000 chars):', text.substring(0, 1000));
-
     const parsedResponse = parseGeneratedProblems(text);
-    console.log('[GENERATION/RETRY] JSON parsed successfully, problems count:', parsedResponse.problems.length);
-
-    console.log('[GENERATION/RETRY] Normalizing test cases...');
     for (const problem of parsedResponse.problems) {
       for (let i = 0; i < problem.test_cases.length; i++) {
         const testCase = problem.test_cases[i];
@@ -177,7 +150,7 @@ export async function generateProblemsWithRetryContext(
                                    !llmProvidedOutput.includes('__AUTO_');
                 
             if (isValidOutput) {
-              console.log(`[GENERATION/RETRY] Sample test case ${i + 1}: preserving LLM-provided expected_output: "${llmProvidedOutput}"`);
+              // Keep LLM-provided expected_output
             } else {
               // Extract from examples array - sample test cases correspond to examples
               const exampleIndex = problem.test_cases.slice(0, i + 1).filter(tc => tc.is_sample).length - 1;
@@ -185,9 +158,6 @@ export async function generateProblemsWithRetryContext(
                   
               if (matchingExample && matchingExample.output) {
                 testCase.expected_output = matchingExample.output;
-                console.log(`[GENERATION/RETRY] Sample test case ${i + 1}: extracted expected_output from example ${exampleIndex + 1}: "${matchingExample.output}"`);
-              } else {
-                console.warn(`[GENERATION/RETRY] Sample test case ${i + 1}: WARNING - no matching example found`);
               }
             }
           } else {
@@ -197,9 +167,7 @@ export async function generateProblemsWithRetryContext(
       }
     }
 
-    console.log('[GENERATION/RETRY] Starting validation...');
     validateGeneratedProblems(parsedResponse.problems);
-    console.log('[GENERATION/RETRY] Validation passed!');
 
     return {
       problems: parsedResponse.problems,
@@ -209,7 +177,6 @@ export async function generateProblemsWithRetryContext(
       },
     };
   } catch (error) {
-    console.error('[GENERATION/RETRY] Error in retry generation:', error);
     throw new Error(
       `Failed to generate problems (retry): ${error instanceof Error ? error.message : 'Unknown error'}`
     );
@@ -240,11 +207,6 @@ export async function repairProblemSolutionCode(
     );
   }
 
-  console.log(
-    `[REPAIR] Repairing solution_code for problem ${failingProblemIndex + 1}: "${problemToRepair.title}"`
-  );
-  console.log('[REPAIR] Validation errors to fix:', retryHistory.map((e) => e.error).join(' | '));
-
   const model = genAI.getGenerativeModel({
     model: 'gemini-3-flash-preview',
   });
@@ -264,13 +226,7 @@ export async function repairProblemSolutionCode(
   const result = await model.generateContent(fullPrompt);
   const text = result.response.text();
 
-  console.log('[REPAIR] AI response length:', text.length);
-  console.log('[REPAIR] Raw response (first 500 chars):', text.substring(0, 500));
-
-  // Parse { "solution_code": "..." } — much simpler than full problem JSON
   const parsed = parseSolutionRepairResponse(text);
-
-  console.log('[REPAIR] Parsed solution_code length:', parsed.solution_code.length);
 
   // Merge repaired solution back — only solution_code changes
   const repairedProblems: GeneratedProblem[] = existingProblems.map((p, i) =>
@@ -299,7 +255,6 @@ function parseSolutionRepairResponse(text: string): { solution_code: string } {
   try {
     parsed = JSON.parse(cleaned);
   } catch (err) {
-    console.error('[REPAIR] Failed to parse solution repair JSON. Raw text:', text.substring(0, 300));
     throw new Error(
       `Solution repair returned invalid JSON: ${err instanceof Error ? err.message : 'Unknown error'}`
     );
@@ -338,10 +293,7 @@ function parseGeneratedProblems(text: string): { problems: GeneratedProblem[] } 
     // Check if response starts with { instead of {"problems"
     // This handles cases where AI forgets to wrap in problems array
     if (cleanedText.startsWith('{') && !cleanedText.includes('"problems"')) {
-      console.warn('[PARSING] AI response missing "problems" wrapper - attempting to fix');
-      // Check if it looks like a single problem object
       if (cleanedText.includes('"title"') && cleanedText.includes('"description"')) {
-        console.warn('[PARSING] Detected single problem object, wrapping in problems array');
         cleanedText = `{"problems":[${cleanedText}]}`;
       }
     }
@@ -355,8 +307,6 @@ function parseGeneratedProblems(text: string): { problems: GeneratedProblem[] } 
     
     return parsed;
   } catch (error) {
-    console.error('[PARSING] Failed to parse AI response. First 500 chars:', text.substring(0, 500));
-    console.error('[PARSING] Parse error:', error);
     throw new Error(`AI returned invalid JSON format: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
@@ -366,11 +316,8 @@ function validateGeneratedProblems(problems: GeneratedProblem[]): void {
     throw new Error('No problems generated');
   }
 
-  console.log('[VALIDATION] Validating', problems.length, 'problem(s)');
-
   for (let i = 0; i < problems.length; i++) {
     const problem = problems[i];
-    console.log(`[VALIDATION] Problem ${i + 1}: "${problem.title}"`);
     
     // Validate required fields
     if (!problem.title || typeof problem.title !== 'string') {
@@ -392,8 +339,6 @@ function validateGeneratedProblems(problems: GeneratedProblem[]): void {
       throw new Error('Problem missing valid solution code');
     }
 
-    console.log(`[VALIDATION] Problem ${i + 1}: Basic fields OK, validating ${problem.test_cases.length} test cases...`);
-
     // Validate test cases
     const sampleCases = problem.test_cases.filter((tc) => tc.is_sample);
     if (sampleCases.length === 0) {
@@ -402,8 +347,6 @@ function validateGeneratedProblems(problems: GeneratedProblem[]): void {
 
     for (let j = 0; j < problem.test_cases.length; j++) {
       const testCase = problem.test_cases[j];
-      console.log(`[VALIDATION] Test case ${j + 1}/${problem.test_cases.length} (sample: ${testCase.is_sample})`);
-      
       const hasTemplate = testCase.input_template !== undefined && testCase.input_template !== null;
       const inputData = typeof testCase.input_data === 'string' ? testCase.input_data : '';
       const expectedOutput =
@@ -411,22 +354,15 @@ function validateGeneratedProblems(problems: GeneratedProblem[]): void {
 
       // All test cases must use DSL
       if (!hasTemplate) {
-        console.error(`[VALIDATION] Test case ${j + 1} missing input_template!`);
         throw new Error(
           `All test cases must use input_template DSL format. ` +
           `This test case (is_sample: ${testCase.is_sample}) is missing input_template.`
         );
       }
 
-      console.log(`[VALIDATION] Test case ${j + 1} input_template:`, JSON.stringify(testCase.input_template, null, 2));
-
-      // Validate template
       try {
         validateTestCaseInputTemplate(testCase.input_template);
-        console.log(`[VALIDATION] Test case ${j + 1} template validation passed`);
       } catch (error) {
-        console.error(`[VALIDATION] Test case ${j + 1} template validation FAILED:`, error);
-        console.error(`[VALIDATION] Failed template:`, JSON.stringify(testCase.input_template, null, 2));
         throw new Error(
           `Test case has invalid input_template: ${error instanceof Error ? error.message : 'Unknown template error'}`
         );

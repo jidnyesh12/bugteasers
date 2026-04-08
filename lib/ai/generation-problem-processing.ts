@@ -14,9 +14,7 @@ import {
 import { validateOraclePair, DEFAULT_VALIDATOR_CONFIG } from '@/lib/ai/oracle-pairs/validator';
 import type { GeneratedProblem, GeneratedTestCase } from './types';
 
-// ─────────────────────────────────────────────────────────────
 // Constants
-// ─────────────────────────────────────────────────────────────
 
 /** Model answer validation always runs in C++. */
 const MODEL_ANSWER_LANGUAGE = 'cpp' as const;
@@ -27,9 +25,7 @@ const AUTO_EXPECTED_OUTPUT_SENTINEL = '__AUTO_EXPECTED_OUTPUT__';
 /** Maximum number of self-correction repair attempts before human fallback. */
 const MAX_REPAIR_ATTEMPTS = 3;
 
-// ─────────────────────────────────────────────────────────────
-// Error Type Taxonomy
-// ─────────────────────────────────────────────────────────────
+// Error Types
 
 /** Discriminated error types the Oracle Pipeline can produce. */
 export type OracleErrorType =
@@ -68,9 +64,7 @@ export interface ValidationOutcome {
   failure?: OracleValidationFailure;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Annotation helper (unchanged from original)
-// ─────────────────────────────────────────────────────────────
+// Annotation helper
 
 export function annotateGeneratedProblems(
   problems: GeneratedProblem[],
@@ -109,9 +103,7 @@ export function annotateGeneratedProblems(
   }));
 }
 
-// ─────────────────────────────────────────────────────────────
 // Internal helpers
-// ─────────────────────────────────────────────────────────────
 
 /** Strip single-line and multi-line comments from C++ source code. */
 function stripCppComments(code: string): string {
@@ -130,9 +122,7 @@ function isAutoPlaceholder(expectedOutput: string): boolean {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Per-test-case Oracle Execution (Phases 1–3)
-// ─────────────────────────────────────────────────────────────
+// Per-test-case Oracle Execution
 
 interface ExecutedTestCaseResult {
   ok: true;
@@ -164,7 +154,7 @@ async function executeTestCaseAgainstOracle(
       ? testCase.generation_seed
       : `${seedMaterial}:problem-${problemIndex + 1}:case-${testCaseIndex + 1}`;
 
-  // ── Phase 1: Materialization ──────────────────────────────
+  // Phase 1: Materialization
   let expandedInput =
     typeof testCase.input_data === 'string' ? testCase.input_data : '';
   let persistedInput = expandedInput;
@@ -174,9 +164,6 @@ async function executeTestCaseAgainstOracle(
       : createHash('sha256').update(expandedInput).digest('hex');
 
   if (testCase.input_template) {
-    console.log(
-      `[ORACLE] Phase 1: Materializing DSL template for problem ${problemIndex + 1}, case ${testCaseIndex + 1} (sample: ${testCase.is_sample})...`
-    );
     try {
       const materialized = materializeTestCaseInputTemplate(testCase.input_template, {
         seedMaterial: fallbackSeed,
@@ -215,11 +202,7 @@ async function executeTestCaseAgainstOracle(
     };
   }
 
-  // ── Phase 2: Sandbox Hand-off (Piston execution) ──────────
-  console.log(
-    `[ORACLE] Phase 2: Dispatching C++ payload to Piston for problem ${problemIndex + 1}, case ${testCaseIndex + 1}...`
-  );
-
+  // Phase 2: Sandbox Hand-off (Piston execution)
   const expectedOutput =
     typeof testCase.expected_output === 'string' ? testCase.expected_output : '';
   const shouldAutoDeriveExpected = isAutoPlaceholder(expectedOutput);
@@ -237,13 +220,6 @@ async function executeTestCaseAgainstOracle(
       createModelAnswer(solutionCode, referenceLanguage, fallbackSeed, 'gemini-3-flash')
     );
 
-    // ── [DEBUG] Verbose Execution Payload Audit ──────────────
-    console.log('\n--- [DEBUG] ORACLE EXECUTION PAYLOAD ---');
-    console.log('[DEBUG] Materialized stdin (Sample 1):', JSON.stringify(expandedInput));
-    console.log('[DEBUG] AI Expected Output:', expectedOutput);
-    console.log('[DEBUG] Model Answer Code:\n', solutionCode.substring(0, 200) + '... [TRUNCATED]');
-    console.log('----------------------------------------\n');
-
     const validationResult = await validateOraclePair(oraclePair, {
       ...DEFAULT_VALIDATOR_CONFIG,
       timeout: runTimeout,
@@ -251,12 +227,9 @@ async function executeTestCaseAgainstOracle(
       confidenceThreshold: 0.8,
     });
 
-    // ── Phase 3: Failure Attribution ──────────────────────────
+    // Phase 3: Failure Attribution
     if (validationResult.modelAnswerStatus === 'syntax_error') {
       const errMsg = validationResult.diagnostics?.executionErrors?.[0] || 'Compilation error';
-      console.log(
-        `[ORACLE] Phase 3: Piston returned compile_error for problem ${problemIndex + 1}, case ${testCaseIndex + 1}. Halting.`
-      );
       return {
         ok: false,
         failure: {
@@ -273,9 +246,6 @@ async function executeTestCaseAgainstOracle(
 
     if (validationResult.modelAnswerStatus === 'runtime_error') {
       const errMsg = validationResult.diagnostics?.executionErrors?.[0] || 'Runtime error';
-      console.log(
-        `[ORACLE] Phase 3: Piston returned model_answer_error (runtime) for problem ${problemIndex + 1}, case ${testCaseIndex + 1}. Halting.`
-      );
       return {
         ok: false,
         failure: {
@@ -291,9 +261,6 @@ async function executeTestCaseAgainstOracle(
     }
 
     if (validationResult.modelAnswerStatus === 'timeout') {
-      console.log(
-        `[ORACLE] Phase 3: Piston execution timed out for problem ${problemIndex + 1}, case ${testCaseIndex + 1}. Halting.`
-      );
       return {
         ok: false,
         failure: {
@@ -324,10 +291,6 @@ async function executeTestCaseAgainstOracle(
   } catch (error) {
     // ── Infrastructure errors (Piston 503, HTML pages) → DO NOT REPAIR ──
     if (error instanceof PistonInfrastructureError) {
-      console.error(
-        `[ORACLE] Phase 2: INFRASTRUCTURE ERROR — Piston returned HTTP ${error.statusCode}. ` +
-        `This is NOT a code error. Aborting pipeline (no repair).`
-      );
       return {
         ok: false,
         failure: {
@@ -360,21 +323,9 @@ async function executeTestCaseAgainstOracle(
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Main Validation Orchestrator — Two-Pass Execution Model
-// ─────────────────────────────────────────────────────────────
+// Main Validation Orchestrator - Two-Pass Execution Model
 
-/**
- * Validates all problems using the strict Two-Pass Execution Model:
- *
- * **Pass 1 (Lie Detector):** Runs ONLY `is_sample: true` test cases.
- *   Compares the AI's provided expected output against the Oracle's stdout.
- *   If ANY mismatch → halts with `logic_consistency_error`.
- *
- * **Pass 2 (Truth Overwrite):** Runs ONLY `is_sample: false` test cases.
- *   Overwrites `__AUTO_EXPECTED_OUTPUT__` with Oracle stdout.
- *   Only executes if Pass 1 achieves 100% pass rate.
- */
+
 export async function validateProblemsAgainstModel(
   problems: readonly GeneratedProblem[],
   seedMaterial: string
@@ -398,24 +349,15 @@ export async function validateProblemsAgainstModel(
       }
     }
 
-    console.log(
-      `[ORACLE] Problem ${problemIndex + 1}/${problems.length}: "${problem.title}" — ` +
-      `${sampleIndices.length} sample, ${hiddenIndices.length} hidden test cases`
-    );
-
     // Accumulate validated test cases (ordered: samples first, then hidden)
     const validatedTestCases: GeneratedTestCase[] = new Array(problem.test_cases.length);
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // PASS 1: The Lie Detector (Sample test cases only)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    console.log('[ORACLE] Pass 1: Running sample test cases for verification...');
+    // PASS 1: Sample test cases - verify AI-provided expected outputs
 
     for (const tcIndex of sampleIndices) {
       const testCase = problem.test_cases[tcIndex];
 
-      // ── Fix: Map __AUTO_EXPECTED_OUTPUT__ to examples[i].output for sample cases ──
+      // Map __AUTO_EXPECTED_OUTPUT__ to examples[i].output for sample cases
       if (testCase.is_sample && isAutoPlaceholder(testCase.expected_output)) {
         const materializedInput =
           typeof testCase.input_data === 'string' ? testCase.input_data : '';
@@ -424,9 +366,6 @@ export async function validateProblemsAgainstModel(
         );
         if (matchingExample) {
           testCase.expected_output = matchingExample.output;
-          console.log(
-            `[ORACLE] Fix: Mapped sample case ${tcIndex + 1} expected_output from examples: "${matchingExample.output}"`
-          );
         }
       }
 
@@ -440,11 +379,7 @@ export async function validateProblemsAgainstModel(
         evaluator
       );
 
-      // Phase 3 failure — halt entire pipeline
       if (!result.ok) {
-        console.log(
-          `[ORACLE] Pass 1 Failed: ${result.failure.errorType} on problem ${problemIndex + 1}, case ${tcIndex + 1}. Halting Pass 2.`
-        );
         return {
           ok: false,
           message: result.failure.message,
@@ -452,7 +387,7 @@ export async function validateProblemsAgainstModel(
         };
       }
 
-      // ── Phase 4 (Sample): The Lie Detector Test ─────────────
+      // Normalize both expected and actual outputs for comparison
       const providedExpected = typeof testCase.expected_output === 'string'
         ? testCase.expected_output
         : '';
@@ -461,14 +396,7 @@ export async function validateProblemsAgainstModel(
       const normalizedActual = evaluator.normalizeOutput(result.actualOutput);
       const isMatch = normalizedExpected === normalizedActual;
 
-      console.log(
-        `[ORACLE] Phase 4 (Sample): Verifying logic consistency for case ${tcIndex + 1}. Match: ${isMatch}`
-      );
-
       if (!isMatch) {
-        console.log(
-          `[ORACLE] Pass 1 Failed: Logic mismatch on case ${tcIndex + 1}. Halting Pass 2.`
-        );
         return {
           ok: false,
           message:
@@ -489,25 +417,14 @@ export async function validateProblemsAgainstModel(
         };
       }
 
-      // Sample case verified — keep the AI's original expected output
+      // Sample case verified
       validatedTestCases[tcIndex] = {
         ...result.validatedTestCase,
         expected_output: providedExpected,
       };
     }
 
-    console.log(
-      '[ORACLE] Pass 1 Success: AI code verified against all sample cases. Proceeding to Pass 2 (Auto-derivation)...'
-    );
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // PASS 2: The Truth Overwrite (Hidden test cases only)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    console.log(
-      `[ORACLE] Pass 2: Running ${hiddenIndices.length} hidden test cases for auto-derivation...`
-    );
-
+    // PASS 2: Hidden test cases - derive expected outputs from Oracle execution
     for (const tcIndex of hiddenIndices) {
       const testCase = problem.test_cases[tcIndex];
 
@@ -521,11 +438,7 @@ export async function validateProblemsAgainstModel(
         evaluator
       );
 
-      // Phase 3 failure — halt
       if (!result.ok) {
-        console.log(
-          `[ORACLE] Pass 2 Failed: ${result.failure.errorType} on problem ${problemIndex + 1}, hidden case ${tcIndex + 1}. Halting.`
-        );
         return {
           ok: false,
           message: result.failure.message,
@@ -533,31 +446,18 @@ export async function validateProblemsAgainstModel(
         };
       }
 
-      // ── Phase 4 (Hidden): The Truth Overwrite ───────────────
-      console.log(
-        `[ORACLE] Phase 4 (Hidden): Overwriting __AUTO_EXPECTED_OUTPUT__ with Oracle stdout for case ${tcIndex + 1}`
-      );
-
+      // Derive expected output from Oracle execution
       validatedTestCases[tcIndex] = {
         ...result.validatedTestCase,
         expected_output: result.actualOutput,
       };
     }
 
-    console.log(
-      `[ORACLE] Problem ${problemIndex + 1} fully validated. ` +
-      `${sampleIndices.length} sample verified, ${hiddenIndices.length} hidden auto-derived.`
-    );
-
     validatedProblems.push({
       ...problem,
       test_cases: validatedTestCases,
     });
   }
-
-  console.log(
-    `[ORACLE] Pipeline complete. All ${validatedProblems.length} problem(s) passed both passes.`
-  );
 
   return {
     ok: true,
