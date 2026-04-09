@@ -1,7 +1,7 @@
 // Types and interfaces for code execution via Piston API
 
-export type SupportedLanguage = 'python' | 'java' | 'cpp' | 'c';
-export type PistonLanguage = 'python' | 'java' | 'c++' | 'c';
+export type SupportedLanguage = "python" | "java" | "cpp" | "c";
+export type PistonLanguage = "python" | "java" | "c++" | "c";
 
 export interface ExecutionRequest {
   language: string;
@@ -54,22 +54,27 @@ export interface PistonClientConfig {
 
 export class UnsupportedLanguageError extends Error {
   constructor(language: string) {
-    super(`Unsupported language: ${language}. Supported languages: python, java, cpp, c`);
-    this.name = 'UnsupportedLanguageError';
+    super(
+      `Unsupported language: ${language}. Supported languages: python, java, cpp, c`,
+    );
+    this.name = "UnsupportedLanguageError";
   }
 }
 
 export class InvalidResponseError extends Error {
-  constructor(message: string, public readonly response?: unknown) {
+  constructor(
+    message: string,
+    public readonly response?: unknown,
+  ) {
     super(message);
-    this.name = 'InvalidResponseError';
+    this.name = "InvalidResponseError";
   }
 }
 
 export class ExecutionTimeoutError extends Error {
   constructor(timeout: number) {
     super(`Execution timed out after ${timeout}ms`);
-    this.name = 'ExecutionTimeoutError';
+    this.name = "ExecutionTimeoutError";
   }
 }
 
@@ -99,14 +104,14 @@ export interface ScoreResult {
   totalPoints: number;
   earnedPoints: number;
   percentage: number;
-  status: 'passed' | 'failed' | 'partial';
+  status: "passed" | "failed" | "partial";
 }
 
 export interface TestCaseEvaluator {
   normalizeOutput(output: string): string;
   evaluateTestCase(
     executionResponse: ExecutionResponse,
-    testCase: TestCase
+    testCase: TestCase,
   ): TestResult;
   calculateScore(results: TestResult[]): ScoreResult;
 }

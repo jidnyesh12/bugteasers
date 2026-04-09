@@ -1,11 +1,11 @@
-import { createHash } from 'node:crypto';
-import type { TestCaseInputTemplate } from '@/lib/ai/template-dsl';
+import { createHash } from "node:crypto";
+import type { TestCaseInputTemplate } from "@/lib/ai/template-dsl";
 import {
   hasUnresolvedPlaceholder,
   hashTemplateSpec,
   materializeTestCaseInputTemplate,
   validateTestCaseInputTemplate,
-} from '@/lib/ai/template-dsl';
+} from "@/lib/ai/template-dsl";
 
 export type SaveGeneratedTestCase = {
   input_data: string;
@@ -23,7 +23,7 @@ export type SaveGeneratedTestCase = {
 export class SaveProblemValidationError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'SaveProblemValidationError';
+    this.name = "SaveProblemValidationError";
   }
 }
 
@@ -35,7 +35,9 @@ export function normalizeProblemTestCasesForSave(params: {
   const { testCases, problemTitle, userId } = params;
 
   if (!Array.isArray(testCases) || testCases.length === 0) {
-    throw new SaveProblemValidationError('Each problem must include at least one valid test case');
+    throw new SaveProblemValidationError(
+      "Each problem must include at least one valid test case",
+    );
   }
 
   const normalized: SaveGeneratedTestCase[] = [];
@@ -43,27 +45,40 @@ export function normalizeProblemTestCasesForSave(params: {
   for (let caseIndex = 0; caseIndex < testCases.length; caseIndex += 1) {
     const rawTestCase = testCases[caseIndex];
 
-    if (!rawTestCase || typeof rawTestCase !== 'object' || Array.isArray(rawTestCase)) {
-      throw new SaveProblemValidationError(`Problem test case ${caseIndex + 1} is malformed`);
+    if (
+      !rawTestCase ||
+      typeof rawTestCase !== "object" ||
+      Array.isArray(rawTestCase)
+    ) {
+      throw new SaveProblemValidationError(
+        `Problem test case ${caseIndex + 1} is malformed`,
+      );
     }
 
     const testCase = rawTestCase as SaveGeneratedTestCase;
 
-    const hasTemplate = testCase.input_template !== undefined && testCase.input_template !== null;
-    const rawInput = typeof testCase.input_data === 'string' ? testCase.input_data : '';
+    const hasTemplate =
+      testCase.input_template !== undefined && testCase.input_template !== null;
+    const rawInput =
+      typeof testCase.input_data === "string" ? testCase.input_data : "";
     const rawExpectedOutput =
-      typeof testCase.expected_output === 'string' ? testCase.expected_output : '';
+      typeof testCase.expected_output === "string"
+        ? testCase.expected_output
+        : "";
 
-    if (rawExpectedOutput.trim().length === 0 || hasUnresolvedPlaceholder(rawExpectedOutput)) {
+    if (
+      rawExpectedOutput.trim().length === 0 ||
+      hasUnresolvedPlaceholder(rawExpectedOutput)
+    ) {
       throw new SaveProblemValidationError(
-        `Problem test case ${caseIndex + 1} must include a resolved expected_output before saving.`
+        `Problem test case ${caseIndex + 1} must include a resolved expected_output before saving.`,
       );
     }
 
     if (!hasTemplate) {
       if (rawInput.trim().length === 0 || hasUnresolvedPlaceholder(rawInput)) {
         throw new SaveProblemValidationError(
-          `Problem test case ${caseIndex + 1} has unresolved or invalid input_data.`
+          `Problem test case ${caseIndex + 1} has unresolved or invalid input_data.`,
         );
       }
 
@@ -72,7 +87,9 @@ export function normalizeProblemTestCasesForSave(params: {
         input_data: rawInput,
         input_template: undefined,
         expected_output: rawExpectedOutput,
-        input_hash: testCase.input_hash ?? createHash('sha256').update(rawInput).digest('hex'),
+        input_hash:
+          testCase.input_hash ??
+          createHash("sha256").update(rawInput).digest("hex"),
       });
 
       continue;
@@ -83,29 +100,35 @@ export function normalizeProblemTestCasesForSave(params: {
     } catch (error) {
       throw new SaveProblemValidationError(
         `Problem test case ${caseIndex + 1} has invalid input_template: ${
-          error instanceof Error ? error.message : 'Unknown template error'
-        }`
+          error instanceof Error ? error.message : "Unknown template error"
+        }`,
       );
     }
 
     const seedMaterial =
-      typeof testCase.generation_seed === 'string' && testCase.generation_seed.trim().length > 0
+      typeof testCase.generation_seed === "string" &&
+      testCase.generation_seed.trim().length > 0
         ? testCase.generation_seed
-        : createHash('sha256')
-            .update(`${userId}:${problemTitle ?? 'problem'}:case-${caseIndex + 1}`)
-            .digest('hex');
+        : createHash("sha256")
+            .update(
+              `${userId}:${problemTitle ?? "problem"}:case-${caseIndex + 1}`,
+            )
+            .digest("hex");
 
     let materializedInput: string;
     try {
-      const materialized = materializeTestCaseInputTemplate(testCase.input_template, {
-        seedMaterial,
-      });
+      const materialized = materializeTestCaseInputTemplate(
+        testCase.input_template,
+        {
+          seedMaterial,
+        },
+      );
       materializedInput = materialized.inputData;
     } catch (error) {
       throw new SaveProblemValidationError(
         `Problem test case ${caseIndex + 1} template materialization failed: ${
-          error instanceof Error ? error.message : 'Unknown template error'
-        }`
+          error instanceof Error ? error.message : "Unknown template error"
+        }`,
       );
     }
 
@@ -114,7 +137,7 @@ export function normalizeProblemTestCasesForSave(params: {
         ? rawInput
         : testCase.is_sample
           ? materializedInput
-          : '';
+          : "";
 
     normalized.push({
       ...testCase,
@@ -122,7 +145,8 @@ export function normalizeProblemTestCasesForSave(params: {
       input_template: testCase.input_template,
       expected_output: rawExpectedOutput,
       generation_seed: seedMaterial,
-      input_hash: testCase.input_hash ?? hashTemplateSpec(testCase.input_template),
+      input_hash:
+        testCase.input_hash ?? hashTemplateSpec(testCase.input_template),
     });
   }
 

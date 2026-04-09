@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import {
   formatSubmissionScore,
   formatSubmissionTime,
   submissionStatusStyle,
-} from '@/lib/submissions/formatting';
-import { normalizeSupportedLanguage } from '@/lib/execution/languages';
-import type { ProblemSubmissionDisplayItem } from '@/lib/submissions/view-types';
+} from "@/lib/submissions/formatting";
+import { normalizeSupportedLanguage } from "@/lib/execution/languages";
+import type { ProblemSubmissionDisplayItem } from "@/lib/submissions/view-types";
 
 interface SubmissionsTabContentProps {
   submissions: ProblemSubmissionDisplayItem[];
@@ -38,35 +38,31 @@ function OpenInEditorIcon() {
 }
 
 export function SubmissionsTabContent(props: SubmissionsTabContentProps) {
-  const {
-    submissions,
-    isLoading,
-    error,
-    onRetry,
-    onLoadSubmissionCode,
-  } = props;
+  const { submissions, isLoading, error, onRetry, onLoadSubmissionCode } =
+    props;
 
   const hasSubmissions = submissions.length > 0;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-bold text-[var(--text-primary)]">Submissions</h2>
-        <Button
-          onClick={onRetry}
-          loading={isLoading}
-          size="xs"
-          className="h-8"
-        >
-          {isLoading ? 'Refreshing...' : 'Refresh'}
+        <h2 className="text-base font-bold text-[var(--text-primary)]">
+          Submissions
+        </h2>
+        <Button onClick={onRetry} loading={isLoading} size="xs" className="h-8">
+          {isLoading ? "Refreshing..." : "Refresh"}
         </Button>
       </div>
 
       {isLoading && !hasSubmissions ? (
-        <p className="text-sm text-[var(--text-muted)]">Loading submissions...</p>
+        <p className="text-sm text-[var(--text-muted)]">
+          Loading submissions...
+        </p>
       ) : error && !hasSubmissions ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-2">
-          <p className="text-sm font-semibold text-red-700">Failed to load submissions</p>
+          <p className="text-sm font-semibold text-red-700">
+            Failed to load submissions
+          </p>
           <p className="text-xs text-red-700/90">{error}</p>
           <Button
             onClick={onRetry}
@@ -79,13 +75,18 @@ export function SubmissionsTabContent(props: SubmissionsTabContentProps) {
         </div>
       ) : !hasSubmissions ? (
         <div className="rounded-xl border border-[var(--border-primary)] p-5 text-center bg-[var(--bg-secondary)]/30">
-          <p className="text-sm text-[var(--text-muted)]">No submissions yet for this problem.</p>
+          <p className="text-sm text-[var(--text-muted)]">
+            No submissions yet for this problem.
+          </p>
         </div>
       ) : (
         <>
           {error && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 flex items-center justify-between gap-3">
-              <p className="text-xs text-amber-800">Could not refresh right now. Showing your latest loaded submissions.</p>
+              <p className="text-xs text-amber-800">
+                Could not refresh right now. Showing your latest loaded
+                submissions.
+              </p>
               <Button
                 onClick={onRetry}
                 variant="outline"
@@ -99,10 +100,13 @@ export function SubmissionsTabContent(props: SubmissionsTabContentProps) {
 
           <div className="space-y-2">
             {submissions.map((submission, index) => {
-              const statusStyle = submissionStatusStyle[submission.status] ?? submissionStatusStyle.error;
+              const statusStyle =
+                submissionStatusStyle[submission.status] ??
+                submissionStatusStyle.error;
               const displayNumber = submissions.length - index;
               const isOptimistic = submission.isOptimistic === true;
-              const isSupportedLanguage = normalizeSupportedLanguage(submission.language) !== null;
+              const isSupportedLanguage =
+                normalizeSupportedLanguage(submission.language) !== null;
               const isOpenDisabled = isOptimistic || !isSupportedLanguage;
 
               return (
@@ -110,27 +114,39 @@ export function SubmissionsTabContent(props: SubmissionsTabContentProps) {
                   key={submission.id}
                   className={`group w-full rounded-xl border p-3 transition-colors ${
                     isOptimistic
-                      ? 'border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/5'
-                      : 'border-[var(--border-primary)] hover:bg-[var(--bg-secondary)]/40'
+                      ? "border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/5"
+                      : "border-[var(--border-primary)] hover:bg-[var(--bg-secondary)]/40"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="min-w-[180px]">
-                      <p className="text-sm font-semibold text-[var(--text-primary)]">Submission {displayNumber}</p>
-                      <p className="text-[11px] text-[var(--text-muted)]">{formatSubmissionTime(submission.submittedAt)}</p>
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">
+                        Submission {displayNumber}
+                      </p>
+                      <p className="text-[11px] text-[var(--text-muted)]">
+                        {formatSubmissionTime(submission.submittedAt)}
+                      </p>
                     </div>
 
                     <div className="flex items-center gap-2 ml-auto">
-                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider ${statusStyle.badge}`}>
-                        <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusStyle.dot} ${isOptimistic ? 'animate-pulse' : ''}`} />
-                        {isOptimistic ? 'Submitting' : statusStyle.label}
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wider ${statusStyle.badge}`}
+                      >
+                        <span
+                          className={`inline-block h-1.5 w-1.5 rounded-full ${statusStyle.dot} ${isOptimistic ? "animate-pulse" : ""}`}
+                        />
+                        {isOptimistic ? "Submitting" : statusStyle.label}
                       </span>
                       <Button
                         onClick={() => onLoadSubmissionCode(submission)}
                         disabled={isOpenDisabled}
                         size="xs"
                         className="h-7 px-2.5"
-                        title={isSupportedLanguage ? 'Open in editor' : 'Unsupported language for editor'}
+                        title={
+                          isSupportedLanguage
+                            ? "Open in editor"
+                            : "Unsupported language for editor"
+                        }
                       >
                         <OpenInEditorIcon />
                         Open in editor
@@ -140,36 +156,46 @@ export function SubmissionsTabContent(props: SubmissionsTabContentProps) {
 
                   <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Language</p>
+                      <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                        Language
+                      </p>
                       <p className="text-[var(--text-primary)] font-semibold">
                         {submission.language}
                         {!isSupportedLanguage && (
-                          <span className="ml-1 text-[10px] font-medium text-rose-600">(unsupported)</span>
+                          <span className="ml-1 text-[10px] font-medium text-rose-600">
+                            (unsupported)
+                          </span>
                         )}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Score</p>
+                      <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                        Score
+                      </p>
                       <p className="text-[var(--text-primary)] font-semibold">
                         {isOptimistic
-                          ? 'Calculating...'
+                          ? "Calculating..."
                           : formatSubmissionScore(submission.score)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Passed</p>
+                      <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                        Passed
+                      </p>
                       <p className="text-[var(--text-primary)] font-semibold">
                         {isOptimistic
-                          ? 'Running...'
+                          ? "Running..."
                           : `${submission.passedCount}/${submission.totalTestCount}`}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Points</p>
+                      <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                        Points
+                      </p>
                       <p className="text-[var(--text-primary)] font-semibold">
                         {isOptimistic
-                          ? 'Pending...'
-                          : `${submission.earnedPoints ?? '--'}/${submission.totalPoints ?? '--'}`}
+                          ? "Pending..."
+                          : `${submission.earnedPoints ?? "--"}/${submission.totalPoints ?? "--"}`}
                       </p>
                     </div>
                   </div>

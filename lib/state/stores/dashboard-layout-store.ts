@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 interface DashboardLayoutStoreState {
   isSidebarOpen: boolean;
@@ -21,12 +21,12 @@ export const useDashboardLayoutStore = create<DashboardLayoutStoreState>()(
       },
     }),
     {
-      name: 'dashboard-layout-store-v1',
+      name: "dashboard-layout-store-v1",
       version: 1,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         isSidebarOpen: state.isSidebarOpen,
       }),
-    }
-  )
+    },
+  ),
 );

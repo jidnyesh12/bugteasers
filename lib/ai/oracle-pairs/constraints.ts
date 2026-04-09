@@ -7,9 +7,9 @@
  * - DISTRIBUTION: Validity measured at batch level
  */
 
-import type { MaterializedTestCaseWithVariables, DSLConstraint } from './types';
-import { ConstraintLevel } from './types';
-import { TemplateDslError } from '../template-dsl/errors';
+import type { MaterializedTestCaseWithVariables, DSLConstraint } from "./types";
+import { ConstraintLevel } from "./types";
+import { TemplateDslError } from "../template-dsl/errors";
 
 /**
  * Global Constraint Registry: Singleton for managing all DSL constraints
@@ -49,9 +49,9 @@ export class ConstraintRegistry {
     this.addConstraint({
       version: 1,
       level: ConstraintLevel.HARD,
-      name: 'array_length_bounded',
-      description: 'Array length must not exceed MAX_COLLECTION_SIZE (200,000)',
-      category: 'bounds',
+      name: "array_length_bounded",
+      description: "Array length must not exceed MAX_COLLECTION_SIZE (200,000)",
+      category: "bounds",
       check: (testCase) => {
         const MAX = 200_000;
         return Object.values(testCase.variables).every((val) => {
@@ -66,10 +66,11 @@ export class ConstraintRegistry {
     this.addConstraint({
       version: 1,
       level: ConstraintLevel.HARD,
-      name: 'matrix_dimensions_valid',
-      description: 'Matrix rows and cols must be positive integers',
-      category: 'bounds',
-      check: (_testCase: MaterializedTestCaseWithVariables) => { // eslint-disable-line @typescript-eslint/no-unused-vars
+      name: "matrix_dimensions_valid",
+      description: "Matrix rows and cols must be positive integers",
+      category: "bounds",
+      check: (_testCase: MaterializedTestCaseWithVariables) => {
+        // eslint-disable-line @typescript-eslint/no-unused-vars
         // This would be checked during variable generation
         // Ensure no matrix has 0 rows or cols
         return true;
@@ -79,12 +80,12 @@ export class ConstraintRegistry {
     this.addConstraint({
       version: 1,
       level: ConstraintLevel.HARD,
-      name: 'no_nan_or_inf',
-      description: 'No NaN or Infinity values allowed in numeric variables',
-      category: 'output',
+      name: "no_nan_or_inf",
+      description: "No NaN or Infinity values allowed in numeric variables",
+      category: "output",
       check: (testCase) => {
         const checkValue = (val: unknown): boolean => {
-          if (typeof val === 'number') {
+          if (typeof val === "number") {
             return !Number.isNaN(val) && Number.isFinite(val);
           }
           if (Array.isArray(val)) {
@@ -99,24 +100,24 @@ export class ConstraintRegistry {
     this.addConstraint({
       version: 1,
       level: ConstraintLevel.HARD,
-      name: 'output_size_bounded',
-      description: 'Output must not exceed DEFAULT_MAX_OUTPUT_BYTES (8MB)',
-      category: 'output',
+      name: "output_size_bounded",
+      description: "Output must not exceed DEFAULT_MAX_OUTPUT_BYTES (8MB)",
+      category: "output",
       check: (testCase) => {
         const MAX_BYTES = 8 * 1024 * 1024;
-        return Buffer.byteLength(testCase.expectedOutput, 'utf8') <= MAX_BYTES;
+        return Buffer.byteLength(testCase.expectedOutput, "utf8") <= MAX_BYTES;
       },
     });
 
     this.addConstraint({
       version: 1,
       level: ConstraintLevel.HARD,
-      name: 'input_size_bounded',
-      description: 'Input must not exceed DEFAULT_MAX_OUTPUT_BYTES (8MB)',
-      category: 'output',
+      name: "input_size_bounded",
+      description: "Input must not exceed DEFAULT_MAX_OUTPUT_BYTES (8MB)",
+      category: "output",
       check: (testCase) => {
         const MAX_BYTES = 8 * 1024 * 1024;
-        return Buffer.byteLength(testCase.inputData, 'utf8') <= MAX_BYTES;
+        return Buffer.byteLength(testCase.inputData, "utf8") <= MAX_BYTES;
       },
     });
 
@@ -124,9 +125,9 @@ export class ConstraintRegistry {
     this.addConstraint({
       version: 1,
       level: ConstraintLevel.SOFT,
-      name: 'int_array_unique',
-      description: 'int_array elements should be unique if unique=true',
-      category: 'structure',
+      name: "int_array_unique",
+      description: "int_array elements should be unique if unique=true",
+      category: "structure",
       check: (testCase) => {
         void testCase;
         // This check would be template-variable specific
@@ -142,9 +143,9 @@ export class ConstraintRegistry {
     this.addConstraint({
       version: 1,
       level: ConstraintLevel.SOFT,
-      name: 'int_array_sorted',
-      description: 'int_array elements should be sorted if sorted=asc/desc',
-      category: 'structure',
+      name: "int_array_sorted",
+      description: "int_array elements should be sorted if sorted=asc/desc",
+      category: "structure",
       check: (testCase) => {
         void testCase;
         // Checked at variable generation
@@ -158,9 +159,9 @@ export class ConstraintRegistry {
     this.addConstraint({
       version: 1,
       level: ConstraintLevel.SOFT,
-      name: 'graph_connected',
-      description: 'Graph should be connected if connected=true',
-      category: 'structure',
+      name: "graph_connected",
+      description: "Graph should be connected if connected=true",
+      category: "structure",
       check: (testCase) => {
         void testCase;
         // Checked at variable generation
@@ -175,9 +176,9 @@ export class ConstraintRegistry {
     this.addConstraint({
       version: 1,
       level: ConstraintLevel.DISTRIBUTION,
-      name: 'choice_weights_sum_normalized',
-      description: 'Choice weights should sum to 1.0 if provided',
-      category: 'structure',
+      name: "choice_weights_sum_normalized",
+      description: "Choice weights should sum to 1.0 if provided",
+      category: "structure",
       check: (testCase) => {
         void testCase;
         // Checked at variable generation
@@ -191,7 +192,9 @@ export class ConstraintRegistry {
    */
   addConstraint(constraint: DSLConstraint): void {
     if (this.constraints.has(constraint.name)) {
-      throw new TemplateDslError(`Constraint with name "${constraint.name}" already exists`);
+      throw new TemplateDslError(
+        `Constraint with name "${constraint.name}" already exists`,
+      );
     }
 
     this.constraints.set(constraint.name, constraint);
@@ -262,8 +265,10 @@ export class ConstraintRegistry {
     softViolations: Array<{ name: string; constraint: DSLConstraint }>;
     unknown: Array<{ name: string; constraint: DSLConstraint }>;
   } {
-    const hardViolations: Array<{ name: string; constraint: DSLConstraint }> = [];
-    const softViolations: Array<{ name: string; constraint: DSLConstraint }> = [];
+    const hardViolations: Array<{ name: string; constraint: DSLConstraint }> =
+      [];
+    const softViolations: Array<{ name: string; constraint: DSLConstraint }> =
+      [];
     const unknown: Array<{ name: string; constraint: DSLConstraint }> = [];
 
     for (const constraint of this.getAll()) {
@@ -299,14 +304,14 @@ export class ConstraintRegistry {
   attemptRepair(
     testCase: MaterializedTestCaseWithVariables,
     constraint: DSLConstraint,
-    maxAttempts: number = 1
+    maxAttempts: number = 1,
   ): {
     success: boolean;
     repaired?: MaterializedTestCaseWithVariables;
     error?: string;
   } {
     if (!constraint.repair) {
-      return { success: false, error: 'Constraint has no repair strategy' };
+      return { success: false, error: "Constraint has no repair strategy" };
     }
 
     let current = testCase;
@@ -345,7 +350,8 @@ export class ConstraintRegistry {
 
     for (const constraint of this.getAll()) {
       byLevel[constraint.level] = (byLevel[constraint.level] ?? 0) + 1;
-      byCategory[constraint.category] = (byCategory[constraint.category] ?? 0) + 1;
+      byCategory[constraint.category] =
+        (byCategory[constraint.category] ?? 0) + 1;
     }
 
     return {
@@ -373,6 +379,8 @@ export function registerConstraint(constraint: DSLConstraint): void {
 /**
  * Helper: Validate test case using default registry
  */
-export function validateTestCaseConstraints(testCase: MaterializedTestCaseWithVariables) {
+export function validateTestCaseConstraints(
+  testCase: MaterializedTestCaseWithVariables,
+) {
   return getConstraintRegistry().validate(testCase);
 }

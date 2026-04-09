@@ -9,7 +9,7 @@ export interface Problem {
   id: string;
   title: string;
   description: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty: "easy" | "medium" | "hard";
   tags: string[];
   hints: string[];
   test_cases: TestCase[];

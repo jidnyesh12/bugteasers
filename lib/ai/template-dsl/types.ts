@@ -1,5 +1,5 @@
 export const TEMPLATE_DSL_VERSION = 1;
-export const AUTO_EXPECTED_OUTPUT_TOKEN = '__AUTO_EXPECTED_OUTPUT__';
+export const AUTO_EXPECTED_OUTPUT_TOKEN = "__AUTO_EXPECTED_OUTPUT__";
 
 export const DEFAULT_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 export const MAX_COLLECTION_SIZE = 200_000;
@@ -7,7 +7,10 @@ export const MAX_COLLECTION_SIZE = 200_000;
 export type TemplateScalar = string | number;
 export type TemplateVector = TemplateScalar[];
 export type TemplateMatrix = TemplateScalar[][];
-export type TemplateGeneratedValue = TemplateScalar | TemplateVector | TemplateMatrix;
+export type TemplateGeneratedValue =
+  | TemplateScalar
+  | TemplateVector
+  | TemplateMatrix;
 
 export interface TemplateRef {
   ref: string;
@@ -15,8 +18,8 @@ export interface TemplateRef {
 
 export type TemplateNumericRef = number | TemplateRef;
 
-export type SortDirection = 'asc' | 'desc';
-export type CharsetName = 'lower' | 'upper' | 'alpha' | 'alnum' | 'digits';
+export type SortDirection = "asc" | "desc";
+export type CharsetName = "lower" | "upper" | "alpha" | "alnum" | "digits";
 
 export interface NumericRange {
   min: TemplateNumericRef;
@@ -25,27 +28,27 @@ export interface NumericRange {
 
 export type TestCaseTemplateVariable =
   | {
-      type: 'const';
+      type: "const";
       value: TemplateGeneratedValue;
     }
   | {
-      type: 'int';
+      type: "int";
       min: TemplateNumericRef;
       max: TemplateNumericRef;
     }
   | {
-      type: 'choice';
+      type: "choice";
       values: TemplateScalar[];
       weights?: number[];
     }
   | {
-      type: 'string';
+      type: "string";
       length: TemplateNumericRef;
       alphabet?: string;
       charset?: CharsetName;
     }
   | {
-      type: 'int_array';
+      type: "int_array";
       length: TemplateNumericRef;
       min: TemplateNumericRef;
       max: TemplateNumericRef;
@@ -53,26 +56,26 @@ export type TestCaseTemplateVariable =
       sorted?: SortDirection;
     }
   | {
-      type: 'matrix';
+      type: "matrix";
       rows: TemplateNumericRef;
       cols: TemplateNumericRef;
       min: TemplateNumericRef;
       max: TemplateNumericRef;
     }
   | {
-      type: 'permutation';
+      type: "permutation";
       n: TemplateNumericRef;
       start?: number;
     }
   | {
-      type: 'pairs';
+      type: "pairs";
       count: TemplateNumericRef;
       first: NumericRange;
       second: NumericRange;
       unique?: boolean;
     }
   | {
-      type: 'graph';
+      type: "graph";
       nodes: TemplateNumericRef;
       edges: TemplateNumericRef;
       directed?: boolean;
@@ -96,17 +99,17 @@ export type TemplateOutputValue =
 
 export type TestCaseTemplateOutputInstruction =
   | {
-      type: 'line';
+      type: "line";
       values: ReadonlyArray<TemplateOutputValue>;
       separator?: string;
     }
   | {
-      type: 'lines';
+      type: "lines";
       from: string;
       separator?: string;
     }
   | {
-      type: 'raw';
+      type: "raw";
       value: string;
     };
 

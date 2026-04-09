@@ -2,7 +2,7 @@ import type {
   RunResponse,
   SubmitResponse,
   SupportedLanguage,
-} from '@/lib/execution/types';
+} from "@/lib/execution/types";
 
 interface RunExecutionInput {
   problemId: string;
@@ -24,32 +24,42 @@ export class ExecutionHttpError extends Error {
 
   constructor(message: string, status: number, retryAfterSeconds?: number) {
     super(message);
-    this.name = 'ExecutionHttpError';
+    this.name = "ExecutionHttpError";
     this.status = status;
     this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
-export async function runProblemCode(input: RunExecutionInput): Promise<RunResponse> {
+export async function runProblemCode(
+  input: RunExecutionInput,
+): Promise<RunResponse> {
   return postExecution<RunResponse>(`/api/problems/${input.problemId}/run`, {
     code: input.code,
     language: input.language,
   });
 }
 
-export async function submitProblemCode(input: SubmitExecutionInput): Promise<SubmitResponse> {
-  return postExecution<SubmitResponse>(`/api/problems/${input.problemId}/submit`, {
-    code: input.code,
-    language: input.language,
-    assignmentId: input.assignmentId,
-  });
+export async function submitProblemCode(
+  input: SubmitExecutionInput,
+): Promise<SubmitResponse> {
+  return postExecution<SubmitResponse>(
+    `/api/problems/${input.problemId}/submit`,
+    {
+      code: input.code,
+      language: input.language,
+      assignmentId: input.assignmentId,
+    },
+  );
 }
 
-async function postExecution<T>(url: string, payload: Record<string, unknown>): Promise<T> {
+async function postExecution<T>(
+  url: string,
+  payload: Record<string, unknown>,
+): Promise<T> {
   const response = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
   });
@@ -57,15 +67,19 @@ async function postExecution<T>(url: string, payload: Record<string, unknown>): 
   const parsedBody = await parseJson<ErrorPayload | T>(response);
 
   if (!response.ok) {
-    const retryAfterHeader = response.headers.get('Retry-After');
-    const retryAfterSeconds = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : undefined;
-    const payloadError = isErrorPayload(parsedBody) ? parsedBody.error : undefined;
-    const message = payloadError || response.statusText || 'Request failed';
+    const retryAfterHeader = response.headers.get("Retry-After");
+    const retryAfterSeconds = retryAfterHeader
+      ? Number.parseInt(retryAfterHeader, 10)
+      : undefined;
+    const payloadError = isErrorPayload(parsedBody)
+      ? parsedBody.error
+      : undefined;
+    const message = payloadError || response.statusText || "Request failed";
 
     throw new ExecutionHttpError(
       message,
       response.status,
-      Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined
+      Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined,
     );
   }
 
@@ -74,17 +88,17 @@ async function postExecution<T>(url: string, payload: Record<string, unknown>): 
 
 async function parseJson<T>(response: Response): Promise<T> {
   try {
-    return await response.json() as T;
+    return (await response.json()) as T;
   } catch {
     return {} as T;
   }
 }
 
 function isErrorPayload(value: unknown): value is ErrorPayload {
-  if (!value || typeof value !== 'object') {
+  if (!value || typeof value !== "object") {
     return false;
   }
 
   const payload = value as Record<string, unknown>;
-  return typeof payload.error === 'string';
+  return typeof payload.error === "string";
 }

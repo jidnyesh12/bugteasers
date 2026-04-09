@@ -12,10 +12,14 @@ interface SlidingWindowOptions {
 export class SlidingWindowRateLimiter {
   private readonly events = new Map<string, number[]>();
 
-  check(key: string, options: SlidingWindowOptions, now: number = Date.now()): RateLimitDecision {
+  check(
+    key: string,
+    options: SlidingWindowOptions,
+    now: number = Date.now(),
+  ): RateLimitDecision {
     const windowStart = now - options.windowMs;
     const previous = this.events.get(key) ?? [];
-    const active = previous.filter(timestamp => timestamp > windowStart);
+    const active = previous.filter((timestamp) => timestamp > windowStart);
 
     if (active.length >= options.maxRequests) {
       const earliest = active[0] ?? now;
@@ -50,14 +54,15 @@ const limiter = new SlidingWindowRateLimiter();
 
 export function checkExecutionRateLimit(params: {
   userId: string;
-  mode: 'run' | 'submit';
+  mode: "run" | "submit";
   now?: number;
 }): RateLimitDecision {
   const { userId, mode, now } = params;
 
-  const options: SlidingWindowOptions = mode === 'run'
-    ? { maxRequests: 10, windowMs: 60_000 }
-    : { maxRequests: 5, windowMs: 60_000 };
+  const options: SlidingWindowOptions =
+    mode === "run"
+      ? { maxRequests: 10, windowMs: 60_000 }
+      : { maxRequests: 5, windowMs: 60_000 };
 
   return limiter.check(`execution:${mode}:${userId}`, options, now);
 }

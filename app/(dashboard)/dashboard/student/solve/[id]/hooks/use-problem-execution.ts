@@ -1,22 +1,22 @@
-'use client';
+"use client";
 
-import { useCallback, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useCallback, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import type {
   ScoreResult,
   SupportedLanguage,
   TestResult,
-} from '@/lib/execution/types';
-import {
-  runProblemCode,
-  submitProblemCode,
-} from '@/lib/api/execution-client';
-import {
-  formatExecutionErrorOutput,
-} from './execution-error-utils';
+} from "@/lib/execution/types";
+import { runProblemCode, submitProblemCode } from "@/lib/api/execution-client";
+import { formatExecutionErrorOutput } from "./execution-error-utils";
 
-export type ExecutionMode = 'run' | 'submit';
-export type ExecutionStatus = 'running' | 'passed' | 'failed' | 'partial' | 'error';
+export type ExecutionMode = "run" | "submit";
+export type ExecutionStatus =
+  | "running"
+  | "passed"
+  | "failed"
+  | "partial"
+  | "error";
 
 export interface ExecutionPanelResult {
   mode: ExecutionMode;
@@ -46,25 +46,30 @@ interface UseProblemExecutionResult {
   closeOutput: () => void;
 }
 
-export function useProblemExecution(options: UseProblemExecutionOptions): UseProblemExecutionResult {
-  const { problemId, getCode, language, assignmentId, onExecutionError, onResultReady } = options;
+export function useProblemExecution(
+  options: UseProblemExecutionOptions,
+): UseProblemExecutionResult {
+  const {
+    problemId,
+    getCode,
+    language,
+    assignmentId,
+    onExecutionError,
+    onResultReady,
+  } = options;
 
-  const [executionResult, setExecutionResult] = useState<ExecutionPanelResult | null>(null);
+  const [executionResult, setExecutionResult] =
+    useState<ExecutionPanelResult | null>(null);
   const [showOutput, setShowOutput] = useState(true);
 
-  const {
-    mutateAsync: runMutationAsync,
-    isPending: isRunning,
-  } = useMutation({
+  const { mutateAsync: runMutationAsync, isPending: isRunning } = useMutation({
     mutationFn: runProblemCode,
   });
 
-  const {
-    mutateAsync: submitMutationAsync,
-    isPending: isSubmitting,
-  } = useMutation({
-    mutationFn: submitProblemCode,
-  });
+  const { mutateAsync: submitMutationAsync, isPending: isSubmitting } =
+    useMutation({
+      mutationFn: submitProblemCode,
+    });
 
   const runCode = useCallback(async () => {
     if (isRunning || isSubmitting) {
@@ -73,10 +78,10 @@ export function useProblemExecution(options: UseProblemExecutionOptions): UsePro
 
     setShowOutput(true);
     setExecutionResult({
-      mode: 'run',
-      status: 'running',
+      mode: "run",
+      status: "running",
       results: [],
-      message: 'Running...'
+      message: "Running...",
     });
 
     try {
@@ -87,7 +92,7 @@ export function useProblemExecution(options: UseProblemExecutionOptions): UsePro
       });
 
       const nextResult: ExecutionPanelResult = {
-        mode: 'run',
+        mode: "run",
         status: response.score.status,
         score: response.score,
         results: response.results,
@@ -97,15 +102,15 @@ export function useProblemExecution(options: UseProblemExecutionOptions): UsePro
       onResultReady?.(nextResult);
     } catch (error) {
       const nextResult: ExecutionPanelResult = {
-        mode: 'run',
-        status: 'error',
+        mode: "run",
+        status: "error",
         results: [],
         message: formatExecutionErrorOutput(error),
       };
 
       setExecutionResult(nextResult);
       onResultReady?.(nextResult);
-      onExecutionError?.('run', error);
+      onExecutionError?.("run", error);
     }
   }, [
     getCode,
@@ -125,10 +130,10 @@ export function useProblemExecution(options: UseProblemExecutionOptions): UsePro
 
     setShowOutput(true);
     setExecutionResult({
-      mode: 'submit',
-      status: 'running',
+      mode: "submit",
+      status: "running",
       results: [],
-      message: 'Submitting and running all test cases...'
+      message: "Submitting and running all test cases...",
     });
 
     try {
@@ -140,7 +145,7 @@ export function useProblemExecution(options: UseProblemExecutionOptions): UsePro
       });
 
       const nextResult: ExecutionPanelResult = {
-        mode: 'submit',
+        mode: "submit",
         status: response.score.status,
         score: response.score,
         results: response.results,
@@ -151,15 +156,15 @@ export function useProblemExecution(options: UseProblemExecutionOptions): UsePro
       onResultReady?.(nextResult);
     } catch (error) {
       const nextResult: ExecutionPanelResult = {
-        mode: 'submit',
-        status: 'error',
+        mode: "submit",
+        status: "error",
         results: [],
         message: formatExecutionErrorOutput(error),
       };
 
       setExecutionResult(nextResult);
       onResultReady?.(nextResult);
-      onExecutionError?.('submit', error);
+      onExecutionError?.("submit", error);
     }
   }, [
     assignmentId,

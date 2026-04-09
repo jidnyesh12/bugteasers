@@ -13,10 +13,10 @@
  * Uses: gemini-3-flash-preview (same as problem-generator.ts)
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import type { ModelAnswer, SupportedLanguage } from './types';
-import { TemplateDslError } from '../template-dsl/errors';
-import { GEMINI_API_KEY } from '@/lib/env';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import type { ModelAnswer, SupportedLanguage } from "./types";
+import { TemplateDslError } from "../template-dsl/errors";
+import { GEMINI_API_KEY } from "@/lib/env";
 
 // Initialize Gemini once at module load
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -37,13 +37,13 @@ export interface LLMGeneratorConfig {
 }
 
 export const DEFAULT_LLM_CONFIG: LLMGeneratorConfig = {
-  modelName: 'gemini-3-flash-preview', // ONLY model - same as problem-generator.ts line 26
+  modelName: "gemini-3-flash-preview", // ONLY model - same as problem-generator.ts line 26
   temperature: 0, // For reference (not used in current Gemini SDK)
   maxTokens: 4096,
   timeoutMs: 30000,
   retryAttempts: 3,
   retryDelayMs: 1000,
-  language: 'python',
+  language: "python",
   seedRNG: true,
 };
 
@@ -66,12 +66,15 @@ export function buildGenerationPrompt(params: {
   inputOutputExamples: Array<{ input: string; output: string }>;
   targetLanguage: SupportedLanguage;
 }): GenerationPrompt {
-  const { problemStatement, constraints, inputOutputExamples, targetLanguage } = params;
+  const { problemStatement, constraints, inputOutputExamples, targetLanguage } =
+    params;
 
   // Format examples
   const formattedExamples = inputOutputExamples
-    .map((ex, i) => `Example ${i + 1}:\nInput: ${ex.input}\nOutput: ${ex.output}`)
-    .join('\n\n');
+    .map(
+      (ex, i) => `Example ${i + 1}:\nInput: ${ex.input}\nOutput: ${ex.output}`,
+    )
+    .join("\n\n");
 
   return {
     problem: problemStatement,
@@ -92,14 +95,14 @@ export function constructGeminiPrompt(generationPrompt: GenerationPrompt): {
   const { problem, constraints, examples, language } = generationPrompt;
 
   const languageMap: Record<SupportedLanguage, string> = {
-    python: 'Python 3',
-    cpp: 'C++17',
-    java: 'Java',
-    javascript: 'JavaScript (Node.js)',
-    typescript: 'TypeScript',
-    csharp: 'C#',
-    go: 'Go',
-    rust: 'Rust',
+    python: "Python 3",
+    cpp: "C++17",
+    java: "Java",
+    javascript: "JavaScript (Node.js)",
+    typescript: "TypeScript",
+    csharp: "C#",
+    go: "Go",
+    rust: "Rust",
   };
 
   const system = `You are an expert competitive programmer. Your task is to generate correct, efficient solution code for competitive programming problems.
@@ -140,48 +143,48 @@ export const constructClaudePrompt = constructGeminiPrompt;
  */
 export function validateGeneratedCode(
   code: string,
-  language: SupportedLanguage
+  language: SupportedLanguage,
 ): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
   // Basic checks
   if (!code || code.trim().length === 0) {
-    errors.push('Generated code is empty');
+    errors.push("Generated code is empty");
   }
 
   // Language-specific validation
   switch (language) {
-    case 'python':
-      if (!code.includes('input') && !code.includes('sys.stdin')) {
-        errors.push('Python code does not appear to read input');
+    case "python":
+      if (!code.includes("input") && !code.includes("sys.stdin")) {
+        errors.push("Python code does not appear to read input");
       }
-      if (!code.includes('print')) {
-        errors.push('Python code does not appear to output anything');
-      }
-      break;
-
-    case 'cpp':
-      if (!code.includes('#include') && !code.includes('iostream')) {
-        errors.push('C++ code missing <iostream>');
-      }
-      if (!code.includes('cout') && !code.includes('printf')) {
-        errors.push('C++ code does not appear to output anything');
+      if (!code.includes("print")) {
+        errors.push("Python code does not appear to output anything");
       }
       break;
 
-    case 'java':
-      if (!code.includes('Scanner') && !code.includes('BufferedReader')) {
-        errors.push('Java code does not appear to read input');
+    case "cpp":
+      if (!code.includes("#include") && !code.includes("iostream")) {
+        errors.push("C++ code missing <iostream>");
       }
-      if (!code.includes('System.out')) {
-        errors.push('Java code does not appear to output anything');
+      if (!code.includes("cout") && !code.includes("printf")) {
+        errors.push("C++ code does not appear to output anything");
       }
       break;
 
-    case 'javascript':
-    case 'typescript':
-      if (!code.includes('console.log') && !code.includes('process.stdout')) {
-        errors.push('JavaScript code does not appear to output anything');
+    case "java":
+      if (!code.includes("Scanner") && !code.includes("BufferedReader")) {
+        errors.push("Java code does not appear to read input");
+      }
+      if (!code.includes("System.out")) {
+        errors.push("Java code does not appear to output anything");
+      }
+      break;
+
+    case "javascript":
+    case "typescript":
+      if (!code.includes("console.log") && !code.includes("process.stdout")) {
+        errors.push("JavaScript code does not appear to output anything");
       }
       break;
   }
@@ -201,14 +204,21 @@ export function validateGeneratedCode(
 async function callGeminiAPI(
   systemPrompt: string,
   userPrompt: string,
-  config: LLMGeneratorConfig
-): Promise<{ content: string; stopReason: string; usage: { input: number; output: number } }> {
+  config: LLMGeneratorConfig,
+): Promise<{
+  content: string;
+  stopReason: string;
+  usage: { input: number; output: number };
+}> {
   if (!GEMINI_API_KEY) {
-    throw new TemplateDslError('GEMINI_API_KEY not set in environment');
+    throw new TemplateDslError("GEMINI_API_KEY not set in environment");
   }
 
   // In test environment, return stub code quickly
-  if (process.env.NODE_ENV === 'test' || typeof (global as Record<string, unknown>).vi === 'object') {
+  if (
+    process.env.NODE_ENV === "test" ||
+    typeof (global as Record<string, unknown>).vi === "object"
+  ) {
     const stubs: Record<string, string> = {
       python: `n = int(input())\nprint(n * 2)`,
       cpp: `#include <iostream>\nusing namespace std;\nint main() { int n; cin >> n; cout << n * 2 << endl; return 0; }`,
@@ -222,7 +232,7 @@ async function callGeminiAPI(
 
     return {
       content: stubs[config.language] || stubs.python,
-      stopReason: 'MAX_TOKENS',
+      stopReason: "MAX_TOKENS",
       usage: { input: 100, output: 50 },
     };
   }
@@ -239,12 +249,12 @@ async function callGeminiAPI(
     const text = response.text();
 
     if (!text) {
-      throw new TemplateDslError('No text content in Gemini response');
+      throw new TemplateDslError("No text content in Gemini response");
     }
 
     return {
       content: text,
-      stopReason: response.candidates?.[0]?.finishReason || 'UNKNOWN',
+      stopReason: response.candidates?.[0]?.finishReason || "UNKNOWN",
       usage: {
         input: response.usageMetadata?.promptTokenCount || 0,
         output: response.usageMetadata?.candidatesTokenCount || 0,
@@ -255,7 +265,7 @@ async function callGeminiAPI(
       throw error;
     }
     throw new TemplateDslError(
-      `Gemini API call failed: ${error instanceof Error ? error.message : String(error)}`
+      `Gemini API call failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }
@@ -266,7 +276,7 @@ async function callGeminiAPI(
 export async function generateModelAnswer(
   prompt: GenerationPrompt,
   generationSeed: string,
-  config: LLMGeneratorConfig = DEFAULT_LLM_CONFIG
+  config: LLMGeneratorConfig = DEFAULT_LLM_CONFIG,
 ): Promise<ModelAnswer> {
   const { system, user } = constructGeminiPrompt(prompt);
   let lastError: Error | null = null;
@@ -281,7 +291,7 @@ export async function generateModelAnswer(
       const validation = validateGeneratedCode(code, config.language);
       if (!validation.valid) {
         throw new TemplateDslError(
-          `Generated code validation failed: ${validation.errors.join(', ')}`
+          `Generated code validation failed: ${validation.errors.join(", ")}`,
         );
       }
 
@@ -315,7 +325,7 @@ export async function generateModelAnswer(
   }
 
   throw new TemplateDslError(
-    `Failed to generate model answer after ${config.retryAttempts} attempts: ${lastError?.message}`
+    `Failed to generate model answer after ${config.retryAttempts} attempts: ${lastError?.message}`,
   );
 }
 
@@ -328,7 +338,7 @@ export async function generateMultipleAnswers(
   prompt: GenerationPrompt,
   baseSeed: string,
   count: number = 3,
-  config: LLMGeneratorConfig = DEFAULT_LLM_CONFIG
+  config: LLMGeneratorConfig = DEFAULT_LLM_CONFIG,
 ): Promise<ModelAnswer[]> {
   const answers: ModelAnswer[] = [];
 

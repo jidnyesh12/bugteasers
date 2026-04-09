@@ -1,12 +1,10 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  fetchProblemSubmissions,
-} from '@/lib/api/submissions-client';
-import type { ProblemSubmissionHistoryItem } from '@/lib/submissions/types';
-import { queryKeys } from '@/lib/state/query';
+import { useCallback, useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchProblemSubmissions } from "@/lib/api/submissions-client";
+import type { ProblemSubmissionHistoryItem } from "@/lib/submissions/types";
+import { queryKeys } from "@/lib/state/query";
 
 interface UseProblemSubmissionsOptions {
   problemId: string;
@@ -24,7 +22,7 @@ interface UseProblemSubmissionsResult {
 }
 
 export function useProblemSubmissions(
-  options: UseProblemSubmissionsOptions
+  options: UseProblemSubmissionsOptions,
 ): UseProblemSubmissionsResult {
   const {
     problemId,
@@ -35,20 +33,18 @@ export function useProblemSubmissions(
   const queryClient = useQueryClient();
   const queryKey = useMemo(
     () => queryKeys.submissions.history(problemId, assignmentId),
-    [assignmentId, problemId]
+    [assignmentId, problemId],
   );
 
-  const {
-    data,
-    error,
-    isFetching,
-    refetch,
-  } = useQuery<ProblemSubmissionHistoryItem[]>({
+  const { data, error, isFetching, refetch } = useQuery<
+    ProblemSubmissionHistoryItem[]
+  >({
     queryKey,
-    queryFn: () => fetchProblemSubmissions({
-      problemId,
-      assignmentId,
-    }),
+    queryFn: () =>
+      fetchProblemSubmissions({
+        problemId,
+        assignmentId,
+      }),
     enabled,
   });
 
@@ -69,7 +65,7 @@ export function useProblemSubmissions(
     : error instanceof Error
       ? error.message
       : error
-        ? 'Failed to load submissions'
+        ? "Failed to load submissions"
         : null;
 
   return {

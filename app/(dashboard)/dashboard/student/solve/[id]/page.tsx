@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   useEffect,
@@ -8,55 +8,64 @@ import {
   useRef,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
-} from 'react';
-import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { useShallow } from 'zustand/react/shallow';
-import { useAuth } from '@/lib/auth/auth-context';
-import { FullPageLoader } from '@/components/ui/loading';
-import { useToast } from '@/components/ui/toast';
-import type { SupportedLanguage } from '@/lib/execution/types';
-import type { Assignment } from '@/lib/types';
-import { fetchAssignmentDetail } from '@/lib/api/assignments-client';
-import { queryKeys } from '@/lib/state/query';
-import { ProblemDetailsPanel } from './components/problem-details-panel';
-import { ProblemLoadErrorView } from './components/problem-load-error-view';
-import { SolveEditorToolbar } from './components/solve-editor-toolbar';
-import { StableCodeEditor, type StableCodeEditorHandle } from './components/stable-code-editor';
-import { ResetCodeDialog } from './components/reset-code-dialog';
-import { ExecutionOutputPanel } from './execution-output-panel';
+} from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { useShallow } from "zustand/react/shallow";
+import { useAuth } from "@/lib/auth/auth-context";
+import { FullPageLoader } from "@/components/ui/loading";
+import { useToast } from "@/components/ui/toast";
+import type { SupportedLanguage } from "@/lib/execution/types";
+import type { Assignment } from "@/lib/types";
+import { fetchAssignmentDetail } from "@/lib/api/assignments-client";
+import { queryKeys } from "@/lib/state/query";
+import { ProblemDetailsPanel } from "./components/problem-details-panel";
+import { ProblemLoadErrorView } from "./components/problem-load-error-view";
+import { SolveEditorToolbar } from "./components/solve-editor-toolbar";
+import {
+  StableCodeEditor,
+  type StableCodeEditorHandle,
+} from "./components/stable-code-editor";
+import { ResetCodeDialog } from "./components/reset-code-dialog";
+import { ExecutionOutputPanel } from "./execution-output-panel";
 import {
   buildOutputCaseRows,
   formatScoreLine,
   getOutputMeta,
   getRunningDetail,
-} from './execution-output-utils';
-import { getDefaultStarterCode, normalizeCode } from './utils/editor-code-utils';
+} from "./execution-output-utils";
+import {
+  getDefaultStarterCode,
+  normalizeCode,
+} from "./utils/editor-code-utils";
 import {
   buildSolveEditorDraftKey,
   buildSolveEditorPaneKey,
   DEFAULT_SOLVE_EDITOR_PANE_STATE,
   SOLVE_EDITOR_LAYOUT_BOUNDS,
   useSolveEditorStore,
-} from '@/lib/state/stores';
-import { normalizeSupportedLanguage } from '@/lib/execution/languages';
-import { useCodeMirrorConfig } from './hooks/use-codemirror-config';
-import { useProblemLoader } from './hooks/use-problem-loader';
-import { useProblemExecution, type ExecutionPanelResult } from './hooks/use-problem-execution';
+} from "@/lib/state/stores";
+import { normalizeSupportedLanguage } from "@/lib/execution/languages";
+import { useCodeMirrorConfig } from "./hooks/use-codemirror-config";
+import { useProblemLoader } from "./hooks/use-problem-loader";
+import {
+  useProblemExecution,
+  type ExecutionPanelResult,
+} from "./hooks/use-problem-execution";
 import {
   useExecutionErrorNotifier,
   useSubmissionResultNotifications,
-} from './hooks/use-execution-notifications';
+} from "./hooks/use-execution-notifications";
 import {
   useProblemSubmissionDisplay,
   type PendingSubmissionMeta,
-} from './hooks/use-problem-submission-display';
-import { useProblemSubmissions } from './hooks/use-problem-submissions';
-import { useSolveKeyboardShortcuts } from './hooks/use-solve-keyboard-shortcuts';
-import { useSolveEditorState } from './hooks/use-solve-editor-state';
-import type { ProblemSubmissionDisplayItem } from '@/lib/submissions/view-types';
+} from "./hooks/use-problem-submission-display";
+import { useProblemSubmissions } from "./hooks/use-problem-submissions";
+import { useSolveKeyboardShortcuts } from "./hooks/use-solve-keyboard-shortcuts";
+import { useSolveEditorState } from "./hooks/use-solve-editor-state";
+import type { ProblemSubmissionDisplayItem } from "@/lib/submissions/view-types";
 
-type AssignmentWindow = Pick<Assignment, 'id' | 'closed_at'>;
+type AssignmentWindow = Pick<Assignment, "id" | "closed_at">;
 
 export default function SolveProblemPage() {
   const router = useRouter();
@@ -68,7 +77,9 @@ export default function SolveProblemPage() {
   const layoutRef = useRef<HTMLDivElement | null>(null);
   const editorHandleRef = useRef<StableCodeEditorHandle | null>(null);
   const editorPanelRef = useRef<HTMLDivElement | null>(null);
-  const [dialogContainer, setDialogContainer] = useState<HTMLElement | null>(null);
+  const [dialogContainer, setDialogContainer] = useState<HTMLElement | null>(
+    null,
+  );
 
   const handleEditorPanelRef = useCallback((node: HTMLDivElement | null) => {
     editorPanelRef.current = node;
@@ -84,123 +95,136 @@ export default function SolveProblemPage() {
     setInitialEditorContent,
   } = useSolveEditorState(editorHandleRef);
 
-  const {
-    problem,
-    isLoading,
-    loadError,
-    loadProblem,
-  } = useProblemLoader({
+  const { problem, isLoading, loadError, loadProblem } = useProblemLoader({
     problemId: params.id,
     setInitialEditorContent,
     toast,
-    enabled: profile?.role === 'student',
+    enabled: profile?.role === "student",
   });
 
-  const [outputTab, setOutputTab] = useState<'testcase' | 'result'>('result');
+  const [outputTab, setOutputTab] = useState<"testcase" | "result">("result");
   const [selectedCaseIndex, setSelectedCaseIndex] = useState(0);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-  const [pendingSubmissionMeta, setPendingSubmissionMeta] = useState<PendingSubmissionMeta | null>(null);
+  const [pendingSubmissionMeta, setPendingSubmissionMeta] =
+    useState<PendingSubmissionMeta | null>(null);
   const [pendingSubmissionLoad, setPendingSubmissionLoad] = useState<{
     language: SupportedLanguage;
     code: string;
   } | null>(null);
   const pendingSubmissionNeedsBaseRemountRef = useRef(false);
 
-  const assignmentId = searchParams.get('assignmentId') || undefined;
+  const assignmentId = searchParams.get("assignmentId") || undefined;
 
-  const {
-    data: assignmentWindow,
-    isFetching: isAssignmentWindowLoading,
-  } = useQuery<AssignmentWindow>({
-    queryKey: queryKeys.assignments.detail(assignmentId ?? 'practice'),
-    queryFn: () => fetchAssignmentDetail<AssignmentWindow>(assignmentId as string),
-    enabled: Boolean(assignmentId) && profile?.role === 'student',
-  });
+  const { data: assignmentWindow, isFetching: isAssignmentWindowLoading } =
+    useQuery<AssignmentWindow>({
+      queryKey: queryKeys.assignments.detail(assignmentId ?? "practice"),
+      queryFn: () =>
+        fetchAssignmentDetail<AssignmentWindow>(assignmentId as string),
+      enabled: Boolean(assignmentId) && profile?.role === "student",
+    });
 
   const assignmentClosedAt = assignmentWindow?.closed_at;
   const isAssignmentClosed =
-    typeof assignmentClosedAt === 'string' && assignmentClosedAt.trim().length > 0;
+    typeof assignmentClosedAt === "string" &&
+    assignmentClosedAt.trim().length > 0;
 
   const submitBlockedReason = !assignmentId
     ? undefined
     : isAssignmentWindowLoading
-      ? 'Checking assignment status...'
+      ? "Checking assignment status..."
       : isAssignmentClosed
-        ? 'Assignment is closed. Submissions are disabled.'
+        ? "Assignment is closed. Submissions are disabled."
         : undefined;
-  const paneStorageKey = useMemo(() => buildSolveEditorPaneKey({
-    userId: profile?.id ?? null,
-    problemId: params.id,
-  }), [params.id, profile?.id]);
+  const paneStorageKey = useMemo(
+    () =>
+      buildSolveEditorPaneKey({
+        userId: profile?.id ?? null,
+        problemId: params.id,
+      }),
+    [params.id, profile?.id],
+  );
 
-  const draftStorageKey = useMemo(() => buildSolveEditorDraftKey({
-    userId: profile?.id ?? null,
-    problemId: params.id,
-    language,
-  }), [language, params.id, profile?.id]);
+  const draftStorageKey = useMemo(
+    () =>
+      buildSolveEditorDraftKey({
+        userId: profile?.id ?? null,
+        problemId: params.id,
+        language,
+      }),
+    [language, params.id, profile?.id],
+  );
 
-  const {
-    paneState,
-    draftCode,
-    setDraft,
-    setPaneState,
-  } = useSolveEditorStore(
+  const { paneState, draftCode, setDraft, setPaneState } = useSolveEditorStore(
     useShallow((state) => ({
-      paneState: state.paneState[paneStorageKey] ?? DEFAULT_SOLVE_EDITOR_PANE_STATE,
+      paneState:
+        state.paneState[paneStorageKey] ?? DEFAULT_SOLVE_EDITOR_PANE_STATE,
       draftCode: state.drafts[draftStorageKey],
       setDraft: state.setDraft,
       setPaneState: state.setPaneState,
-    }))
+    })),
   );
 
-  const handlePaneResizeStart = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    const layoutElement = layoutRef.current;
-    if (!layoutElement) {
-      return;
-    }
+  const handlePaneResizeStart = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const layoutElement = layoutRef.current;
+      if (!layoutElement) {
+        return;
+      }
 
-    const startX = event.clientX;
-    const startWidth = paneState.leftPaneWidth;
-    const layoutWidth = layoutElement.getBoundingClientRect().width;
+      const startX = event.clientX;
+      const startWidth = paneState.leftPaneWidth;
+      const layoutWidth = layoutElement.getBoundingClientRect().width;
 
-    if (layoutWidth <= 0) {
-      return;
-    }
+      if (layoutWidth <= 0) {
+        return;
+      }
 
-    const onPointerMove = (moveEvent: PointerEvent) => {
-      const deltaPercent = ((moveEvent.clientX - startX) / layoutWidth) * 100;
-      const nextWidth = Math.min(
-        SOLVE_EDITOR_LAYOUT_BOUNDS.leftPane.maxWidthPercent,
-        Math.max(SOLVE_EDITOR_LAYOUT_BOUNDS.leftPane.minWidthPercent, startWidth + deltaPercent)
-      );
-      setPaneState(paneStorageKey, { leftPaneWidth: nextWidth });
-    };
+      const onPointerMove = (moveEvent: PointerEvent) => {
+        const deltaPercent = ((moveEvent.clientX - startX) / layoutWidth) * 100;
+        const nextWidth = Math.min(
+          SOLVE_EDITOR_LAYOUT_BOUNDS.leftPane.maxWidthPercent,
+          Math.max(
+            SOLVE_EDITOR_LAYOUT_BOUNDS.leftPane.minWidthPercent,
+            startWidth + deltaPercent,
+          ),
+        );
+        setPaneState(paneStorageKey, { leftPaneWidth: nextWidth });
+      };
 
-    const onPointerUp = () => {
-      document.body.style.removeProperty('user-select');
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-    };
+      const onPointerUp = () => {
+        document.body.style.removeProperty("user-select");
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerup", onPointerUp);
+      };
 
-    document.body.style.setProperty('user-select', 'none');
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-  }, [paneState.leftPaneWidth, paneStorageKey, setPaneState]);
+      document.body.style.setProperty("user-select", "none");
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp);
+    },
+    [paneState.leftPaneWidth, paneStorageKey, setPaneState],
+  );
 
-  const layoutStyle = useMemo(() => ({
-    '--solve-left-pane-width': `${paneState.leftPaneWidth}%`,
-  } as CSSProperties), [paneState.leftPaneWidth]);
+  const layoutStyle = useMemo(
+    () =>
+      ({
+        "--solve-left-pane-width": `${paneState.leftPaneWidth}%`,
+      }) as CSSProperties,
+    [paneState.leftPaneWidth],
+  );
 
   const getCurrentCode = useCallback(() => codeRef.current, [codeRef]);
   const handleExecutionError = useExecutionErrorNotifier(toast);
-  const handleExecutionResult = useCallback((nextResult: ExecutionPanelResult) => {
-    if (nextResult.status === 'passed') {
-      setSelectedCaseIndex(Math.max(nextResult.results.length - 1, 0));
-      return;
-    }
+  const handleExecutionResult = useCallback(
+    (nextResult: ExecutionPanelResult) => {
+      if (nextResult.status === "passed") {
+        setSelectedCaseIndex(Math.max(nextResult.results.length - 1, 0));
+        return;
+      }
 
-    setSelectedCaseIndex(0);
-  }, []);
+      setSelectedCaseIndex(0);
+    },
+    [],
+  );
 
   const {
     isRunning,
@@ -229,17 +253,26 @@ export default function SolveProblemPage() {
     problemId: params.id,
     assignmentId,
     enabled: Boolean(profile?.id) && Boolean(problem),
-    refreshToken: executionResult?.mode === 'submit' ? executionResult.submissionId ?? null : null,
+    refreshToken:
+      executionResult?.mode === "submit"
+        ? (executionResult.submissionId ?? null)
+        : null,
   });
 
   useEffect(() => {
     if (!initialized || authLoading) return;
-    if (!profile) { router.replace('/login'); return; }
-    if (profile.role !== 'student') { router.replace('/dashboard/instructor'); return; }
+    if (!profile) {
+      router.replace("/login");
+      return;
+    }
+    if (profile.role !== "student") {
+      router.replace("/dashboard/instructor");
+      return;
+    }
   }, [profile, authLoading, initialized, router]);
 
   const handleRunClick = useCallback(() => {
-    setOutputTab('result');
+    setOutputTab("result");
     setPaneState(paneStorageKey, { isOutputCollapsed: false });
     void runCode();
   }, [paneStorageKey, runCode, setPaneState]);
@@ -247,12 +280,15 @@ export default function SolveProblemPage() {
   const handleSubmitClick = useCallback(() => {
     if (assignmentId) {
       if (isAssignmentWindowLoading) {
-        toast('Checking assignment status. Please try again in a moment.', 'info');
+        toast(
+          "Checking assignment status. Please try again in a moment.",
+          "info",
+        );
         return;
       }
 
       if (isAssignmentClosed) {
-        toast('Assignment is closed. Submissions are disabled.', 'warning');
+        toast("Assignment is closed. Submissions are disabled.", "warning");
         return;
       }
     }
@@ -262,7 +298,7 @@ export default function SolveProblemPage() {
       language,
       submittedAt: new Date().toISOString(),
     });
-    setOutputTab('result');
+    setOutputTab("result");
     setPaneState(paneStorageKey, { isOutputCollapsed: false });
     void submitCode();
   }, [
@@ -282,27 +318,30 @@ export default function SolveProblemPage() {
     onSubmitShortcut: handleSubmitClick,
   });
 
-  const handleLanguageChange = useCallback((newLanguage: SupportedLanguage) => {
-    if (newLanguage === language) {
-      return;
-    }
+  const handleLanguageChange = useCallback(
+    (newLanguage: SupportedLanguage) => {
+      if (newLanguage === language) {
+        return;
+      }
 
-    setDraft(draftStorageKey, codeRef.current);
-    setLanguage(newLanguage);
-  }, [codeRef, draftStorageKey, language, setDraft, setLanguage]);
+      setDraft(draftStorageKey, codeRef.current);
+      setLanguage(newLanguage);
+    },
+    [codeRef, draftStorageKey, language, setDraft, setLanguage],
+  );
 
-  const handleEditorCodeChange = useCallback((nextCode: string) => {
-    handleCodeChange(nextCode);
-    setDraft(draftStorageKey, nextCode);
-  }, [draftStorageKey, handleCodeChange, setDraft]);
+  const handleEditorCodeChange = useCallback(
+    (nextCode: string) => {
+      handleCodeChange(nextCode);
+      setDraft(draftStorageKey, nextCode);
+    },
+    [draftStorageKey, handleCodeChange, setDraft],
+  );
 
-  const {
-    editorExtensions,
-    editorBasicSetup,
-    editorTheme,
-  } = useCodeMirrorConfig({
-    language,
-  });
+  const { editorExtensions, editorBasicSetup, editorTheme } =
+    useCodeMirrorConfig({
+      language,
+    });
 
   const getStarterCode = useCallback((targetLanguage: SupportedLanguage) => {
     return getDefaultStarterCode(targetLanguage);
@@ -314,13 +353,17 @@ export default function SolveProblemPage() {
     }
 
     const nextCode = draftCode ?? getStarterCode(language);
-    const shouldRemountBaseForPendingSubmission = pendingSubmissionNeedsBaseRemountRef.current;
+    const shouldRemountBaseForPendingSubmission =
+      pendingSubmissionNeedsBaseRemountRef.current;
 
-    if (!shouldRemountBaseForPendingSubmission && codeRef.current === nextCode) {
+    if (
+      !shouldRemountBaseForPendingSubmission &&
+      codeRef.current === nextCode
+    ) {
       return;
     }
 
-    setEditorContent(nextCode, 'remount');
+    setEditorContent(nextCode, "remount");
 
     if (shouldRemountBaseForPendingSubmission) {
       pendingSubmissionNeedsBaseRemountRef.current = false;
@@ -336,13 +379,13 @@ export default function SolveProblemPage() {
       return;
     }
 
-    setEditorContent(pendingSubmissionLoad.code, 'replace');
+    setEditorContent(pendingSubmissionLoad.code, "replace");
     setPendingSubmissionLoad(null);
   }, [language, pendingSubmissionLoad, setEditorContent]);
 
   const resetToStarterCode = useCallback(() => {
     const starter = getStarterCode(language);
-    setEditorContent(starter, 'replace');
+    setEditorContent(starter, "replace");
     setDraft(draftStorageKey, starter);
   }, [draftStorageKey, getStarterCode, language, setDraft, setEditorContent]);
 
@@ -378,45 +421,51 @@ export default function SolveProblemPage() {
     resetToStarterCode();
   }, [codeRef, getStarterCode, language, resetToStarterCode]);
 
-  const handleLoadSubmissionCode = useCallback((submission: ProblemSubmissionDisplayItem) => {
-    const targetLanguage = normalizeSupportedLanguage(submission.language);
-    if (!targetLanguage) {
-      toast(`Cannot load submission: unsupported language "${submission.language}".`, 'warning');
-      return;
-    }
+  const handleLoadSubmissionCode = useCallback(
+    (submission: ProblemSubmissionDisplayItem) => {
+      const targetLanguage = normalizeSupportedLanguage(submission.language);
+      if (!targetLanguage) {
+        toast(
+          `Cannot load submission: unsupported language "${submission.language}".`,
+          "warning",
+        );
+        return;
+      }
 
-    if (targetLanguage !== language) {
-      setDraft(draftStorageKey, codeRef.current);
-      pendingSubmissionNeedsBaseRemountRef.current = true;
-      setPendingSubmissionLoad({
-        language: targetLanguage,
-        code: submission.code,
-      });
-      const targetDraftStorageKey = buildSolveEditorDraftKey({
-        userId: profile?.id ?? null,
-        problemId: params.id,
-        language: targetLanguage,
-      });
-      setDraft(targetDraftStorageKey, submission.code);
-      setLanguage(targetLanguage);
-      return;
-    }
+      if (targetLanguage !== language) {
+        setDraft(draftStorageKey, codeRef.current);
+        pendingSubmissionNeedsBaseRemountRef.current = true;
+        setPendingSubmissionLoad({
+          language: targetLanguage,
+          code: submission.code,
+        });
+        const targetDraftStorageKey = buildSolveEditorDraftKey({
+          userId: profile?.id ?? null,
+          problemId: params.id,
+          language: targetLanguage,
+        });
+        setDraft(targetDraftStorageKey, submission.code);
+        setLanguage(targetLanguage);
+        return;
+      }
 
-    pendingSubmissionNeedsBaseRemountRef.current = false;
-    setPendingSubmissionLoad(null);
-    setEditorContent(submission.code, 'replace');
-  }, [
-    codeRef,
-    draftStorageKey,
-    language,
-    params.id,
-    profile?.id,
-    setDraft,
-    setPendingSubmissionLoad,
-    setEditorContent,
-    setLanguage,
-    toast,
-  ]);
+      pendingSubmissionNeedsBaseRemountRef.current = false;
+      setPendingSubmissionLoad(null);
+      setEditorContent(submission.code, "replace");
+    },
+    [
+      codeRef,
+      draftStorageKey,
+      language,
+      params.id,
+      profile?.id,
+      setDraft,
+      setPendingSubmissionLoad,
+      setEditorContent,
+      setLanguage,
+      toast,
+    ],
+  );
 
   const submissionsForDisplay = useProblemSubmissionDisplay({
     submissions,
@@ -427,20 +476,28 @@ export default function SolveProblemPage() {
 
   const caseRows = useMemo(
     () => buildOutputCaseRows(problem?.test_cases, executionResult),
-    [executionResult, problem?.test_cases]
+    [executionResult, problem?.test_cases],
   );
-  const displayedCaseIndex = caseRows.length === 0
-    ? 0
-    : Math.min(selectedCaseIndex, caseRows.length - 1);
+  const displayedCaseIndex =
+    caseRows.length === 0
+      ? 0
+      : Math.min(selectedCaseIndex, caseRows.length - 1);
 
-  const outputMeta = useMemo(() => getOutputMeta(executionResult), [executionResult]);
-  const scoreLine = useMemo(() => formatScoreLine(executionResult?.score), [executionResult?.score]);
+  const outputMeta = useMemo(
+    () => getOutputMeta(executionResult),
+    [executionResult],
+  );
+  const scoreLine = useMemo(
+    () => formatScoreLine(executionResult?.score),
+    [executionResult?.score],
+  );
   const runningDetail = useMemo(
     () => getRunningDetail(executionResult, outputMeta),
-    [executionResult, outputMeta]
+    [executionResult, outputMeta],
   );
 
-  if (!initialized || authLoading || !profile || isLoading) return <FullPageLoader />;
+  if (!initialized || authLoading || !profile || isLoading)
+    return <FullPageLoader />;
   if (loadError) {
     return (
       <ProblemLoadErrorView
@@ -495,7 +552,11 @@ export default function SolveProblemPage() {
         />
 
         {/* CodeMirror Editor — Tab inserts indent, Enter preserves indentation */}
-        <div ref={handleEditorPanelRef} className="flex-1 flex flex-col overflow-hidden relative" style={{ minHeight: 0 }}>
+        <div
+          ref={handleEditorPanelRef}
+          className="flex-1 flex flex-col overflow-hidden relative"
+          style={{ minHeight: 0 }}
+        >
           <div className="flex-1 overflow-auto min-h-0" tabIndex={-1}>
             <StableCodeEditor
               key={`editor-${editorSeed.version}`}

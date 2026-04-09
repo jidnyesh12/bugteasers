@@ -7,7 +7,10 @@
  * generation_seed to ensure reproducibility.
  */
 
-import type { TemplateGeneratedValue, TestCaseInputTemplate } from '../template-dsl/types';
+import type {
+  TemplateGeneratedValue,
+  TestCaseInputTemplate,
+} from "../template-dsl/types";
 
 export type { TemplateGeneratedValue, TestCaseInputTemplate };
 
@@ -20,15 +23,15 @@ export const ORACLE_PAIR_VERSION = 1;
  * - DISTRIBUTION: Validity measured at batch level, not single case
  */
 export enum ConstraintLevel {
-  HARD = 'hard',
-  SOFT = 'soft',
-  DISTRIBUTION = 'distribution',
+  HARD = "hard",
+  SOFT = "soft",
+  DISTRIBUTION = "distribution",
 }
 
 /**
  * Constraint Check Result: Outcome of a single constraint check
  */
-export type ConstraintCheckOutcome = 'satisfied' | 'violated' | 'unknown';
+export type ConstraintCheckOutcome = "satisfied" | "violated" | "unknown";
 
 /**
  * DSL Constraint Definition
@@ -41,11 +44,13 @@ export interface DSLConstraint {
   /** Check function: true if constraint is satisfied */
   check: (testCase: MaterializedTestCaseWithVariables) => boolean;
   /** Repair function (for soft constraints only) */
-  repair?: (testCase: MaterializedTestCaseWithVariables) => MaterializedTestCaseWithVariables;
+  repair?: (
+    testCase: MaterializedTestCaseWithVariables,
+  ) => MaterializedTestCaseWithVariables;
   /** Max repair attempts before giving up */
   maxRepairAttempts?: number;
   /** Categories: bounds, structure, output, etc. */
-  category: 'bounds' | 'structure' | 'output' | 'other';
+  category: "bounds" | "structure" | "output" | "other";
 }
 
 /**
@@ -79,7 +84,10 @@ export interface ConstraintValidationResult {
       success: boolean;
       error?: string;
     }>;
-    finalState: 'valid' | 'violated_impossible_to_repair' | 'exceeded_max_attempts';
+    finalState:
+      | "valid"
+      | "violated_impossible_to_repair"
+      | "exceeded_max_attempts";
   };
 }
 
@@ -111,7 +119,15 @@ export interface TestCase {
 /**
  * Supported Programming Languages
  */
-export type SupportedLanguage = 'python' | 'cpp' | 'java' | 'javascript' | 'typescript' | 'csharp' | 'go' | 'rust';
+export type SupportedLanguage =
+  | "python"
+  | "cpp"
+  | "java"
+  | "javascript"
+  | "typescript"
+  | "csharp"
+  | "go"
+  | "rust";
 
 /**
  * Model Answer (reference implementation)
@@ -144,7 +160,7 @@ export interface OraclePair {
   metadata?: {
     problemId?: string;
     problemName?: string;
-    difficulty?: 'easy' | 'medium' | 'hard';
+    difficulty?: "easy" | "medium" | "hard";
     tags?: string[];
   };
 }
@@ -152,17 +168,32 @@ export interface OraclePair {
 /**
  * Status of test case validation
  */
-export type TestCaseStatus = 'valid' | 'constraint_violation' | 'malformed' | 'pending_repair';
+export type TestCaseStatus =
+  | "valid"
+  | "constraint_violation"
+  | "malformed"
+  | "pending_repair";
 
 /**
  * Status of model answer validation
  */
-export type ModelAnswerStatus = 'correct' | 'wrong' | 'runtime_error' | 'timeout' | 'syntax_error' | 'pending_repair';
+export type ModelAnswerStatus =
+  | "correct"
+  | "wrong"
+  | "runtime_error"
+  | "timeout"
+  | "syntax_error"
+  | "pending_repair";
 
 /**
  * Which side of the oracle pair is likely wrong
  */
-export type FailureAttribution = 'test_case_error' | 'model_answer_error' | 'both_wrong' | 'unknown' | 'non_determinism';
+export type FailureAttribution =
+  | "test_case_error"
+  | "model_answer_error"
+  | "both_wrong"
+  | "unknown"
+  | "non_determinism";
 
 /**
  * Execution result from running a model answer on test input
@@ -172,7 +203,7 @@ export interface ExecutionResult {
   exitCode: number;
   stderr?: string;
   duration: number; // ms
-  status: 'success' | 'timeout' | 'error';
+  status: "success" | "timeout" | "error";
 }
 
 /**
@@ -234,11 +265,11 @@ export interface OracleValidationResult {
  * Repair Action Type
  */
 export enum RepairActionType {
-  UPDATE_EXPECTED_OUTPUT = 'update_expected_output',
-  REGEN_INPUT_DATA = 'regen_input_data',
-  REGEN_MODEL_ANSWER = 'regen_model_answer',
-  USE_REFERENCE_IMPL = 'use_reference_implementation',
-  MANUAL_REVIEW = 'manual_review',
+  UPDATE_EXPECTED_OUTPUT = "update_expected_output",
+  REGEN_INPUT_DATA = "regen_input_data",
+  REGEN_MODEL_ANSWER = "regen_model_answer",
+  USE_REFERENCE_IMPL = "use_reference_implementation",
+  MANUAL_REVIEW = "manual_review",
 }
 
 /**
@@ -283,7 +314,7 @@ export interface RepairLog {
   }>;
 
   // Final state
-  finalStatus: 'repaired' | 'escalated' | 'failed';
+  finalStatus: "repaired" | "escalated" | "failed";
   finalValidation?: OracleValidationResult;
   finalPair?: OraclePair;
   requiresManualReview: boolean;
@@ -327,14 +358,14 @@ export interface BatchOracleGenerationResult {
  * Type guard: Check if an object is an OraclePair
  */
 export function isOraclePair(obj: unknown): obj is OraclePair {
-  if (!obj || typeof obj !== 'object') return false;
+  if (!obj || typeof obj !== "object") return false;
   const pair = obj as Record<string, unknown>;
   return (
     pair.version === ORACLE_PAIR_VERSION &&
-    typeof pair.generationSeed === 'string' &&
-    typeof pair.testCase === 'object' &&
-    typeof pair.modelAnswer === 'object' &&
-    typeof pair.createdAt === 'string'
+    typeof pair.generationSeed === "string" &&
+    typeof pair.testCase === "object" &&
+    typeof pair.modelAnswer === "object" &&
+    typeof pair.createdAt === "string"
   );
 }
 
@@ -344,8 +375,9 @@ export function isOraclePair(obj: unknown): obj is OraclePair {
 export function isConsistent(result: OracleValidationResult): boolean {
   return (
     result.isConsistent &&
-    result.testCaseStatus === 'valid' &&
-    (result.modelAnswerStatus === 'correct' || result.modelAnswerStatus === 'pending_repair') &&
+    result.testCaseStatus === "valid" &&
+    (result.modelAnswerStatus === "correct" ||
+      result.modelAnswerStatus === "pending_repair") &&
     result.outputMatch
   );
 }

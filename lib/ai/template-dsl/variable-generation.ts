@@ -1,40 +1,41 @@
-import { TemplateDslError } from './errors';
-import {
-  assertValidConstValue,
-  cloneGeneratedValue,
-  isScalar,
-} from './guards';
-import { resolveNumericRef, resolveRange, toPositiveInteger } from './numeric';
-import { DeterministicRandom } from './random';
-import { MAX_COLLECTION_SIZE } from './types';
-import type {
-  TemplateGeneratedValue,
-  TestCaseTemplateVariable,
-} from './types';
+import { TemplateDslError } from "./errors";
+import { assertValidConstValue, cloneGeneratedValue, isScalar } from "./guards";
+import { resolveNumericRef, resolveRange, toPositiveInteger } from "./numeric";
+import { DeterministicRandom } from "./random";
+import { MAX_COLLECTION_SIZE } from "./types";
+import type { TemplateGeneratedValue, TestCaseTemplateVariable } from "./types";
 
 function generateIntArray(
-  spec: Extract<TestCaseTemplateVariable, { type: 'int_array' }>,
+  spec: Extract<TestCaseTemplateVariable, { type: "int_array" }>,
   context: Readonly<Record<string, TemplateGeneratedValue>>,
-  random: DeterministicRandom
+  random: DeterministicRandom,
 ): number[] {
   const length = toPositiveInteger(
-    resolveNumericRef(spec.length, context, 'int_array.length'),
-    'int_array.length',
-    true
+    resolveNumericRef(spec.length, context, "int_array.length"),
+    "int_array.length",
+    true,
   );
 
   if (length > MAX_COLLECTION_SIZE) {
-    throw new TemplateDslError(`int_array length cannot exceed ${MAX_COLLECTION_SIZE}`);
+    throw new TemplateDslError(
+      `int_array length cannot exceed ${MAX_COLLECTION_SIZE}`,
+    );
   }
 
-  const { min, max } = resolveRange({ min: spec.min, max: spec.max }, context, 'int_array');
+  const { min, max } = resolveRange(
+    { min: spec.min, max: spec.max },
+    context,
+    "int_array",
+  );
 
   const values: number[] = [];
 
   if (spec.unique) {
     const rangeSize = max - min + 1;
     if (rangeSize < length) {
-      throw new TemplateDslError('int_array.unique=true requires a value range at least as large as length');
+      throw new TemplateDslError(
+        "int_array.unique=true requires a value range at least as large as length",
+      );
     }
 
     const used = new Set<number>();
@@ -51,11 +52,11 @@ function generateIntArray(
     }
   }
 
-  if (spec.sorted === 'asc') {
+  if (spec.sorted === "asc") {
     values.sort((a, b) => a - b);
   }
 
-  if (spec.sorted === 'desc') {
+  if (spec.sorted === "desc") {
     values.sort((a, b) => b - a);
   }
 
@@ -63,18 +64,32 @@ function generateIntArray(
 }
 
 function generateMatrix(
-  spec: Extract<TestCaseTemplateVariable, { type: 'matrix' }>,
+  spec: Extract<TestCaseTemplateVariable, { type: "matrix" }>,
   context: Readonly<Record<string, TemplateGeneratedValue>>,
-  random: DeterministicRandom
+  random: DeterministicRandom,
 ): number[][] {
-  const rows = toPositiveInteger(resolveNumericRef(spec.rows, context, 'matrix.rows'), 'matrix.rows', true);
-  const cols = toPositiveInteger(resolveNumericRef(spec.cols, context, 'matrix.cols'), 'matrix.cols', true);
+  const rows = toPositiveInteger(
+    resolveNumericRef(spec.rows, context, "matrix.rows"),
+    "matrix.rows",
+    true,
+  );
+  const cols = toPositiveInteger(
+    resolveNumericRef(spec.cols, context, "matrix.cols"),
+    "matrix.cols",
+    true,
+  );
 
   if (rows * cols > MAX_COLLECTION_SIZE) {
-    throw new TemplateDslError(`matrix cells cannot exceed ${MAX_COLLECTION_SIZE}`);
+    throw new TemplateDslError(
+      `matrix cells cannot exceed ${MAX_COLLECTION_SIZE}`,
+    );
   }
 
-  const { min, max } = resolveRange({ min: spec.min, max: spec.max }, context, 'matrix');
+  const { min, max } = resolveRange(
+    { min: spec.min, max: spec.max },
+    context,
+    "matrix",
+  );
   const matrix: number[][] = [];
 
   for (let row = 0; row < rows; row += 1) {
@@ -89,18 +104,24 @@ function generateMatrix(
 }
 
 function generatePairs(
-  spec: Extract<TestCaseTemplateVariable, { type: 'pairs' }>,
+  spec: Extract<TestCaseTemplateVariable, { type: "pairs" }>,
   context: Readonly<Record<string, TemplateGeneratedValue>>,
-  random: DeterministicRandom
+  random: DeterministicRandom,
 ): number[][] {
-  const count = toPositiveInteger(resolveNumericRef(spec.count, context, 'pairs.count'), 'pairs.count', true);
+  const count = toPositiveInteger(
+    resolveNumericRef(spec.count, context, "pairs.count"),
+    "pairs.count",
+    true,
+  );
 
   if (count > MAX_COLLECTION_SIZE) {
-    throw new TemplateDslError(`pairs.count cannot exceed ${MAX_COLLECTION_SIZE}`);
+    throw new TemplateDslError(
+      `pairs.count cannot exceed ${MAX_COLLECTION_SIZE}`,
+    );
   }
 
-  const firstRange = resolveRange(spec.first, context, 'pairs.first');
-  const secondRange = resolveRange(spec.second, context, 'pairs.second');
+  const firstRange = resolveRange(spec.first, context, "pairs.first");
+  const secondRange = resolveRange(spec.second, context, "pairs.second");
 
   if (spec.unique) {
     const leftChoices = firstRange.max - firstRange.min + 1;
@@ -108,7 +129,7 @@ function generatePairs(
     const maxUniquePairs = leftChoices * rightChoices;
     if (count > maxUniquePairs) {
       throw new TemplateDslError(
-        'pairs.unique=true requires count to be less than or equal to available unique combinations'
+        "pairs.unique=true requires count to be less than or equal to available unique combinations",
       );
     }
   }
@@ -153,11 +174,7 @@ function maxDistinctEdges(params: {
   return params.allowSelfLoops ? withoutSelf + params.nodes : withoutSelf;
 }
 
-function encodeEdgeKey(
-  from: number,
-  to: number,
-  directed: boolean
-): string {
+function encodeEdgeKey(from: number, to: number, directed: boolean): string {
   if (directed) {
     return `${from}>${to}`;
   }
@@ -166,12 +183,20 @@ function encodeEdgeKey(
 }
 
 function generateGraph(
-  spec: Extract<TestCaseTemplateVariable, { type: 'graph' }>,
+  spec: Extract<TestCaseTemplateVariable, { type: "graph" }>,
   context: Readonly<Record<string, TemplateGeneratedValue>>,
-  random: DeterministicRandom
+  random: DeterministicRandom,
 ): number[][] {
-  const nodes = toPositiveInteger(resolveNumericRef(spec.nodes, context, 'graph.nodes'), 'graph.nodes', true);
-  const edges = toPositiveInteger(resolveNumericRef(spec.edges, context, 'graph.edges'), 'graph.edges', true);
+  const nodes = toPositiveInteger(
+    resolveNumericRef(spec.nodes, context, "graph.nodes"),
+    "graph.nodes",
+    true,
+  );
+  const edges = toPositiveInteger(
+    resolveNumericRef(spec.edges, context, "graph.edges"),
+    "graph.edges",
+    true,
+  );
 
   const directed = spec.directed ?? false;
   const connected = spec.connected ?? false;
@@ -181,18 +206,24 @@ function generateGraph(
   const allowMultiEdges = spec.allowMultiEdges ?? false;
 
   if (connected && nodes > 0 && edges < nodes - 1) {
-    throw new TemplateDslError('graph.connected=true requires edges >= nodes - 1');
+    throw new TemplateDslError(
+      "graph.connected=true requires edges >= nodes - 1",
+    );
   }
 
   if (!allowMultiEdges) {
     const maxEdges = maxDistinctEdges({ nodes, directed, allowSelfLoops });
     if (edges > maxEdges) {
-      throw new TemplateDslError('graph.edges exceeds maximum distinct edges for the chosen options');
+      throw new TemplateDslError(
+        "graph.edges exceeds maximum distinct edges for the chosen options",
+      );
     }
   }
 
   if (edges > MAX_COLLECTION_SIZE) {
-    throw new TemplateDslError(`graph.edges cannot exceed ${MAX_COLLECTION_SIZE}`);
+    throw new TemplateDslError(
+      `graph.edges cannot exceed ${MAX_COLLECTION_SIZE}`,
+    );
   }
 
   let weightRange: { min: number; max: number } | null = null;
@@ -200,7 +231,7 @@ function generateGraph(
     weightRange = resolveRange(
       { min: spec.minWeight ?? 1, max: spec.maxWeight ?? 1_000_000_000 },
       context,
-      'graph.weight'
+      "graph.weight",
     );
   }
 
@@ -223,7 +254,11 @@ function generateGraph(
     const to = oneIndexed ? toNode + 1 : toNode;
 
     if (weighted && weightRange) {
-      edgeList.push([from, to, random.nextInt(weightRange.min, weightRange.max)]);
+      edgeList.push([
+        from,
+        to,
+        random.nextInt(weightRange.min, weightRange.max),
+      ]);
     } else {
       edgeList.push([from, to]);
     }
@@ -243,11 +278,14 @@ function generateGraph(
 
   while (edgeList.length < edges) {
     if (guard > maxGuard) {
-      throw new TemplateDslError('Unable to generate graph edges with the requested constraints');
+      throw new TemplateDslError(
+        "Unable to generate graph edges with the requested constraints",
+      );
     }
     guard += 1;
 
-    const fromNode = nodes === 0 ? 0 : random.nextInt(0, Math.max(0, nodes - 1));
+    const fromNode =
+      nodes === 0 ? 0 : random.nextInt(0, Math.max(0, nodes - 1));
     const toNode = nodes === 0 ? 0 : random.nextInt(0, Math.max(0, nodes - 1));
 
     maybeAddEdge(fromNode, toNode);
@@ -256,45 +294,57 @@ function generateGraph(
   return edgeList;
 }
 
-function resolveAlphabet(spec: Extract<TestCaseTemplateVariable, { type: 'string' }>): string {
-  if (typeof spec.alphabet === 'string' && spec.alphabet.length > 0) {
+function resolveAlphabet(
+  spec: Extract<TestCaseTemplateVariable, { type: "string" }>,
+): string {
+  if (typeof spec.alphabet === "string" && spec.alphabet.length > 0) {
     return spec.alphabet;
   }
 
   switch (spec.charset) {
-    case 'upper':
-      return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    case 'alpha':
-      return 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    case 'alnum':
-      return 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    case 'digits':
-      return '0123456789';
-    case 'lower':
+    case "upper":
+      return "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    case "alpha":
+      return "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    case "alnum":
+      return "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    case "digits":
+      return "0123456789";
+    case "lower":
     default:
-      return 'abcdefghijklmnopqrstuvwxyz';
+      return "abcdefghijklmnopqrstuvwxyz";
   }
 }
 
 export function generateVariableValue(
   spec: TestCaseTemplateVariable,
   context: Readonly<Record<string, TemplateGeneratedValue>>,
-  random: DeterministicRandom
+  random: DeterministicRandom,
 ): TemplateGeneratedValue {
   switch (spec.type) {
-    case 'const': {
+    case "const": {
       assertValidConstValue(spec.value);
       return cloneGeneratedValue(spec.value);
     }
 
-    case 'int': {
-      const { min, max } = resolveRange({ min: spec.min, max: spec.max }, context, 'int');
+    case "int": {
+      const { min, max } = resolveRange(
+        { min: spec.min, max: spec.max },
+        context,
+        "int",
+      );
       return random.nextInt(min, max);
     }
 
-    case 'choice': {
-      if (!Array.isArray(spec.values) || spec.values.length === 0 || !spec.values.every(isScalar)) {
-        throw new TemplateDslError('choice.values must be a non-empty array of strings or numbers');
+    case "choice": {
+      if (
+        !Array.isArray(spec.values) ||
+        spec.values.length === 0 ||
+        !spec.values.every(isScalar)
+      ) {
+        throw new TemplateDslError(
+          "choice.values must be a non-empty array of strings or numbers",
+        );
       }
 
       if (spec.weights) {
@@ -304,62 +354,80 @@ export function generateVariableValue(
       return random.pick(spec.values);
     }
 
-    case 'string': {
+    case "string": {
       const length = toPositiveInteger(
-        resolveNumericRef(spec.length, context, 'string.length'),
-        'string.length',
-        true
+        resolveNumericRef(spec.length, context, "string.length"),
+        "string.length",
+        true,
       );
 
       if (length > MAX_COLLECTION_SIZE) {
-        throw new TemplateDslError(`string.length cannot exceed ${MAX_COLLECTION_SIZE}`);
+        throw new TemplateDslError(
+          `string.length cannot exceed ${MAX_COLLECTION_SIZE}`,
+        );
       }
 
       const alphabet = resolveAlphabet(spec);
       if (alphabet.length === 0) {
-        throw new TemplateDslError('string.alphabet must not be empty');
+        throw new TemplateDslError("string.alphabet must not be empty");
       }
 
-      let value = '';
+      let value = "";
       for (let index = 0; index < length; index += 1) {
         value += alphabet.charAt(random.nextInt(0, alphabet.length - 1));
       }
       return value;
     }
 
-    case 'int_array': {
+    case "int_array": {
       return generateIntArray(spec, context, random);
     }
 
-    case 'matrix': {
+    case "matrix": {
       return generateMatrix(spec, context, random);
     }
 
-    case 'permutation': {
-      const size = toPositiveInteger(resolveNumericRef(spec.n, context, 'permutation.n'), 'permutation.n', true);
+    case "permutation": {
+      const size = toPositiveInteger(
+        resolveNumericRef(spec.n, context, "permutation.n"),
+        "permutation.n",
+        true,
+      );
       if (size > MAX_COLLECTION_SIZE) {
-        throw new TemplateDslError(`permutation.n cannot exceed ${MAX_COLLECTION_SIZE}`);
+        throw new TemplateDslError(
+          `permutation.n cannot exceed ${MAX_COLLECTION_SIZE}`,
+        );
       }
 
-      const start = typeof spec.start === 'number' && Number.isInteger(spec.start) ? spec.start : 1;
-      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(start + Math.max(0, size - 1))) {
-        throw new TemplateDslError('permutation start and size must remain within safe integer bounds');
+      const start =
+        typeof spec.start === "number" && Number.isInteger(spec.start)
+          ? spec.start
+          : 1;
+      if (
+        !Number.isSafeInteger(start) ||
+        !Number.isSafeInteger(start + Math.max(0, size - 1))
+      ) {
+        throw new TemplateDslError(
+          "permutation start and size must remain within safe integer bounds",
+        );
       }
       const values = Array.from({ length: size }, (_, index) => start + index);
       return random.shuffle(values);
     }
 
-    case 'pairs': {
+    case "pairs": {
       return generatePairs(spec, context, random);
     }
 
-    case 'graph': {
+    case "graph": {
       return generateGraph(spec, context, random);
     }
 
     default: {
       const exhaustive: never = spec;
-      throw new TemplateDslError(`Unsupported variable specification: ${JSON.stringify(exhaustive)}`);
+      throw new TemplateDslError(
+        `Unsupported variable specification: ${JSON.stringify(exhaustive)}`,
+      );
     }
   }
 }

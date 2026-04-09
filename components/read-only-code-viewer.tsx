@@ -1,32 +1,32 @@
-'use client'
+"use client";
 
-import { useMemo } from 'react'
-import CodeMirror from '@uiw/react-codemirror'
-import { vscodeDark } from '@uiw/codemirror-theme-vscode'
-import type { SupportedLanguage } from '@/lib/execution/types'
-import { getCodeMirrorLanguageExtension } from '@/lib/execution/codemirror-language-extension'
-import { createReadOnlyCodeMirrorTheme } from '@/lib/execution/codemirror-theme'
+import { useMemo } from "react";
+import CodeMirror from "@uiw/react-codemirror";
+import { vscodeDark } from "@uiw/codemirror-theme-vscode";
+import type { SupportedLanguage } from "@/lib/execution/types";
+import { getCodeMirrorLanguageExtension } from "@/lib/execution/codemirror-language-extension";
+import { createReadOnlyCodeMirrorTheme } from "@/lib/execution/codemirror-theme";
 
 interface ReadOnlyCodeViewerProps {
-  code: string
-  language: SupportedLanguage
-  maxHeight?: string
+  code: string;
+  language: SupportedLanguage;
+  maxHeight?: string;
 }
 
 export function ReadOnlyCodeViewer({
   code,
   language,
-  maxHeight = '420px',
+  maxHeight = "420px",
 }: ReadOnlyCodeViewerProps) {
   const languageExtension = useMemo(
     () => getCodeMirrorLanguageExtension(language),
-    [language]
-  )
+    [language],
+  );
 
   const editorThemeExtension = useMemo(
     () => createReadOnlyCodeMirrorTheme(maxHeight),
-    [maxHeight]
-  )
+    [maxHeight],
+  );
 
   return (
     <div className="overflow-hidden rounded-xl border border-amber-200 bg-[#1e1e1e]">
@@ -56,5 +56,5 @@ export function ReadOnlyCodeViewer({
         }}
       />
     </div>
-  )
+  );
 }

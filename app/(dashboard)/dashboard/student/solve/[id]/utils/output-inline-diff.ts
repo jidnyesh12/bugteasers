@@ -1,11 +1,14 @@
 export interface OutputInlineDiffPart {
   value: string;
-  kind: 'common' | 'added' | 'removed';
+  kind: "common" | "added" | "removed";
 }
 
-export function buildInlineOutputDiff(expected: string, actual: string): OutputInlineDiffPart[] {
-  const left = (expected || '').replace(/\r\n/g, '\n');
-  const right = (actual || '').replace(/\r\n/g, '\n');
+export function buildInlineOutputDiff(
+  expected: string,
+  actual: string,
+): OutputInlineDiffPart[] {
+  const left = (expected || "").replace(/\r\n/g, "\n");
+  const right = (actual || "").replace(/\r\n/g, "\n");
 
   const leftLength = left.length;
   const rightLength = right.length;
@@ -16,19 +19,20 @@ export function buildInlineOutputDiff(expected: string, actual: string): OutputI
 
   // LCS table keeps inline diffs stable and avoids bringing extra runtime deps.
   const lcs = Array.from({ length: leftLength + 1 }, () =>
-    Array<number>(rightLength + 1).fill(0)
+    Array<number>(rightLength + 1).fill(0),
   );
 
   for (let i = leftLength - 1; i >= 0; i -= 1) {
     for (let j = rightLength - 1; j >= 0; j -= 1) {
-      lcs[i][j] = left[i] === right[j]
-        ? lcs[i + 1][j + 1] + 1
-        : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+      lcs[i][j] =
+        left[i] === right[j]
+          ? lcs[i + 1][j + 1] + 1
+          : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
     }
   }
 
   const parts: OutputInlineDiffPart[] = [];
-  const pushPart = (kind: OutputInlineDiffPart['kind'], value: string) => {
+  const pushPart = (kind: OutputInlineDiffPart["kind"], value: string) => {
     if (!value) {
       return;
     }
@@ -47,29 +51,29 @@ export function buildInlineOutputDiff(expected: string, actual: string): OutputI
 
   while (i < leftLength && j < rightLength) {
     if (left[i] === right[j]) {
-      pushPart('common', left[i]);
+      pushPart("common", left[i]);
       i += 1;
       j += 1;
       continue;
     }
 
     if (lcs[i + 1][j] >= lcs[i][j + 1]) {
-      pushPart('removed', left[i]);
+      pushPart("removed", left[i]);
       i += 1;
       continue;
     }
 
-    pushPart('added', right[j]);
+    pushPart("added", right[j]);
     j += 1;
   }
 
   while (i < leftLength) {
-    pushPart('removed', left[i]);
+    pushPart("removed", left[i]);
     i += 1;
   }
 
   while (j < rightLength) {
-    pushPart('added', right[j]);
+    pushPart("added", right[j]);
     j += 1;
   }
 

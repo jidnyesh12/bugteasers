@@ -1,5 +1,5 @@
-import { TemplateDslError } from './errors';
-import type { TemplateScalar } from './types';
+import { TemplateDslError } from "./errors";
+import type { TemplateScalar } from "./types";
 
 function hashStringToUint32(value: string): number {
   let hash = 0x811c9dc5;
@@ -25,7 +25,9 @@ export class DeterministicRandom {
 
   nextInt(min: number, max: number): number {
     if (!Number.isInteger(min) || !Number.isInteger(max) || max < min) {
-      throw new TemplateDslError(`Invalid integer range: min=${min}, max=${max}`);
+      throw new TemplateDslError(
+        `Invalid integer range: min=${min}, max=${max}`,
+      );
     }
 
     if (min === max) {
@@ -38,29 +40,38 @@ export class DeterministicRandom {
 
   pick<T>(values: readonly T[]): T {
     if (values.length === 0) {
-      throw new TemplateDslError('Cannot pick from an empty list');
+      throw new TemplateDslError("Cannot pick from an empty list");
     }
 
     return values[this.nextInt(0, values.length - 1)];
   }
 
-  pickWeighted(values: readonly TemplateScalar[], weights: readonly number[]): TemplateScalar {
+  pickWeighted(
+    values: readonly TemplateScalar[],
+    weights: readonly number[],
+  ): TemplateScalar {
     if (values.length === 0) {
-      throw new TemplateDslError('Weighted choice requires at least one value');
+      throw new TemplateDslError("Weighted choice requires at least one value");
     }
 
     if (values.length !== weights.length) {
-      throw new TemplateDslError('Weighted choice requires weights length to match values length');
+      throw new TemplateDslError(
+        "Weighted choice requires weights length to match values length",
+      );
     }
 
     let total = 0;
     for (const weight of weights) {
       if (!Number.isFinite(weight) || weight <= 0) {
-        throw new TemplateDslError('Weighted choice requires strictly positive finite weights');
+        throw new TemplateDslError(
+          "Weighted choice requires strictly positive finite weights",
+        );
       }
       total += weight;
       if (total > Number.MAX_SAFE_INTEGER) {
-        throw new TemplateDslError('Weighted choice sum exceeds safe integer precision');
+        throw new TemplateDslError(
+          "Weighted choice sum exceeds safe integer precision",
+        );
       }
     }
 

@@ -1,23 +1,26 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/lib/auth/auth-context';
-import { FullPageLoader } from '@/components/ui/loading';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useToast } from '@/components/ui/toast';
-import ProblemSelector from '@/components/problem-selector';
-import { assignAssignmentToClassrooms, createAssignment } from '@/lib/api/assignments-client';
-import { fetchClassrooms } from '@/lib/api/classrooms-client';
-import { fetchProblems } from '@/lib/api/problems-client';
-import { queryKeys } from '@/lib/state/query';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/lib/auth/auth-context";
+import { FullPageLoader } from "@/components/ui/loading";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/toast";
+import ProblemSelector from "@/components/problem-selector";
+import {
+  assignAssignmentToClassrooms,
+  createAssignment,
+} from "@/lib/api/assignments-client";
+import { fetchClassrooms } from "@/lib/api/classrooms-client";
+import { fetchProblems } from "@/lib/api/problems-client";
+import { queryKeys } from "@/lib/state/query";
 
 interface Problem {
   id: string;
   title: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty: "easy" | "medium" | "hard";
   tags: string[];
 }
 
@@ -32,37 +35,48 @@ export default function NewAssignmentPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [deadline, setDeadline] = useState('');
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [deadline, setDeadline] = useState("");
   const [selectedProblemIds, setSelectedProblemIds] = useState<string[]>([]);
-  const [selectedClassroomIds, setSelectedClassroomIds] = useState<string[]>([]);
+  const [selectedClassroomIds, setSelectedClassroomIds] = useState<string[]>(
+    [],
+  );
 
-  const {
-    data: problems = [],
-    isFetching: isProblemsLoading,
-  } = useQuery<Problem[]>({
+  const { data: problems = [], isFetching: isProblemsLoading } = useQuery<
+    Problem[]
+  >({
     queryKey: queryKeys.problems.mine,
     queryFn: () => fetchProblems<Problem>({ mine: true }),
-    enabled: profile?.role === 'instructor',
+    enabled: profile?.role === "instructor",
+  });
+
+  const { data: classrooms = [], isFetching: isClassroomsLoading } = useQuery<
+    Classroom[]
+  >({
+    queryKey: queryKeys.classrooms.instructorMine,
+    queryFn: () => fetchClassrooms<Classroom>(),
+    enabled: profile?.role === "instructor",
   });
 
   const {
-    data: classrooms = [],
-    isFetching: isClassroomsLoading,
-  } = useQuery<Classroom[]>({
-    queryKey: queryKeys.classrooms.instructorMine,
-    queryFn: () => fetchClassrooms<Classroom>(),
-    enabled: profile?.role === 'instructor',
-  });
-
-  const { mutateAsync: createAssignmentAsync, isPending: isCreatingAssignment } = useMutation({
+    mutateAsync: createAssignmentAsync,
+    isPending: isCreatingAssignment,
+  } = useMutation({
     mutationFn: createAssignment<{ id: string }>,
   });
 
-  const { mutateAsync: assignAssignmentAsync, isPending: isAssigningAssignment } = useMutation({
-    mutationFn: ({ assignmentId, classroomIds }: { assignmentId: string; classroomIds: string[] }) =>
-      assignAssignmentToClassrooms(assignmentId, classroomIds),
+  const {
+    mutateAsync: assignAssignmentAsync,
+    isPending: isAssigningAssignment,
+  } = useMutation({
+    mutationFn: ({
+      assignmentId,
+      classroomIds,
+    }: {
+      assignmentId: string;
+      classroomIds: string[];
+    }) => assignAssignmentToClassrooms(assignmentId, classroomIds),
   });
 
   const isLoading = isProblemsLoading || isClassroomsLoading;
@@ -70,25 +84,31 @@ export default function NewAssignmentPage() {
 
   useEffect(() => {
     if (!initialized || authLoading) return;
-    if (!profile) { router.replace('/login'); return; }
-    if (profile.role !== 'instructor') { router.replace('/dashboard/student'); return; }
+    if (!profile) {
+      router.replace("/login");
+      return;
+    }
+    if (profile.role !== "instructor") {
+      router.replace("/dashboard/student");
+      return;
+    }
   }, [profile, authLoading, initialized, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!title.trim()) {
-      toast('Title is required', 'warning');
+      toast("Title is required", "warning");
       return;
     }
 
     if (!deadline) {
-      toast('Deadline is required', 'warning');
+      toast("Deadline is required", "warning");
       return;
     }
 
     if (selectedProblemIds.length === 0) {
-      toast('Select at least one problem', 'warning');
+      toast("Select at least one problem", "warning");
       return;
     }
 
@@ -107,60 +127,87 @@ export default function NewAssignmentPage() {
             classroomIds: selectedClassroomIds,
           });
 
-          await queryClient.invalidateQueries({ queryKey: queryKeys.classrooms.instructorMine });
+          await queryClient.invalidateQueries({
+            queryKey: queryKeys.classrooms.instructorMine,
+          });
           await Promise.all(
             selectedClassroomIds.map((classroomId) =>
-              queryClient.invalidateQueries({ queryKey: queryKeys.classrooms.assignments(classroomId) })
-            )
+              queryClient.invalidateQueries({
+                queryKey: queryKeys.classrooms.assignments(classroomId),
+              }),
+            ),
           );
         } catch (assignError) {
-          const assignMessage = assignError instanceof Error
-            ? assignError.message
-            : 'Assignment created but classroom assignment failed';
+          const assignMessage =
+            assignError instanceof Error
+              ? assignError.message
+              : "Assignment created but classroom assignment failed";
 
-          toast(`Assignment created, but classroom assignment failed: ${assignMessage}`, 'warning');
-          await queryClient.invalidateQueries({ queryKey: queryKeys.assignments.mine });
-          router.push('/dashboard/instructor/assignments');
+          toast(
+            `Assignment created, but classroom assignment failed: ${assignMessage}`,
+            "warning",
+          );
+          await queryClient.invalidateQueries({
+            queryKey: queryKeys.assignments.mine,
+          });
+          router.push("/dashboard/instructor/assignments");
           return;
         }
       }
 
-      toast('Assignment created!', 'success');
-      await queryClient.invalidateQueries({ queryKey: queryKeys.assignments.mine });
-      router.push('/dashboard/instructor/assignments');
+      toast("Assignment created!", "success");
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.assignments.mine,
+      });
+      router.push("/dashboard/instructor/assignments");
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'Failed to create assignment';
-      console.error('Error creating assignment:', error);
-      toast(msg, 'error');
+      const msg =
+        error instanceof Error ? error.message : "Failed to create assignment";
+      console.error("Error creating assignment:", error);
+      toast(msg, "error");
     }
   };
 
   const toggleClassroom = (id: string) => {
-    setSelectedClassroomIds(prev =>
-      prev.includes(id) ? prev.filter(cid => cid !== id) : [...prev, id]
+    setSelectedClassroomIds((prev) =>
+      prev.includes(id) ? prev.filter((cid) => cid !== id) : [...prev, id],
     );
   };
 
   // Get minimum date (tomorrow)
   const minDate = new Date();
   minDate.setDate(minDate.getDate() + 1);
-  const minDateStr = minDate.toISOString().split('T')[0];
+  const minDateStr = minDate.toISOString().split("T")[0];
 
-  if (!initialized || authLoading || !profile || isLoading) return <FullPageLoader />;
+  if (!initialized || authLoading || !profile || isLoading)
+    return <FullPageLoader />;
 
   return (
     <div className="p-6 lg:p-8 max-w-4xl mx-auto">
       <div className="mb-8">
         <button
-          onClick={() => router.push('/dashboard/instructor/assignments')}
+          onClick={() => router.push("/dashboard/instructor/assignments")}
           className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--accent-primary)] transition-colors mb-4 group cursor-pointer"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:-translate-x-0.5 transition-transform">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="group-hover:-translate-x-0.5 transition-transform"
+          >
             <polyline points="15 18 9 12 15 6" />
           </svg>
           Back to Assignments
         </button>
-        <h1 className="text-2xl font-black tracking-tight text-[var(--text-primary)]">Create Assignment</h1>
+        <h1 className="text-2xl font-black tracking-tight text-[var(--text-primary)]">
+          Create Assignment
+        </h1>
         <p className="text-sm text-[var(--text-secondary)] mt-1">
           Build a new coding assignment for your students
         </p>
@@ -171,7 +218,10 @@ export default function NewAssignmentPage() {
         <div className="bg-white border border-[var(--border-primary)] rounded-2xl p-6 space-y-5">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)] mb-1.5">
-              Title <span className="text-[var(--error)] normal-case tracking-normal">*</span>
+              Title{" "}
+              <span className="text-[var(--error)] normal-case tracking-normal">
+                *
+              </span>
             </label>
             <Input
               value={title}
@@ -183,7 +233,10 @@ export default function NewAssignmentPage() {
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)] mb-1.5">
-              Description <span className="normal-case tracking-normal text-[var(--text-muted)] font-normal">optional</span>
+              Description{" "}
+              <span className="normal-case tracking-normal text-[var(--text-muted)] font-normal">
+                optional
+              </span>
             </label>
             <textarea
               value={description}
@@ -196,7 +249,10 @@ export default function NewAssignmentPage() {
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)] mb-1.5">
-              Deadline <span className="text-[var(--error)] normal-case tracking-normal">*</span>
+              Deadline{" "}
+              <span className="text-[var(--error)] normal-case tracking-normal">
+                *
+              </span>
             </label>
             <input
               type="datetime-local"
@@ -213,9 +269,14 @@ export default function NewAssignmentPage() {
         <div className="bg-white border border-[var(--border-primary)] rounded-2xl p-6">
           <div className="mb-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-              Problems <span className="text-[var(--error)] normal-case tracking-normal">*</span>
+              Problems{" "}
+              <span className="text-[var(--error)] normal-case tracking-normal">
+                *
+              </span>
             </h3>
-            <p className="text-xs text-[var(--text-muted)] mt-1">Select coding problems for this assignment</p>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Select coding problems for this assignment
+            </p>
           </div>
           <ProblemSelector
             problems={problems}
@@ -227,8 +288,12 @@ export default function NewAssignmentPage() {
         {/* Classrooms */}
         <div className="bg-white border border-[var(--border-primary)] rounded-2xl p-6">
           <div className="mb-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Assign to Classrooms</h3>
-            <p className="text-xs text-[var(--text-muted)] mt-1">Optional — assign now or later from the classroom page</p>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+              Assign to Classrooms
+            </h3>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Optional — assign now or later from the classroom page
+            </p>
           </div>
 
           {classrooms.length === 0 ? (
@@ -236,7 +301,7 @@ export default function NewAssignmentPage() {
               <p>No classrooms available</p>
               <button
                 type="button"
-                onClick={() => router.push('/dashboard/instructor/classrooms')}
+                onClick={() => router.push("/dashboard/instructor/classrooms")}
                 className="text-[var(--accent-primary)] hover:underline mt-2"
               >
                 Create a classroom first
@@ -244,7 +309,7 @@ export default function NewAssignmentPage() {
             </div>
           ) : (
             <div className="grid gap-2">
-              {classrooms.map(classroom => {
+              {classrooms.map((classroom) => {
                 const isSelected = selectedClassroomIds.includes(classroom.id);
                 return (
                   <button
@@ -252,24 +317,39 @@ export default function NewAssignmentPage() {
                     type="button"
                     onClick={() => toggleClassroom(classroom.id)}
                     className={`flex items-center gap-3 p-3 rounded-lg border transition-all text-left
-                      ${isSelected
-                        ? 'bg-[var(--accent-primary)]/5 border-[var(--accent-primary)]'
-                        : 'bg-white border-[var(--border-primary)] hover:border-[var(--border-secondary)]'
+                      ${
+                        isSelected
+                          ? "bg-[var(--accent-primary)]/5 border-[var(--accent-primary)]"
+                          : "bg-white border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
                       }`}
                   >
-                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors
-                      ${isSelected
-                        ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)]'
-                        : 'border-[var(--border-primary)]'
+                    <div
+                      className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors
+                      ${
+                        isSelected
+                          ? "bg-[var(--accent-primary)] border-[var(--accent-primary)]"
+                          : "border-[var(--border-primary)]"
                       }`}
                     >
                       {isSelected && (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="white"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       )}
                     </div>
-                    <p className="text-sm font-semibold text-[var(--text-primary)]">{classroom.name}</p>
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">
+                      {classroom.name}
+                    </p>
                   </button>
                 );
               })}
@@ -288,7 +368,7 @@ export default function NewAssignmentPage() {
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Creating...' : 'Create Assignment'}
+            {isSubmitting ? "Creating..." : "Create Assignment"}
           </Button>
         </div>
       </form>

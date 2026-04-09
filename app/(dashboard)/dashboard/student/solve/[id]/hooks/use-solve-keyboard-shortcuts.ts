@@ -1,13 +1,15 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
+import { useEffect } from "react";
 
 interface UseSolveKeyboardShortcutsOptions {
   onRunShortcut: () => void;
   onSubmitShortcut: () => void;
 }
 
-export function useSolveKeyboardShortcuts(options: UseSolveKeyboardShortcutsOptions): void {
+export function useSolveKeyboardShortcuts(
+  options: UseSolveKeyboardShortcutsOptions,
+): void {
   const { onRunShortcut, onSubmitShortcut } = options;
 
   useEffect(() => {
@@ -21,7 +23,7 @@ export function useSolveKeyboardShortcuts(options: UseSolveKeyboardShortcutsOpti
         !event.metaKey &&
         !event.altKey &&
         !event.shiftKey &&
-        (event.key === "'" || event.code === 'Quote');
+        (event.key === "'" || event.code === "Quote");
 
       if (isRunShortcut) {
         event.preventDefault();
@@ -33,7 +35,7 @@ export function useSolveKeyboardShortcuts(options: UseSolveKeyboardShortcutsOpti
         (event.ctrlKey || event.metaKey) &&
         !event.altKey &&
         !event.shiftKey &&
-        (event.key === 'Enter' || event.code === 'Enter');
+        (event.key === "Enter" || event.code === "Enter");
 
       if (isSubmitShortcut) {
         event.preventDefault();
@@ -42,10 +44,10 @@ export function useSolveKeyboardShortcuts(options: UseSolveKeyboardShortcutsOpti
     };
 
     // Capture-phase binding ensures shortcuts fire from any focused pane on the solve page.
-    window.addEventListener('keydown', onWindowKeyDown, true);
+    window.addEventListener("keydown", onWindowKeyDown, true);
 
     return () => {
-      window.removeEventListener('keydown', onWindowKeyDown, true);
+      window.removeEventListener("keydown", onWindowKeyDown, true);
     };
   }, [onRunShortcut, onSubmitShortcut]);
 }

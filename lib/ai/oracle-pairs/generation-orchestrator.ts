@@ -11,14 +11,17 @@
  * Ensures reproducibility: single generation_seed controls entire pipeline
  */
 
-import type { OraclePair, OracleValidationResult } from './types';
-import type { TestCaseInputTemplate, TemplateGeneratedValue } from '../template-dsl/types';
-import type { LLMGeneratorConfig } from './llm-generator';
-import type { ValidatorConfig } from './validator';
-import { materializeTestCaseInputTemplate } from '../template-dsl/materialization';
-import { buildGenerationPrompt, generateModelAnswer } from './llm-generator';
-import { validateOraclePair } from './validator';
-import { TemplateDslError } from '../template-dsl/errors';
+import type { OraclePair, OracleValidationResult } from "./types";
+import type {
+  TestCaseInputTemplate,
+  TemplateGeneratedValue,
+} from "../template-dsl/types";
+import type { LLMGeneratorConfig } from "./llm-generator";
+import type { ValidatorConfig } from "./validator";
+import { materializeTestCaseInputTemplate } from "../template-dsl/materialization";
+import { buildGenerationPrompt, generateModelAnswer } from "./llm-generator";
+import { validateOraclePair } from "./validator";
+import { TemplateDslError } from "../template-dsl/errors";
 
 /**
  * Orchestrator configuration
@@ -46,13 +49,13 @@ export const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig = {
     strictDeterminism: true,
   },
   llmGenerator: {
-    modelName: 'gemini-3-flash-preview',
+    modelName: "gemini-3-flash-preview",
     temperature: 0,
     maxTokens: 4096,
     timeoutMs: 30000,
     retryAttempts: 3,
     retryDelayMs: 1000,
-    language: 'python',
+    language: "python",
     seedRNG: true,
   },
   maxRepairAttempts: 5,
@@ -77,7 +80,7 @@ export interface GenerationStats {
   successfulRepairs: number;
   failedRepairs: number;
   validationAttempts: number;
-  finalStatus: 'success' | 'failed' | 'escalated';
+  finalStatus: "success" | "failed" | "escalated";
   errorMessages: string[];
 }
 
@@ -99,10 +102,16 @@ export interface GenerationResult {
  */
 export async function materializeTestCase(
   template: TestCaseInputTemplate,
-  generationSeed: string
-): Promise<{ inputData: string; expectedOutput: string; variables: Record<string, TemplateGeneratedValue> }> {
+  generationSeed: string,
+): Promise<{
+  inputData: string;
+  expectedOutput: string;
+  variables: Record<string, TemplateGeneratedValue>;
+}> {
   // Call actual template-dsl materialization with seed
-  const materialized = materializeTestCaseInputTemplate(template, { seedMaterial: generationSeed });
+  const materialized = materializeTestCaseInputTemplate(template, {
+    seedMaterial: generationSeed,
+  });
 
   // For oracle pairs, expected output will be determined by model answer execution
   // Mark it as auto-generated with seed reference for audit trail
@@ -124,16 +133,16 @@ export async function generateAnswer(
   constraints: string,
   examples: string,
   generationSeed: string,
-  config: LLMGeneratorConfig
+  config: LLMGeneratorConfig,
 ): Promise<string> {
   // Parse examples string into structured format
-  const exampleLines = examples.split('\n').filter((l) => l.trim());
+  const exampleLines = examples.split("\n").filter((l) => l.trim());
   const parsedExamples: Array<{ input: string; output: string }> = [];
 
   for (let i = 0; i < exampleLines.length; i += 2) {
     if (i + 1 < exampleLines.length) {
-      const input = exampleLines[i].replace('Input:', '').trim();
-      const output = exampleLines[i + 1].replace('Output:', '').trim();
+      const input = exampleLines[i].replace("Input:", "").trim();
+      const output = exampleLines[i + 1].replace("Output:", "").trim();
       parsedExamples.push({ input, output });
     }
   }
@@ -160,22 +169,25 @@ export async function generateAnswer(
  */
 export async function validatePair(
   pair: OraclePair,
-  config: ValidatorConfig
+  config: ValidatorConfig,
 ): Promise<OracleValidationResult> {
   // In test environment, return quick stub validation for fast test execution
-  if (process.env.NODE_ENV === 'test' || typeof (global as Record<string, unknown>).vi === 'object') {
+  if (
+    process.env.NODE_ENV === "test" ||
+    typeof (global as Record<string, unknown>).vi === "object"
+  ) {
     return {
       version: 1,
       oraclePairId: pair.generationSeed,
       generationSeed: pair.generationSeed,
       timestamp: new Date().toISOString(),
       isConsistent: true,
-      testCaseStatus: 'valid' as const,
-      modelAnswerStatus: 'correct' as const,
+      testCaseStatus: "valid" as const,
+      modelAnswerStatus: "correct" as const,
       expectedOutput: pair.testCase.expectedOutput,
       actualOutput: pair.testCase.expectedOutput,
       outputMatch: true,
-      failureAttributed: 'unknown' as const,
+      failureAttributed: "unknown" as const,
       confidence: 0.95, // High confidence in test environment
     };
   }
@@ -192,10 +204,19 @@ export async function attemptRepair(
   pair: OraclePair,
   validationResult: OracleValidationResult,
   config: OrchestratorConfig,
-  repairCount: number
-): Promise<{ repaired: boolean; pair?: OraclePair; success?: boolean; error?: string }> {
+  repairCount: number,
+): Promise<{
+  repaired: boolean;
+  pair?: OraclePair;
+  success?: boolean;
+  error?: string;
+}> {
   if (repairCount >= config.maxRepairAttempts) {
-    return { repaired: false, success: false, error: 'Max repair attempts exceeded' };
+    return {
+      repaired: false,
+      success: false,
+      error: "Max repair attempts exceeded",
+    };
   }
 
   const { confidence } = validationResult;
@@ -206,18 +227,33 @@ export async function attemptRepair(
   }
 
   // Only consider repair if confidence is high enough
-  if (confidence < config.repair.autoRepairThreshold && confidence >= config.repair.escalationThreshold) {
+  if (
+    confidence < config.repair.autoRepairThreshold &&
+    confidence >= config.repair.escalationThreshold
+  ) {
     // Confidence is medium - could attempt repair but currently not implemented
-    return { repaired: false, success: false, error: `Medium confidence (${confidence.toFixed(2)}) - manual repair needed` };
+    return {
+      repaired: false,
+      success: false,
+      error: `Medium confidence (${confidence.toFixed(2)}) - manual repair needed`,
+    };
   }
 
   // Low confidence - escalate
   if (confidence < config.repair.escalationThreshold) {
-    return { repaired: false, success: false, error: `Low confidence (${confidence.toFixed(2)}) - escalate to manual review` };
+    return {
+      repaired: false,
+      success: false,
+      error: `Low confidence (${confidence.toFixed(2)}) - escalate to manual review`,
+    };
   }
 
   // High confidence but not consistent - should not happen
-  return { repaired: false, success: false, error: 'Inconsistent oracle pair with high confidence - investigate' };
+  return {
+    repaired: false,
+    success: false,
+    error: "Inconsistent oracle pair with high confidence - investigate",
+  };
 }
 
 /**
@@ -229,7 +265,7 @@ export async function generateOraclePair(
   constraints: string,
   examples: string,
   generationSeed: string,
-  config: OrchestratorConfig = DEFAULT_ORCHESTRATOR_CONFIG
+  config: OrchestratorConfig = DEFAULT_ORCHESTRATOR_CONFIG,
 ): Promise<GenerationResult> {
   const stats: GenerationStats = {
     startTime: Date.now(),
@@ -238,7 +274,7 @@ export async function generateOraclePair(
     successfulRepairs: 0,
     failedRepairs: 0,
     validationAttempts: 0,
-    finalStatus: 'failed',
+    finalStatus: "failed",
     errorMessages: [],
   };
 
@@ -249,7 +285,9 @@ export async function generateOraclePair(
       testCaseData = await materializeTestCase(template, generationSeed);
     } catch (error) {
       stats.totalAttempts++;
-      throw new TemplateDslError(`Materialization failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TemplateDslError(
+        `Materialization failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
     stats.totalAttempts++;
 
@@ -261,11 +299,13 @@ export async function generateOraclePair(
         constraints,
         examples,
         generationSeed,
-        config.llmGenerator
+        config.llmGenerator,
       );
     } catch (error) {
       stats.totalAttempts++;
-      throw new TemplateDslError(`Answer generation failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TemplateDslError(
+        `Answer generation failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
     stats.totalAttempts++;
 
@@ -298,7 +338,9 @@ export async function generateOraclePair(
       validationResult = await validatePair(oraclePair, config.validator);
     } catch (error) {
       stats.validationAttempts++;
-      throw new TemplateDslError(`Validation failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new TemplateDslError(
+        `Validation failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
     stats.validationAttempts++;
 
@@ -306,9 +348,17 @@ export async function generateOraclePair(
     let repairCount = 0;
 
     // Phase 5: Repair loop
-    while (!validationResult.isConsistent && repairCount < config.maxRepairAttempts) {
+    while (
+      !validationResult.isConsistent &&
+      repairCount < config.maxRepairAttempts
+    ) {
       stats.repairAttempts++;
-      const repairResult = await attemptRepair(currentPair, validationResult, config, repairCount);
+      const repairResult = await attemptRepair(
+        currentPair,
+        validationResult,
+        config,
+        repairCount,
+      );
 
       if (repairResult.repaired && repairResult.pair) {
         stats.successfulRepairs++;
@@ -319,11 +369,13 @@ export async function generateOraclePair(
           validationResult = await validatePair(currentPair, config.validator);
           stats.validationAttempts++;
         } catch (error) {
-          stats.errorMessages.push(`Re-validation after repair failed: ${error instanceof Error ? error.message : String(error)}`);
+          stats.errorMessages.push(
+            `Re-validation after repair failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       } else {
         stats.failedRepairs++;
-        stats.errorMessages.push(repairResult.error || 'Repair failed');
+        stats.errorMessages.push(repairResult.error || "Repair failed");
         break;
       }
 
@@ -335,7 +387,7 @@ export async function generateOraclePair(
     stats.durationMs = stats.endTime - stats.startTime;
 
     if (validationResult.isConsistent) {
-      stats.finalStatus = 'success';
+      stats.finalStatus = "success";
       return {
         success: true,
         oraclePair: currentPair,
@@ -344,16 +396,16 @@ export async function generateOraclePair(
       };
     } else {
       if (validationResult.confidence < config.repair.escalationThreshold) {
-        stats.finalStatus = 'escalated';
+        stats.finalStatus = "escalated";
         return {
           success: false,
           oraclePair: currentPair,
           validationResult,
           stats,
-          errors: ['Escalated to manual review due to low confidence'],
+          errors: ["Escalated to manual review due to low confidence"],
         };
       } else {
-        stats.finalStatus = 'failed';
+        stats.finalStatus = "failed";
         return {
           success: false,
           oraclePair: currentPair,
@@ -366,8 +418,10 @@ export async function generateOraclePair(
   } catch (error) {
     stats.endTime = Date.now();
     stats.durationMs = stats.endTime - stats.startTime;
-    stats.finalStatus = 'failed';
-    stats.errorMessages.push(error instanceof Error ? error.message : String(error));
+    stats.finalStatus = "failed";
+    stats.errorMessages.push(
+      error instanceof Error ? error.message : String(error),
+    );
 
     return {
       success: false,
@@ -388,16 +442,17 @@ export async function generateOraclePairBatch(
     examples: string;
     baseSeed: string;
   }>,
-  config: OrchestratorConfig = DEFAULT_ORCHESTRATOR_CONFIG
+  config: OrchestratorConfig = DEFAULT_ORCHESTRATOR_CONFIG,
 ): Promise<Array<GenerationResult>> {
   const results: GenerationResult[] = [];
 
   for (let i = 0; i < templates.length; i++) {
-    const { template, problemStatement, constraints, examples, baseSeed } = templates[i];
+    const { template, problemStatement, constraints, examples, baseSeed } =
+      templates[i];
 
     // Derive seed for this batch item
     const seedNum = parseInt(baseSeed.substring(0, 8), 16);
-    const variedNum = (seedNum + i).toString(16).padStart(8, '0');
+    const variedNum = (seedNum + i).toString(16).padStart(8, "0");
     const variedSeed = variedNum + baseSeed.substring(8);
 
     const result = await generateOraclePair(
@@ -406,7 +461,7 @@ export async function generateOraclePairBatch(
       constraints,
       examples,
       variedSeed,
-      config
+      config,
     );
 
     results.push(result);

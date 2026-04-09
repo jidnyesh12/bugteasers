@@ -1,11 +1,11 @@
 // Types for AI problem generation
 
-import type { SupportedLanguage } from '@/lib/execution/types';
-import type { TestCaseInputTemplate } from '@/lib/ai/template-dsl';
+import type { SupportedLanguage } from "@/lib/execution/types";
+import type { TestCaseInputTemplate } from "@/lib/ai/template-dsl";
 
 export interface ProblemGenerationRequest {
   topic: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty: "easy" | "medium" | "hard";
   tags?: string[];
   constraints?: string;
   numProblems?: number; // For batch generation
@@ -28,7 +28,7 @@ export interface GeneratedTestCase {
 export interface GeneratedProblem {
   title: string;
   description: string; // Markdown formatted
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty: "easy" | "medium" | "hard";
   tags: string[];
   constraints: string;
   examples: {
@@ -53,19 +53,19 @@ export interface ProblemGenerationResponse {
 
 export interface RetryHistoryEntry {
   attempt: number;
-  stage: 'ai_generating' | 'validating';
+  stage: "ai_generating" | "validating";
   error: string;
   timestamp: string;
 }
 
 export type ProblemGenerationJobStatus =
-  | 'queued'
-  | 'ai_generating'
-  | 'validating'
-  | 'retrying'
-  | 'completed'
-  | 'discarded'
-  | 'error';
+  | "queued"
+  | "ai_generating"
+  | "validating"
+  | "retrying"
+  | "completed"
+  | "discarded"
+  | "error";
 
 export interface ProblemGenerationJobStatusResponse {
   jobId: string;

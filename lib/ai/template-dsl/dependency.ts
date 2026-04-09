@@ -1,6 +1,6 @@
-import { TemplateDslError } from './errors';
-import { isTemplateRef } from './guards';
-import type { TestCaseInputTemplate, TestCaseTemplateVariable } from './types';
+import { TemplateDslError } from "./errors";
+import { isTemplateRef } from "./guards";
+import type { TestCaseInputTemplate, TestCaseTemplateVariable } from "./types";
 
 function collectVariableRefs(spec: TestCaseTemplateVariable): Set<string> {
   const refs = new Set<string>();
@@ -12,38 +12,38 @@ function collectVariableRefs(spec: TestCaseTemplateVariable): Set<string> {
   };
 
   switch (spec.type) {
-    case 'const':
-    case 'choice':
+    case "const":
+    case "choice":
       break;
-    case 'int':
+    case "int":
       addRef(spec.min);
       addRef(spec.max);
       break;
-    case 'string':
+    case "string":
       addRef(spec.length);
       break;
-    case 'int_array':
+    case "int_array":
       addRef(spec.length);
       addRef(spec.min);
       addRef(spec.max);
       break;
-    case 'matrix':
+    case "matrix":
       addRef(spec.rows);
       addRef(spec.cols);
       addRef(spec.min);
       addRef(spec.max);
       break;
-    case 'permutation':
+    case "permutation":
       addRef(spec.n);
       break;
-    case 'pairs':
+    case "pairs":
       addRef(spec.count);
       addRef(spec.first.min);
       addRef(spec.first.max);
       addRef(spec.second.min);
       addRef(spec.second.max);
       break;
-    case 'graph':
+    case "graph":
       addRef(spec.nodes);
       addRef(spec.edges);
       addRef(spec.minWeight);
@@ -51,14 +51,18 @@ function collectVariableRefs(spec: TestCaseTemplateVariable): Set<string> {
       break;
     default: {
       const exhaustive: never = spec;
-      throw new TemplateDslError(`Unsupported variable type in dependency scan: ${JSON.stringify(exhaustive)}`);
+      throw new TemplateDslError(
+        `Unsupported variable type in dependency scan: ${JSON.stringify(exhaustive)}`,
+      );
     }
   }
 
   return refs;
 }
 
-export function buildVariableEvaluationOrder(template: TestCaseInputTemplate): string[] {
+export function buildVariableEvaluationOrder(
+  template: TestCaseInputTemplate,
+): string[] {
   const variableEntries = Object.entries(template.variables);
   const variableNames = variableEntries.map(([name]) => name);
   const variableNameSet = new Set(variableNames);
@@ -77,11 +81,15 @@ export function buildVariableEvaluationOrder(template: TestCaseInputTemplate): s
 
     for (const ref of refs) {
       if (!variableNameSet.has(ref)) {
-        throw new TemplateDslError(`Variable "${name}" references unknown variable "${ref}"`);
+        throw new TemplateDslError(
+          `Variable "${name}" references unknown variable "${ref}"`,
+        );
       }
 
       if (ref === name) {
-        throw new TemplateDslError(`Variable "${name}" cannot reference itself`);
+        throw new TemplateDslError(
+          `Variable "${name}" cannot reference itself`,
+        );
       }
 
       inDegree.set(name, (inDegree.get(name) ?? 0) + 1);
@@ -110,9 +118,11 @@ export function buildVariableEvaluationOrder(template: TestCaseInputTemplate): s
   }
 
   if (ordered.length !== variableNames.length) {
-    const cycleMembers = variableNames.filter((name) => (inDegree.get(name) ?? 0) > 0);
+    const cycleMembers = variableNames.filter(
+      (name) => (inDegree.get(name) ?? 0) > 0,
+    );
     throw new TemplateDslError(
-      `Circular variable dependency detected: ${cycleMembers.join(' -> ')}`
+      `Circular variable dependency detected: ${cycleMembers.join(" -> ")}`,
     );
   }
 

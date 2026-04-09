@@ -8,8 +8,8 @@
  * This ensures different test cases get different seeds while remaining deterministic.
  */
 
-import { createHmac } from 'node:crypto';
-import { TemplateDslError } from '../template-dsl/errors';
+import { createHmac } from "node:crypto";
+import { TemplateDslError } from "../template-dsl/errors";
 
 export const GENERATION_SEED_VERSION = 1;
 export const GENERATION_SEED_LENGTH = 64; // SHA256 hex = 64 chars
@@ -48,13 +48,17 @@ export class GenerationSeed {
     problemId: string,
     testCaseIndex: number,
     version: number = GENERATION_SEED_VERSION,
-    timestamp?: string
+    timestamp?: string,
   ) {
     if (!this.isValidSeedValue(value)) {
-      throw new TemplateDslError(`Invalid seed value: must be 64 hex characters, got ${value}`);
+      throw new TemplateDslError(
+        `Invalid seed value: must be 64 hex characters, got ${value}`,
+      );
     }
     if (testCaseIndex < 0) {
-      throw new TemplateDslError(`testCaseIndex must be non-negative, got ${testCaseIndex}`);
+      throw new TemplateDslError(
+        `testCaseIndex must be non-negative, got ${testCaseIndex}`,
+      );
     }
 
     this.value = value;
@@ -76,24 +80,35 @@ export class GenerationSeed {
     testCaseIndex: number;
     version?: number;
   }): GenerationSeed {
-    const { masterSeed, problemId, testCaseIndex, version = GENERATION_SEED_VERSION } = options;
+    const {
+      masterSeed,
+      problemId,
+      testCaseIndex,
+      version = GENERATION_SEED_VERSION,
+    } = options;
 
     if (!masterSeed || masterSeed.trim().length === 0) {
-      throw new TemplateDslError('masterSeed must be non-empty');
+      throw new TemplateDslError("masterSeed must be non-empty");
     }
     if (!problemId || problemId.trim().length === 0) {
-      throw new TemplateDslError('problemId must be non-empty');
+      throw new TemplateDslError("problemId must be non-empty");
     }
 
     // Create HMAC: HMAC(masterSeed, problemId||delimiter||testCaseIndex)
-    const delimiter = '|';
+    const delimiter = "|";
     const input = `${problemId}${delimiter}${testCaseIndex}`;
 
-    const hmac = createHmac('sha256', masterSeed);
+    const hmac = createHmac("sha256", masterSeed);
     hmac.update(input);
-    const derivedSeed = hmac.digest('hex');
+    const derivedSeed = hmac.digest("hex");
 
-    return new GenerationSeed(derivedSeed, masterSeed, problemId, testCaseIndex, version);
+    return new GenerationSeed(
+      derivedSeed,
+      masterSeed,
+      problemId,
+      testCaseIndex,
+      version,
+    );
   }
 
   /**
@@ -104,9 +119,15 @@ export class GenerationSeed {
     masterSeed: string,
     problemId: string,
     testCaseIndex: number,
-    version: number = GENERATION_SEED_VERSION
+    version: number = GENERATION_SEED_VERSION,
   ): GenerationSeed {
-    return new GenerationSeed(value, masterSeed, problemId, testCaseIndex, version);
+    return new GenerationSeed(
+      value,
+      masterSeed,
+      problemId,
+      testCaseIndex,
+      version,
+    );
   }
 
   /**
@@ -114,7 +135,7 @@ export class GenerationSeed {
    */
   private isValidSeedValue(value: string): boolean {
     // Must be exactly 64 hex characters (SHA256 hash)
-    if (typeof value !== 'string') return false;
+    if (typeof value !== "string") return false;
     if (value.length !== GENERATION_SEED_LENGTH) return false;
     // Check all characters are hex
     return /^[0-9a-f]{64}$/i.test(value);
@@ -159,7 +180,7 @@ export class GenerationSeed {
   /**
    * Serialize to JSON
    */
-  toJSON(): Omit<GenerationSeedInfo, 'chain'> {
+  toJSON(): Omit<GenerationSeedInfo, "chain"> {
     return {
       version: this.version,
       value: this.value,
@@ -173,14 +194,14 @@ export class GenerationSeed {
   /**
    * Deserialize from JSON
    */
-  static fromJSON(json: Omit<GenerationSeedInfo, 'chain'>): GenerationSeed {
+  static fromJSON(json: Omit<GenerationSeedInfo, "chain">): GenerationSeed {
     return new GenerationSeed(
       json.value,
       json.masterSeed,
       json.problemId,
       json.testCaseIndex,
       json.version,
-      json.timestamp
+      json.timestamp,
     );
   }
 
@@ -194,7 +215,7 @@ export class GenerationSeed {
       this.masterSeed,
       this.problemId,
       this.testCaseIndex,
-      this.version
+      this.version,
     );
     seed.chain = [...this.chain, entry];
     return seed;
@@ -239,7 +260,7 @@ export class SeedDerivationBuilder {
 
   withMasterSeed(seed: string): this {
     if (!seed || seed.trim().length === 0) {
-      throw new TemplateDslError('masterSeed cannot be empty');
+      throw new TemplateDslError("masterSeed cannot be empty");
     }
     this.masterSeed = seed;
     return this;
@@ -247,7 +268,7 @@ export class SeedDerivationBuilder {
 
   withProblemId(id: string): this {
     if (!id || id.trim().length === 0) {
-      throw new TemplateDslError('problemId cannot be empty');
+      throw new TemplateDslError("problemId cannot be empty");
     }
     this.problemId = id;
     return this;
@@ -255,7 +276,7 @@ export class SeedDerivationBuilder {
 
   withTestCaseIndex(index: number): this {
     if (index < 0 || !Number.isInteger(index)) {
-      throw new TemplateDslError('testCaseIndex must be non-negative integer');
+      throw new TemplateDslError("testCaseIndex must be non-negative integer");
     }
     this.testCaseIndex = index;
     return this;
@@ -263,7 +284,7 @@ export class SeedDerivationBuilder {
 
   withVersion(v: number): this {
     if (v < 1 || !Number.isInteger(v)) {
-      throw new TemplateDslError('version must be positive integer');
+      throw new TemplateDslError("version must be positive integer");
     }
     this.version = v;
     return this;
@@ -274,13 +295,13 @@ export class SeedDerivationBuilder {
    */
   build(): GenerationSeed {
     if (this.masterSeed === null) {
-      throw new TemplateDslError('masterSeed is required');
+      throw new TemplateDslError("masterSeed is required");
     }
     if (this.problemId === null) {
-      throw new TemplateDslError('problemId is required');
+      throw new TemplateDslError("problemId is required");
     }
     if (this.testCaseIndex === null) {
-      throw new TemplateDslError('testCaseIndex is required');
+      throw new TemplateDslError("testCaseIndex is required");
     }
 
     return GenerationSeed.derive({
@@ -299,7 +320,7 @@ export function deriveSeedsForBatch(
   masterSeed: string,
   problemId: string,
   batchSize: number,
-  version: number = GENERATION_SEED_VERSION
+  version: number = GENERATION_SEED_VERSION,
 ): GenerationSeed[] {
   const seeds: GenerationSeed[] = [];
   for (let i = 0; i < batchSize; i++) {
@@ -309,7 +330,7 @@ export function deriveSeedsForBatch(
         problemId,
         testCaseIndex: i,
         version,
-      })
+      }),
     );
   }
   return seeds;
@@ -337,7 +358,9 @@ export function verifyBatchSeedConsistency(seeds: GenerationSeed[]): {
 
     // Check seed format
     if (value.length !== GENERATION_SEED_LENGTH) {
-      errors.push(`Invalid seed length in seed ${seed.toString()}: ${value.length}`);
+      errors.push(
+        `Invalid seed length in seed ${seed.toString()}: ${value.length}`,
+      );
     }
   }
 

@@ -6,35 +6,36 @@ import type {
   TestCase,
   TestResult,
   ScoreResult,
-} from './types';
+} from "./types";
 
 export class TestCaseEvaluatorImpl implements TestCaseEvaluator {
   // Normalize output by standardizing whitespace and line endings
   normalizeOutput(output: string): string {
     return output
-      .replace(/\r\n/g, '\n')
-      .replace(/\r/g, '\n')
-      .split('\n')
-      .map(line => line.trimEnd())
-      .join('\n')
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .map((line) => line.trimEnd())
+      .join("\n")
       .trim();
   }
 
   // Evaluate a single test case against execution response
   evaluateTestCase(
     executionResponse: ExecutionResponse,
-    testCase: TestCase
+    testCase: TestCase,
   ): TestResult {
     // Check for compilation errors
     if (executionResponse.compile && executionResponse.compile.code !== 0) {
       return {
         testCaseId: testCase.id,
         passed: false,
-        actualOutput: executionResponse.compile.stderr || executionResponse.compile.output,
+        actualOutput:
+          executionResponse.compile.stderr || executionResponse.compile.output,
         expectedOutput: testCase.expectedOutput,
         pointsEarned: 0,
         pointsAvailable: testCase.points,
-        error: executionResponse.compile.stderr || 'Compilation failed',
+        error: executionResponse.compile.stderr || "Compilation failed",
       };
     }
 
@@ -43,11 +44,12 @@ export class TestCaseEvaluatorImpl implements TestCaseEvaluator {
       return {
         testCaseId: testCase.id,
         passed: false,
-        actualOutput: executionResponse.run.stdout || executionResponse.run.output,
+        actualOutput:
+          executionResponse.run.stdout || executionResponse.run.output,
         expectedOutput: testCase.expectedOutput,
         pointsEarned: 0,
         pointsAvailable: testCase.points,
-        error: executionResponse.run.stderr || 'Runtime error',
+        error: executionResponse.run.stderr || "Runtime error",
       };
     }
 
@@ -76,13 +78,13 @@ export class TestCaseEvaluatorImpl implements TestCaseEvaluator {
 
     const percentage = totalPoints > 0 ? (earnedPoints / totalPoints) * 100 : 0;
 
-    let status: 'passed' | 'failed' | 'partial';
+    let status: "passed" | "failed" | "partial";
     if (earnedPoints === totalPoints) {
-      status = 'passed';
+      status = "passed";
     } else if (earnedPoints === 0) {
-      status = 'failed';
+      status = "failed";
     } else {
-      status = 'partial';
+      status = "partial";
     }
 
     return {

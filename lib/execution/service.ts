@@ -1,6 +1,6 @@
 // Execution service orchestration for Run and Submit modes
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   PistonClient,
   TestCaseEvaluator,
@@ -14,13 +14,13 @@ import type {
   RunResponse,
   SubmitResponse,
   ExecutionService,
-} from './types';
-import { ExecutionDatabaseError, ExecutionValidationError } from './errors';
-import { createExecutionLogger, type ExecutionLogger } from './logging';
+} from "./types";
+import { ExecutionDatabaseError, ExecutionValidationError } from "./errors";
+import { createExecutionLogger, type ExecutionLogger } from "./logging";
 import {
   materializeTestCaseInputTemplate,
   validateTestCaseInputTemplate,
-} from '@/lib/ai/template-dsl';
+} from "@/lib/ai/template-dsl";
 
 interface ExecutionServiceConfig {
   pistonClient: PistonClient;
@@ -46,7 +46,7 @@ export class ExecutionServiceImpl implements ExecutionService {
   async runCode(request: RunRequest): Promise<RunResponse> {
     const startedAt = Date.now();
     this.logger.logExecutionStarted({
-      mode: 'run',
+      mode: "run",
       problemId: request.problemId,
       language: request.language,
     });
@@ -56,13 +56,17 @@ export class ExecutionServiceImpl implements ExecutionService {
       const testCases = await this.fetchTestCases(request.problemId, true);
 
       // Execute code against each test case
-      const results = await this.executeTestCases(request.code, request.language, testCases);
+      const results = await this.executeTestCases(
+        request.code,
+        request.language,
+        testCases,
+      );
 
       // Calculate score
       const score = this.evaluator.calculateScore(results);
 
       this.logger.logExecutionCompleted({
-        mode: 'run',
+        mode: "run",
         problemId: request.problemId,
         language: request.language,
         durationMs: Date.now() - startedAt,
@@ -73,22 +77,25 @@ export class ExecutionServiceImpl implements ExecutionService {
     } catch (error) {
       this.logger.logExecutionFailed(
         {
-          mode: 'run',
+          mode: "run",
           problemId: request.problemId,
           language: request.language,
           durationMs: Date.now() - startedAt,
         },
-        error
+        error,
       );
       throw error;
     }
   }
 
   // Submit mode: execute code against all test cases and save submission
-  async submitCode(request: SubmitRequest, userId: string): Promise<SubmitResponse> {
+  async submitCode(
+    request: SubmitRequest,
+    userId: string,
+  ): Promise<SubmitResponse> {
     const startedAt = Date.now();
     this.logger.logExecutionStarted({
-      mode: 'submit',
+      mode: "submit",
       userId,
       problemId: request.problemId,
       language: request.language,
@@ -99,7 +106,11 @@ export class ExecutionServiceImpl implements ExecutionService {
       const testCases = await this.fetchTestCases(request.problemId, false);
 
       // Execute code against each test case
-      const results = await this.executeTestCases(request.code, request.language, testCases);
+      const results = await this.executeTestCases(
+        request.code,
+        request.language,
+        testCases,
+      );
 
       // Calculate score
       const score = this.evaluator.calculateScore(results);
@@ -116,7 +127,7 @@ export class ExecutionServiceImpl implements ExecutionService {
       });
 
       this.logger.logExecutionCompleted({
-        mode: 'submit',
+        mode: "submit",
         userId,
         problemId: request.problemId,
         language: request.language,
@@ -128,20 +139,23 @@ export class ExecutionServiceImpl implements ExecutionService {
     } catch (error) {
       this.logger.logExecutionFailed(
         {
-          mode: 'submit',
+          mode: "submit",
           userId,
           problemId: request.problemId,
           language: request.language,
           durationMs: Date.now() - startedAt,
         },
-        error
+        error,
       );
       throw error;
     }
   }
 
   // Fetch test cases from database
-  private async fetchTestCases(problemId: string, sampleOnly: boolean): Promise<TestCase[]> {
+  private async fetchTestCases(
+    problemId: string,
+    sampleOnly: boolean,
+  ): Promise<TestCase[]> {
     let data: Array<{
       id: string;
       input_data: string;
@@ -155,12 +169,14 @@ export class ExecutionServiceImpl implements ExecutionService {
 
     try {
       let query = this.supabase
-        .from('test_cases')
-        .select('id, input_data, input_template, generation_seed, expected_output, is_sample, points')
-        .eq('problem_id', problemId);
+        .from("test_cases")
+        .select(
+          "id, input_data, input_template, generation_seed, expected_output, is_sample, points",
+        )
+        .eq("problem_id", problemId);
 
       if (sampleOnly) {
-        query = query.eq('is_sample', true);
+        query = query.eq("is_sample", true);
       }
 
       const result = await query;
@@ -168,42 +184,51 @@ export class ExecutionServiceImpl implements ExecutionService {
       error = result.error;
     } catch (caught) {
       throw new ExecutionDatabaseError(
-        `Failed to fetch test cases: ${caught instanceof Error ? caught.message : 'Unknown database error'}`,
-        caught
+        `Failed to fetch test cases: ${caught instanceof Error ? caught.message : "Unknown database error"}`,
+        caught,
       );
     }
 
     if (error) {
-      throw new ExecutionDatabaseError(`Failed to fetch test cases: ${error.message}`, error);
+      throw new ExecutionDatabaseError(
+        `Failed to fetch test cases: ${error.message}`,
+        error,
+      );
     }
 
     if (!data || data.length === 0) {
-      throw new Error('No test cases found for problem');
+      throw new Error("No test cases found for problem");
     }
 
     this.validateRawTestCases(data);
 
-    return data.map(tc => {
+    return data.map((tc) => {
       let resolvedInput = tc.input_data;
 
       if (tc.input_template !== undefined && tc.input_template !== null) {
-        if (typeof tc.generation_seed !== 'string' || tc.generation_seed.trim().length === 0) {
+        if (
+          typeof tc.generation_seed !== "string" ||
+          tc.generation_seed.trim().length === 0
+        ) {
           throw new ExecutionValidationError(
-            `Invalid test case template for test case ${tc.id}: generation_seed must be present`
+            `Invalid test case template for test case ${tc.id}: generation_seed must be present`,
           );
         }
 
         try {
           validateTestCaseInputTemplate(tc.input_template);
-          const materialized = materializeTestCaseInputTemplate(tc.input_template, {
-            seedMaterial: tc.generation_seed,
-          });
+          const materialized = materializeTestCaseInputTemplate(
+            tc.input_template,
+            {
+              seedMaterial: tc.generation_seed,
+            },
+          );
           resolvedInput = materialized.inputData;
         } catch (error) {
           throw new ExecutionValidationError(
             `Invalid test case template for test case ${tc.id}: ${
-              error instanceof Error ? error.message : 'Unknown template error'
-            }`
+              error instanceof Error ? error.message : "Unknown template error"
+            }`,
           );
         }
       }
@@ -222,7 +247,7 @@ export class ExecutionServiceImpl implements ExecutionService {
   private async executeTestCases(
     code: string,
     language: SupportedLanguage,
-    testCases: TestCase[]
+    testCases: TestCase[],
   ): Promise<TestResult[]> {
     let pistonLanguage;
     try {
@@ -230,7 +255,7 @@ export class ExecutionServiceImpl implements ExecutionService {
     } catch (error) {
       throw new ExecutionValidationError(
         `Unsupported language: ${language}`,
-        error
+        error,
       );
     }
 
@@ -245,7 +270,7 @@ export class ExecutionServiceImpl implements ExecutionService {
         results.push({
           testCaseId: testCase.id,
           passed: false,
-          actualOutput: '',
+          actualOutput: "",
           expectedOutput: testCase.expectedOutput,
           pointsEarned: 0,
           pointsAvailable: testCase.points,
@@ -257,20 +282,25 @@ export class ExecutionServiceImpl implements ExecutionService {
       // Execute code with test case input
       const executionRequest: ExecutionRequest = {
         language: pistonLanguage,
-        version: '*',
+        version: "*",
         files: [{ content: code }],
         stdin: testCase.input,
       };
 
-      const executionResponse = await this.pistonClient.execute(executionRequest);
+      const executionResponse =
+        await this.pistonClient.execute(executionRequest);
 
       // Check for compilation error
       if (executionResponse.compile && executionResponse.compile.code !== 0) {
-        compilationError = executionResponse.compile.stderr || 'Compilation failed';
+        compilationError =
+          executionResponse.compile.stderr || "Compilation failed";
       }
 
       // Evaluate test case
-      const result = this.evaluator.evaluateTestCase(executionResponse, testCase);
+      const result = this.evaluator.evaluateTestCase(
+        executionResponse,
+        testCase,
+      );
       results.push(result);
     }
 
@@ -305,66 +335,99 @@ export class ExecutionServiceImpl implements ExecutionService {
 
     try {
       const result = await this.supabase
-        .from('problem_submissions')
+        .from("problem_submissions")
         .insert(submissionData)
-        .select('id')
+        .select("id")
         .single();
 
       data = result.data;
       error = result.error;
     } catch (caught) {
       throw new ExecutionDatabaseError(
-        `Failed to save submission: ${caught instanceof Error ? caught.message : 'Unknown database error'}`,
-        caught
+        `Failed to save submission: ${caught instanceof Error ? caught.message : "Unknown database error"}`,
+        caught,
       );
     }
 
     if (error) {
-      throw new ExecutionDatabaseError(`Failed to save submission: ${error.message}`, error);
+      throw new ExecutionDatabaseError(
+        `Failed to save submission: ${error.message}`,
+        error,
+      );
     }
 
     if (!data) {
-      throw new ExecutionDatabaseError('Failed to save submission: No data returned');
+      throw new ExecutionDatabaseError(
+        "Failed to save submission: No data returned",
+      );
     }
 
     return data.id;
   }
 
-  private validateRawTestCases(testCases: Array<Record<string, unknown>>): void {
+  private validateRawTestCases(
+    testCases: Array<Record<string, unknown>>,
+  ): void {
     for (const testCase of testCases) {
-      if (typeof testCase.id !== 'string' || testCase.id.length === 0) {
-        throw new ExecutionValidationError('Invalid test case data: missing id');
+      if (typeof testCase.id !== "string" || testCase.id.length === 0) {
+        throw new ExecutionValidationError(
+          "Invalid test case data: missing id",
+        );
       }
 
       const hasTemplate =
-        Object.prototype.hasOwnProperty.call(testCase, 'input_template') &&
+        Object.prototype.hasOwnProperty.call(testCase, "input_template") &&
         testCase.input_template !== null &&
         testCase.input_template !== undefined;
 
-      if (!hasTemplate && typeof testCase.input_data !== 'string') {
-        throw new ExecutionValidationError(`Invalid test case data: input_data must be a string for test case ${testCase.id}`);
+      if (!hasTemplate && typeof testCase.input_data !== "string") {
+        throw new ExecutionValidationError(
+          `Invalid test case data: input_data must be a string for test case ${testCase.id}`,
+        );
       }
 
-      if (hasTemplate && (typeof testCase.input_template !== 'object' || Array.isArray(testCase.input_template))) {
-        throw new ExecutionValidationError(`Invalid test case data: input_template must be an object for test case ${testCase.id}`);
+      if (
+        hasTemplate &&
+        (typeof testCase.input_template !== "object" ||
+          Array.isArray(testCase.input_template))
+      ) {
+        throw new ExecutionValidationError(
+          `Invalid test case data: input_template must be an object for test case ${testCase.id}`,
+        );
       }
 
-      if (hasTemplate && (typeof testCase.generation_seed !== 'string' || testCase.generation_seed.trim().length === 0)) {
-        throw new ExecutionValidationError(`Invalid test case data: generation_seed must be a non-empty string for template test case ${testCase.id}`);
+      if (
+        hasTemplate &&
+        (typeof testCase.generation_seed !== "string" ||
+          testCase.generation_seed.trim().length === 0)
+      ) {
+        throw new ExecutionValidationError(
+          `Invalid test case data: generation_seed must be a non-empty string for template test case ${testCase.id}`,
+        );
       }
 
-      if (typeof testCase.expected_output !== 'string') {
-        throw new ExecutionValidationError(`Invalid test case data: expected_output must be a string for test case ${testCase.id}`);
+      if (typeof testCase.expected_output !== "string") {
+        throw new ExecutionValidationError(
+          `Invalid test case data: expected_output must be a string for test case ${testCase.id}`,
+        );
       }
 
-      if (typeof testCase.points !== 'number' || !Number.isFinite(testCase.points) || testCase.points < 0) {
-        throw new ExecutionValidationError(`Invalid test case data: points must be a non-negative number for test case ${testCase.id}`);
+      if (
+        typeof testCase.points !== "number" ||
+        !Number.isFinite(testCase.points) ||
+        testCase.points < 0
+      ) {
+        throw new ExecutionValidationError(
+          `Invalid test case data: points must be a non-negative number for test case ${testCase.id}`,
+        );
       }
     }
   }
 }
 
 // Factory function to create execution service with dependencies
-export function createExecutionService(config: ExecutionServiceConfig): ExecutionService {
+export function createExecutionService(
+  config: ExecutionServiceConfig,
+): ExecutionService {
   return new ExecutionServiceImpl(config);
 }

@@ -1,4 +1,4 @@
-import type { ProblemSubmissionHistoryItem } from './types';
+import type { ProblemSubmissionHistoryItem } from "./types";
 
 function toTimestamp(value: string): number {
   const timestamp = Date.parse(value);
@@ -7,20 +7,20 @@ function toTimestamp(value: string): number {
 
 function sortByLatest(
   left: ProblemSubmissionHistoryItem,
-  right: ProblemSubmissionHistoryItem
+  right: ProblemSubmissionHistoryItem,
 ): number {
   return toTimestamp(right.submittedAt) - toTimestamp(left.submittedAt);
 }
 
 export function selectRepresentativeSubmission(
-  submissions: ProblemSubmissionHistoryItem[]
+  submissions: ProblemSubmissionHistoryItem[],
 ): ProblemSubmissionHistoryItem | null {
   if (submissions.length === 0) {
     return null;
   }
 
   const latestPassed = submissions
-    .filter((submission) => submission.status === 'passed')
+    .filter((submission) => submission.status === "passed")
     .sort(sortByLatest)[0];
 
   if (latestPassed) {
@@ -28,9 +28,10 @@ export function selectRepresentativeSubmission(
   }
 
   const bestPartial = submissions
-    .filter((submission) => submission.status === 'partial')
+    .filter((submission) => submission.status === "partial")
     .sort((left, right) => {
-      const pointsDelta = (right.earnedPoints ?? -1) - (left.earnedPoints ?? -1);
+      const pointsDelta =
+        (right.earnedPoints ?? -1) - (left.earnedPoints ?? -1);
       if (pointsDelta !== 0) {
         return pointsDelta;
       }
@@ -43,7 +44,10 @@ export function selectRepresentativeSubmission(
   }
 
   const latestIncorrect = submissions
-    .filter((submission) => submission.status === 'failed' || submission.status === 'error')
+    .filter(
+      (submission) =>
+        submission.status === "failed" || submission.status === "error",
+    )
     .sort(sortByLatest)[0];
 
   if (latestIncorrect) {

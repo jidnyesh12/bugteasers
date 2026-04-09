@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   Dialog,
@@ -8,8 +8,8 @@ import {
   DialogOverlay,
   DialogPortal,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Dialog as DialogPrimitive } from 'radix-ui';
+} from "@/components/ui/dialog";
+import { Dialog as DialogPrimitive } from "radix-ui";
 
 interface ResetCodeDialogProps {
   open: boolean;
@@ -44,7 +44,8 @@ export function ResetCodeDialog({
               Reset code to starter template?
             </DialogTitle>
             <DialogDescription className="text-xs leading-relaxed text-gray-300">
-              This replaces your current editor content. You can use Ctrl + Z inside the editor to undo after reset.
+              This replaces your current editor content. You can use Ctrl + Z
+              inside the editor to undo after reset.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

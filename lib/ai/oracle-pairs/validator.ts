@@ -1,4 +1,3 @@
-
 import type {
   OraclePair,
   OracleValidationResult,
@@ -8,11 +7,11 @@ import type {
   TestCaseStatus,
   ModelAnswerStatus,
   MaterializedTestCaseWithVariables,
-} from './types';
-import { ConstraintLevel } from './types';
-import type { DSLConstraint } from './types';
-import type { TestCaseInputTemplate } from '../template-dsl/types';
-import { ConstraintRegistry } from './constraints';
+} from "./types";
+import { ConstraintLevel } from "./types";
+import type { DSLConstraint } from "./types";
+import type { TestCaseInputTemplate } from "../template-dsl/types";
+import { ConstraintRegistry } from "./constraints";
 
 /**
  * Validator configuration
@@ -60,10 +59,11 @@ export interface ValidationDiagnostics {
  */
 export function validateHardConstraints(
   testCase: MaterializedTestCaseWithVariables,
-  constraints?: DSLConstraint[]
+  constraints?: DSLConstraint[],
 ): { valid: boolean; violations: DSLConstraint[] } {
   const registry = ConstraintRegistry.getInstance();
-  const constraintsToCheck = constraints ?? registry.getByLevel(ConstraintLevel.HARD);
+  const constraintsToCheck =
+    constraints ?? registry.getByLevel(ConstraintLevel.HARD);
 
   const violations: DSLConstraint[] = [];
 
@@ -92,14 +92,15 @@ export function validateHardConstraints(
  */
 export function validateSoftConstraints(
   testCase: MaterializedTestCaseWithVariables,
-  constraints?: DSLConstraint[]
+  constraints?: DSLConstraint[],
 ): {
   valid: boolean;
   violations: DSLConstraint[];
   repairable: DSLConstraint[];
 } {
   const registry = ConstraintRegistry.getInstance();
-  const constraintsToCheck = constraints ?? registry.getByLevel(ConstraintLevel.SOFT);
+  const constraintsToCheck =
+    constraints ?? registry.getByLevel(ConstraintLevel.SOFT);
 
   const violations: DSLConstraint[] = [];
   const repairable: DSLConstraint[] = [];
@@ -133,14 +134,14 @@ export function validateSoftConstraints(
 export function compareOutputs(
   expected: string,
   actual: string,
-  maxLength: number = 100_000
+  maxLength: number = 100_000,
 ): {
   matches: boolean;
   mismatch?: OutputMismatch; // <-- Kept your strict typing here!
   context: string;
 } {
   // 1. CP Normalization: Trim outer whitespace and standardize newlines
-  const normalize = (str: string) => str.trim().replace(/\r\n/g, '\n');
+  const normalize = (str: string) => str.trim().replace(/\r\n/g, "\n");
 
   // Apply normalization and cut to max length
   const exp = normalize(expected).substring(0, maxLength);
@@ -148,7 +149,7 @@ export function compareOutputs(
 
   // Equality check
   if (exp === act) {
-    return { matches: true, context: '' };
+    return { matches: true, context: "" };
   }
 
   // Find first difference for debugging
@@ -196,35 +197,43 @@ export function attributeFailure(params: {
   softConstraintViolations: number;
   executionErrors?: number;
 }): { attribution: FailureAttribution; confidence: number } {
-  const { testCaseStatus, modelAnswerStatus, hardConstraintViolations, softConstraintViolations } = params;
+  const {
+    testCaseStatus,
+    modelAnswerStatus,
+    hardConstraintViolations,
+    softConstraintViolations,
+  } = params;
 
   // If hard constraints violated → definitely test case error
   if (hardConstraintViolations > 0) {
-    return { attribution: 'test_case_error', confidence: 0.95 };
+    return { attribution: "test_case_error", confidence: 0.95 };
   }
 
   // If execution error or timeout → model answer error
-  if (modelAnswerStatus === 'runtime_error' || modelAnswerStatus === 'timeout') {
-    return { attribution: 'model_answer_error', confidence: 0.9 };
+  if (
+    modelAnswerStatus === "runtime_error" ||
+    modelAnswerStatus === "timeout"
+  ) {
+    return { attribution: "model_answer_error", confidence: 0.9 };
   }
 
   // If syntax error in answer → model answer error
-  if (modelAnswerStatus === 'syntax_error') {
-    return { attribution: 'model_answer_error', confidence: 0.85 };
+  if (modelAnswerStatus === "syntax_error") {
+    return { attribution: "model_answer_error", confidence: 0.85 };
   }
 
   // If soft constraints violated → slight bias to test case error
   if (softConstraintViolations > 0) {
-    return { attribution: 'test_case_error', confidence: 0.6 };
+    return { attribution: "test_case_error", confidence: 0.6 };
   }
 
   // If both statuses are valid but mismatched output → needs differential oracle
-  if (testCaseStatus === 'valid' && modelAnswerStatus === 'correct') {
-    return { attribution: 'unknown', confidence: 0.0 };
+  if (testCaseStatus === "valid" && modelAnswerStatus === "correct") {
+    return { attribution: "unknown", confidence: 0.0 };
   }
 
   // Default: unknown
-  return { attribution: 'unknown', confidence: 0.3 };
+  return { attribution: "unknown", confidence: 0.3 };
 }
 
 /**
@@ -235,17 +244,17 @@ export function attributeFailure(params: {
  */
 export async function validateOraclePair(
   pair: OraclePair,
-  config: ValidatorConfig = DEFAULT_VALIDATOR_CONFIG
+  config: ValidatorConfig = DEFAULT_VALIDATOR_CONFIG,
 ): Promise<OracleValidationResult> {
   const diagnostics: ValidationDiagnostics = {
     constraintViolations: [],
     executionErrors: [],
     nonDeterminismDetected: false,
-    outputDiffContext: '',
+    outputDiffContext: "",
   };
 
   // Phase 1: Validate test case constraints
-  let testCaseStatus: TestCaseStatus = 'valid';
+  let testCaseStatus: TestCaseStatus = "valid";
   const hardResult = validateHardConstraints({
     inputData: pair.testCase.inputData,
     expectedOutput: pair.testCase.expectedOutput,
@@ -255,10 +264,10 @@ export async function validateOraclePair(
   });
 
   if (!hardResult.valid) {
-    testCaseStatus = 'constraint_violation';
+    testCaseStatus = "constraint_violation";
     diagnostics.constraintViolations = hardResult.violations.map((c) => ({
       constraint: c.name,
-      level: 'HARD',
+      level: "HARD",
       reason: c.description,
     }));
   }
@@ -271,58 +280,71 @@ export async function validateOraclePair(
     template: {} as TestCaseInputTemplate,
   });
 
-  if (!softResult.valid && testCaseStatus === 'valid') {
-    testCaseStatus = 'constraint_violation';
+  if (!softResult.valid && testCaseStatus === "valid") {
+    testCaseStatus = "constraint_violation";
     diagnostics.constraintViolations.push(
       ...softResult.violations.map((c) => ({
         constraint: c.name,
-        level: 'SOFT',
+        level: "SOFT",
         reason: c.description,
-      }))
+      })),
     );
   }
 
   // Phase 2: Execute model answer via Piston
-  let modelAnswerStatus: ModelAnswerStatus = 'correct';
+  let modelAnswerStatus: ModelAnswerStatus = "correct";
   let executionResult: ExecutionResult | undefined;
-  let actualOutput = '';
+  let actualOutput = "";
 
   try {
-    const { executeCode, DEFAULT_EXECUTOR_CONFIG } = await import('./executor');
-    executionResult = await executeCode(pair.modelAnswer, pair.testCase.inputData, {
-      ...DEFAULT_EXECUTOR_CONFIG,
-      timeout: config.timeout,
-      // Never inject RNG seeding into the model answer — the AI's solution code
-      // is self-contained (reads stdin, writes stdout). prepareCodeForExecution
-      // was prepending srand() at C++ global scope, causing compile errors.
-      seedRNG: false,
-    });
+    const { executeCode, DEFAULT_EXECUTOR_CONFIG } = await import("./executor");
+    executionResult = await executeCode(
+      pair.modelAnswer,
+      pair.testCase.inputData,
+      {
+        ...DEFAULT_EXECUTOR_CONFIG,
+        timeout: config.timeout,
+        // Never inject RNG seeding into the model answer — the AI's solution code
+        // is self-contained (reads stdin, writes stdout). prepareCodeForExecution
+        // was prepending srand() at C++ global scope, causing compile errors.
+        seedRNG: false,
+      },
+    );
 
     actualOutput = executionResult.output;
 
-    if (executionResult.status === 'timeout') {
-      modelAnswerStatus = 'timeout';
+    if (executionResult.status === "timeout") {
+      modelAnswerStatus = "timeout";
       diagnostics.executionErrors.push({
-        type: 'TIMEOUT',
+        type: "TIMEOUT",
         message: `Execution timed out after ${config.timeout}ms`,
       });
-    } else if (executionResult.status === 'error' || executionResult.exitCode !== 0) {
-      modelAnswerStatus = 'runtime_error';
+    } else if (
+      executionResult.status === "error" ||
+      executionResult.exitCode !== 0
+    ) {
+      modelAnswerStatus = "runtime_error";
       diagnostics.executionErrors.push({
-        type: 'RUNTIME_ERROR',
-        message: executionResult.stderr || `Non-zero exit code: ${executionResult.exitCode}`,
+        type: "RUNTIME_ERROR",
+        message:
+          executionResult.stderr ||
+          `Non-zero exit code: ${executionResult.exitCode}`,
       });
     }
   } catch (error) {
-    modelAnswerStatus = 'runtime_error';
+    modelAnswerStatus = "runtime_error";
     diagnostics.executionErrors.push({
-      type: 'EXECUTION_FAILED',
+      type: "EXECUTION_FAILED",
       message: error instanceof Error ? error.message : String(error),
     });
   }
 
   // Phase 3: Compare outputs
-  const comparison = compareOutputs(pair.testCase.expectedOutput, actualOutput, config.outputMaxLength);
+  const comparison = compareOutputs(
+    pair.testCase.expectedOutput,
+    actualOutput,
+    config.outputMaxLength,
+  );
   const outputMatch = comparison.matches;
   diagnostics.outputDiffContext = comparison.context;
 
@@ -336,7 +358,10 @@ export async function validateOraclePair(
   });
 
   // Phase 5: Build result
-  const isConsistent = testCaseStatus === 'valid' && modelAnswerStatus === 'correct' && outputMatch;
+  const isConsistent =
+    testCaseStatus === "valid" &&
+    modelAnswerStatus === "correct" &&
+    outputMatch;
 
   const result: OracleValidationResult = {
     version: 1,
@@ -359,7 +384,9 @@ export async function validateOraclePair(
     confidence: attributionResult.confidence,
 
     diagnostics: {
-      constraintViolations: diagnostics.constraintViolations.map((c) => c.constraint),
+      constraintViolations: diagnostics.constraintViolations.map(
+        (c) => c.constraint,
+      ),
       executionErrors: diagnostics.executionErrors.map((e) => e.message),
       nonDeterminismDetected: diagnostics.nonDeterminismDetected,
     },
@@ -375,7 +402,7 @@ export async function validateOraclePair(
  */
 export async function validateOraclePairWithDeterminismCheck(
   pair: OraclePair,
-  config: ValidatorConfig = DEFAULT_VALIDATOR_CONFIG
+  config: ValidatorConfig = DEFAULT_VALIDATOR_CONFIG,
 ): Promise<OracleValidationResult> {
   const result1 = await validateOraclePair(pair, config);
   const result2 = await validateOraclePair(pair, config);
@@ -396,7 +423,7 @@ export async function validateOraclePairWithDeterminismCheck(
     } else {
       result1.diagnostics.nonDeterminismDetected = true;
     }
-    result1.failureAttributed = 'non_determinism';
+    result1.failureAttributed = "non_determinism";
     result1.confidence = 0.0;
   }
 

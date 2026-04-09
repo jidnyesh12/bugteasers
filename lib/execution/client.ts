@@ -10,18 +10,18 @@ import type {
   Runtime,
   SupportedLanguage,
   PistonLanguage,
-} from './types';
+} from "./types";
 import {
   UnsupportedLanguageError,
   InvalidResponseError,
   ExecutionTimeoutError,
-} from './types';
+} from "./types";
 import {
   PISTON_API_URL,
   DEFAULT_EXECUTION_TIMEOUT,
   DEFAULT_MAX_RETRIES,
   RETRY_BASE_DELAY,
-} from './constants';
+} from "./constants";
 
 /**
  * Thrown when the Piston API returns an infrastructure-level failure
@@ -38,10 +38,10 @@ export class PistonInfrastructureError extends Error {
     const preview = rawBody.substring(0, 200);
     super(
       `Piston API infrastructure error (HTTP ${statusCode}): ${preview}${
-        rawBody.length > 200 ? '...' : ''
-      }`
+        rawBody.length > 200 ? "..." : ""
+      }`,
     );
-    this.name = 'PistonInfrastructureError';
+    this.name = "PistonInfrastructureError";
     this.statusCode = statusCode;
     this.rawBody = rawBody;
   }
@@ -65,16 +65,19 @@ export class PistonClientImpl implements PistonClient {
   // Execute code via Piston API with retry logic
   async execute(request: ExecutionRequest): Promise<ExecutionResponse> {
     const url = `${this.config.apiUrl}/api/v2/execute`;
-    
+
     for (let attempt = 0; attempt <= this.config.maxRetries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+        const timeoutId = setTimeout(
+          () => controller.abort(),
+          this.config.timeout,
+        );
 
         const response = await fetch(url, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify(request),
           signal: controller.signal,
@@ -88,13 +91,12 @@ export class PistonClientImpl implements PistonClient {
         // directly would throw a confusing SyntaxError that gets
         // misclassified as a model_answer_error.
         const rawText = await response.text();
-        
 
         // Gate 1: HTTP status must be 2xx
         if (!response.ok) {
           console.error(
             `[PISTON] Infrastructure failure — HTTP ${response.status} ${response.statusText}`,
-            rawText.substring(0, 500)
+            rawText.substring(0, 500),
           );
           throw new PistonInfrastructureError(response.status, rawText);
         }
@@ -105,40 +107,38 @@ export class PistonClientImpl implements PistonClient {
           data = JSON.parse(rawText);
         } catch (parseError) {
           console.error(
-            '[PISTON] Response body is not valid JSON.',
-            'Content-Type:', response.headers.get('content-type'),
-            'Body preview:', rawText.substring(0, 300)
+            "[PISTON] Response body is not valid JSON.",
+            "Content-Type:",
+            response.headers.get("content-type"),
+            "Body preview:",
+            rawText.substring(0, 300),
           );
-          throw new PistonInfrastructureError(
-            response.status,
-            rawText
-          );
+          throw new PistonInfrastructureError(response.status, rawText);
         }
 
         const normalizedData = this.withRequestMetadata(data, request);
 
         // Validate and return response (even for compilation errors)
         return this.validateResponse(normalizedData);
-
       } catch (error) {
         const isLastAttempt = attempt === this.config.maxRetries;
-        
+
         // Handle timeout
-        if (error instanceof Error && error.name === 'AbortError') {
+        if (error instanceof Error && error.name === "AbortError") {
           if (isLastAttempt) {
             throw new ExecutionTimeoutError(this.config.timeout);
           }
-          
+
           // Retry with exponential backoff
           const delay = Math.pow(2, attempt) * RETRY_BASE_DELAY;
           console.warn(
             `Retrying Piston API request after timeout (attempt ${attempt + 1}/${this.config.maxRetries})`,
-            { url, delay }
+            { url, delay },
           );
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
-        
+
         // Infrastructure errors from Piston (50x, HTML responses) — retry with backoff
         if (error instanceof PistonInfrastructureError) {
           if (isLastAttempt) {
@@ -148,47 +148,52 @@ export class PistonClientImpl implements PistonClient {
           const delay = Math.pow(2, attempt) * RETRY_BASE_DELAY;
           console.warn(
             `[PISTON] Retrying after infrastructure error HTTP ${error.statusCode} ` +
-            `(attempt ${attempt + 1}/${this.config.maxRetries})`,
-            { url, delay }
+              `(attempt ${attempt + 1}/${this.config.maxRetries})`,
+            { url, delay },
           );
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
 
         // Handle network errors - retry
-        if (error instanceof TypeError && error.message.includes('fetch')) {
+        if (error instanceof TypeError && error.message.includes("fetch")) {
           if (isLastAttempt) {
-            throw new Error(`Network error: ${error.message}`, { cause: error });
+            throw new Error(`Network error: ${error.message}`, {
+              cause: error,
+            });
           }
-          
+
           // Exponential backoff: 1s, 2s, 4s
           const delay = Math.pow(2, attempt) * RETRY_BASE_DELAY;
           console.warn(
             `Retrying Piston API request (attempt ${attempt + 1}/${this.config.maxRetries})`,
-            { url, error: error.message, delay }
+            { url, error: error.message, delay },
           );
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
-        
+
         // Other errors - don't retry
         throw error;
       }
     }
 
-    throw new Error('Max retries exceeded');
+    throw new Error("Max retries exceeded");
   }
 
   // Fetch available language runtimes from Piston
   async getRuntimes(): Promise<Runtime[]> {
     const url = `${this.config.apiUrl}/api/v2/runtimes`;
-    
+
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        this.config.timeout,
+      );
 
       const response = await fetch(url, {
-        method: 'GET',
+        method: "GET",
         signal: controller.signal,
       });
 
@@ -199,20 +204,20 @@ export class PistonClientImpl implements PistonClient {
       }
 
       const data = await response.json();
-      
+
       if (!Array.isArray(data)) {
-        throw new InvalidResponseError('Runtimes response is not an array');
+        throw new InvalidResponseError("Runtimes response is not an array");
       }
-      
+
       return data;
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
+      if (error instanceof Error && error.name === "AbortError") {
         throw new ExecutionTimeoutError(this.config.timeout);
       }
-      
+
       throw new Error(
-        `Failed to fetch runtimes: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        { cause: error }
+        `Failed to fetch runtimes: ${error instanceof Error ? error.message : "Unknown error"}`,
+        { cause: error },
       );
     }
   }
@@ -220,14 +225,14 @@ export class PistonClientImpl implements PistonClient {
   // Map system language identifier to Piston language identifier
   mapLanguage(language: SupportedLanguage): PistonLanguage {
     const languageMap: Record<SupportedLanguage, PistonLanguage> = {
-      python: 'python',
-      java: 'java',
-      cpp: 'c++',
-      c: 'c',
+      python: "python",
+      java: "java",
+      cpp: "c++",
+      c: "c",
     };
 
     const pistonLanguage = languageMap[language];
-    
+
     if (!pistonLanguage) {
       throw new UnsupportedLanguageError(language);
     }
@@ -237,49 +242,49 @@ export class PistonClientImpl implements PistonClient {
 
   // Validate Piston API response structure
   validateResponse(response: unknown): ExecutionResponse {
-    if (!response || typeof response !== 'object') {
-      throw new InvalidResponseError(
-        'Response is not an object',
-        response
-      );
+    if (!response || typeof response !== "object") {
+      throw new InvalidResponseError("Response is not an object", response);
     }
 
     const resp = response as Record<string, unknown>;
 
     // Validate required top-level fields
-    if (typeof resp.language !== 'string' || resp.language.length === 0) {
+    if (typeof resp.language !== "string" || resp.language.length === 0) {
       throw new InvalidResponseError(
-        'Response missing required field: language',
-        response
+        "Response missing required field: language",
+        response,
       );
     }
 
-    if (typeof resp.version !== 'string' || resp.version.length === 0) {
+    if (typeof resp.version !== "string" || resp.version.length === 0) {
       throw new InvalidResponseError(
-        'Response missing required field: version',
-        response
+        "Response missing required field: version",
+        response,
       );
     }
 
-    if (!resp.run || typeof resp.run !== 'object') {
+    if (!resp.run || typeof resp.run !== "object") {
       throw new InvalidResponseError(
-        'Response missing required field: run',
-        response
+        "Response missing required field: run",
+        response,
       );
     }
 
     // Validate run object
-    this.validateExecutionResult(resp.run as Record<string, unknown>, 'run');
+    this.validateExecutionResult(resp.run as Record<string, unknown>, "run");
 
     // Validate compile object if present
     if (resp.compile !== undefined) {
-      if (typeof resp.compile !== 'object' || resp.compile === null) {
+      if (typeof resp.compile !== "object" || resp.compile === null) {
         throw new InvalidResponseError(
-          'Response compile field must be an object',
-          response
+          "Response compile field must be an object",
+          response,
         );
       }
-      this.validateExecutionResult(resp.compile as Record<string, unknown>, 'compile');
+      this.validateExecutionResult(
+        resp.compile as Record<string, unknown>,
+        "compile",
+      );
     }
 
     // Type assertion is safe here because we've validated all required fields
@@ -289,32 +294,38 @@ export class PistonClientImpl implements PistonClient {
   // Normalize response metadata and ensure run object exists with proper structure
   private withRequestMetadata(
     response: unknown,
-    request: Pick<ExecutionRequest, 'language' | 'version'>
+    request: Pick<ExecutionRequest, "language" | "version">,
   ): unknown {
-    if (!response || typeof response !== 'object') {
+    if (!response || typeof response !== "object") {
       return response;
     }
 
     const normalized = { ...(response as Record<string, unknown>) };
 
     // Normalize language and version
-    if (typeof normalized.language !== 'string' || normalized.language.length === 0) {
+    if (
+      typeof normalized.language !== "string" ||
+      normalized.language.length === 0
+    ) {
       normalized.language = request.language;
     }
 
-    if (typeof normalized.version !== 'string' || normalized.version.length === 0) {
+    if (
+      typeof normalized.version !== "string" ||
+      normalized.version.length === 0
+    ) {
       normalized.version = request.version;
     }
 
     // Ensure run object exists with proper structure
-    if (!normalized.run || typeof normalized.run !== 'object') {
+    if (!normalized.run || typeof normalized.run !== "object") {
       // Create run object from available data
       normalized.run = {
-        stdout: normalized.stdout || '',
-        stderr: normalized.stderr || '',
-        code: typeof normalized.code === 'number' ? normalized.code : 1,
+        stdout: normalized.stdout || "",
+        stderr: normalized.stderr || "",
+        code: typeof normalized.code === "number" ? normalized.code : 1,
         signal: normalized.signal || null,
-        output: normalized.output || normalized.stdout || '',
+        output: normalized.output || normalized.stdout || "",
       };
     }
 
@@ -324,33 +335,33 @@ export class PistonClientImpl implements PistonClient {
   // Validate execution result object structure
   private validateExecutionResult(
     result: Record<string, unknown>,
-    fieldName: string
+    fieldName: string,
   ): void {
-    const requiredFields = ['stdout', 'stderr', 'code', 'output'];
-    
+    const requiredFields = ["stdout", "stderr", "code", "output"];
+
     for (const field of requiredFields) {
       if (!(field in result)) {
         throw new InvalidResponseError(
-          `Response ${fieldName} object missing required field: ${field}`
+          `Response ${fieldName} object missing required field: ${field}`,
         );
       }
     }
 
-    if (typeof result.stdout !== 'string') {
+    if (typeof result.stdout !== "string") {
       throw new InvalidResponseError(
-        `Response ${fieldName}.stdout must be a string`
+        `Response ${fieldName}.stdout must be a string`,
       );
     }
 
-    if (typeof result.stderr !== 'string') {
+    if (typeof result.stderr !== "string") {
       throw new InvalidResponseError(
-        `Response ${fieldName}.stderr must be a string`
+        `Response ${fieldName}.stderr must be a string`,
       );
     }
 
-    if (typeof result.code !== 'number' && result.code !== null) {
+    if (typeof result.code !== "number" && result.code !== null) {
       throw new InvalidResponseError(
-        `Response ${fieldName}.code must be a number or null`
+        `Response ${fieldName}.code must be a number or null`,
       );
     }
 
@@ -359,15 +370,15 @@ export class PistonClientImpl implements PistonClient {
       result.code = 1;
     }
 
-    if (result.signal !== null && typeof result.signal !== 'string') {
+    if (result.signal !== null && typeof result.signal !== "string") {
       throw new InvalidResponseError(
-        `Response ${fieldName}.signal must be a string or null`
+        `Response ${fieldName}.signal must be a string or null`,
       );
     }
 
-    if (typeof result.output !== 'string') {
+    if (typeof result.output !== "string") {
       throw new InvalidResponseError(
-        `Response ${fieldName}.output must be a string`
+        `Response ${fieldName}.output must be a string`,
       );
     }
   }
@@ -375,7 +386,7 @@ export class PistonClientImpl implements PistonClient {
 
 // Create a Piston client instance with default configuration
 export function createPistonClient(
-  config?: Partial<PistonClientConfig>
+  config?: Partial<PistonClientConfig>,
 ): PistonClient {
   return new PistonClientImpl(config);
 }

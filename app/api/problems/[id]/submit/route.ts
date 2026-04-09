@@ -1,22 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { supabase } from '@/lib/supabase/client';
-import { createExecutionService } from '@/lib/execution';
-import { PistonClientImpl } from '@/lib/execution/client';
-import { TestCaseEvaluatorImpl } from '@/lib/execution/evaluator';
-import { ExecutionAuthorizationError } from '@/lib/execution/errors';
-import { mapExecutionErrorToHttp } from '@/lib/execution/error-mapping';
-import { createExecutionLogger } from '@/lib/execution/logging';
-import { checkExecutionRateLimit } from '@/lib/execution/rate-limiter';
-import { assertAssignmentOpenForSubmission, assertExecutionAccess } from '@/lib/execution/access';
-import { parseJsonBody, validateSubmitPayload } from '@/lib/execution/request-validation';
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { supabase } from "@/lib/supabase/client";
+import { createExecutionService } from "@/lib/execution";
+import { PistonClientImpl } from "@/lib/execution/client";
+import { TestCaseEvaluatorImpl } from "@/lib/execution/evaluator";
+import { ExecutionAuthorizationError } from "@/lib/execution/errors";
+import { mapExecutionErrorToHttp } from "@/lib/execution/error-mapping";
+import { createExecutionLogger } from "@/lib/execution/logging";
+import { checkExecutionRateLimit } from "@/lib/execution/rate-limiter";
+import {
+  assertAssignmentOpenForSubmission,
+  assertExecutionAccess,
+} from "@/lib/execution/access";
+import {
+  parseJsonBody,
+  validateSubmitPayload,
+} from "@/lib/execution/request-validation";
 
 const logger = createExecutionLogger();
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: problemId } = await params;
@@ -24,23 +30,23 @@ export async function POST(
     // Verify authentication
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      throw new ExecutionAuthorizationError('Unauthorized');
+      throw new ExecutionAuthorizationError("Unauthorized");
     }
 
     const rateLimit = checkExecutionRateLimit({
       userId: session.user.id,
-      mode: 'submit',
+      mode: "submit",
     });
 
     if (!rateLimit.allowed) {
       return NextResponse.json(
-        { error: 'Too Many Requests' },
+        { error: "Too Many Requests" },
         {
           status: 429,
           headers: {
-            'Retry-After': String(rateLimit.retryAfterSeconds),
+            "Retry-After": String(rateLimit.retryAfterSeconds),
           },
-        }
+        },
       );
     }
 
@@ -77,13 +83,16 @@ export async function POST(
         problemId,
         assignmentId: payload.assignmentId,
       },
-      session.user.id
+      session.user.id,
     );
 
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
-    logger.logExecutionFailed({ mode: 'submit' }, error);
+    logger.logExecutionFailed({ mode: "submit" }, error);
     const mapped = mapExecutionErrorToHttp(error);
-    return NextResponse.json({ error: mapped.message }, { status: mapped.status });
+    return NextResponse.json(
+      { error: mapped.message },
+      { status: mapped.status },
+    );
   }
 }

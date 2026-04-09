@@ -13,12 +13,8 @@
  * - Low confidence (<50%) → escalate
  */
 
-import type {
-  OraclePair,
-  OracleValidationResult,
-  RepairLog,
-} from './types';
-import { RepairActionType } from './types';
+import type { OraclePair, OracleValidationResult, RepairLog } from "./types";
+import { RepairActionType } from "./types";
 
 /**
  * Repair configuration
@@ -66,15 +62,21 @@ export interface RepairDecision {
  */
 export function makeRepairDecision(
   context: RepairContext,
-  config: RepairConfig
+  config: RepairConfig,
 ): RepairDecision {
   const { validation, repairAttempt, confidenceBefore } = context;
 
   // Adjust confidence based on repair history
-  const adjustedConfidence = Math.max(0, confidenceBefore - repairAttempt * config.confidenceDecayFactor);
+  const adjustedConfidence = Math.max(
+    0,
+    confidenceBefore - repairAttempt * config.confidenceDecayFactor,
+  );
 
   // Escalate if low confidence or max attempts exceeded
-  if (adjustedConfidence < config.escalationThreshold || repairAttempt >= config.maxAttempts) {
+  if (
+    adjustedConfidence < config.escalationThreshold ||
+    repairAttempt >= config.maxAttempts
+  ) {
     return {
       action: RepairActionType.MANUAL_REVIEW,
       reason: `Low confidence (${adjustedConfidence.toFixed(2)}) or max attempts (${repairAttempt}/${config.maxAttempts})`,
@@ -85,33 +87,35 @@ export function makeRepairDecision(
   }
 
   // Determine best repair action
-  if (validation.failureAttributed === 'test_case_error') {
+  if (validation.failureAttributed === "test_case_error") {
     // Test case is wrong → regenerate test input/output
     return {
       action: RepairActionType.REGEN_INPUT_DATA,
-      reason: 'Test case constraints violated or output wrong - regenerate test',
+      reason:
+        "Test case constraints violated or output wrong - regenerate test",
       estimatedSuccessRate: adjustedConfidence,
       isAutoRepair: adjustedConfidence >= config.autoRepairThreshold,
       recommendedEscalation: false,
     };
   }
 
-  if (validation.failureAttributed === 'model_answer_error') {
+  if (validation.failureAttributed === "model_answer_error") {
     // Model answer is wrong → regenerate answer
     return {
       action: RepairActionType.REGEN_MODEL_ANSWER,
-      reason: 'Model answer produced wrong output - regenerate',
+      reason: "Model answer produced wrong output - regenerate",
       estimatedSuccessRate: adjustedConfidence,
       isAutoRepair: adjustedConfidence >= config.autoRepairThreshold,
       recommendedEscalation: false,
     };
   }
 
-  if (validation.failureAttributed === 'unknown') {
+  if (validation.failureAttributed === "unknown") {
     // Can't determine → use differential oracle
     return {
       action: RepairActionType.USE_REFERENCE_IMPL,
-      reason: 'Unclear which side is wrong - running differential oracle for consensus',
+      reason:
+        "Unclear which side is wrong - running differential oracle for consensus",
       estimatedSuccessRate: 0.6, // Differential oracle has ~60% confidence
       isAutoRepair: false, // Requires external implementations
       recommendedEscalation: false,
@@ -133,7 +137,7 @@ export function makeRepairDecision(
  */
 export function repairSoftConstraints(
   pair: OraclePair,
-  _config: RepairConfig // eslint-disable-line @typescript-eslint/no-unused-vars
+  _config: RepairConfig, // eslint-disable-line @typescript-eslint/no-unused-vars
 ): { repaired: boolean; pair?: OraclePair; error?: string } {
   // STUB: Integrate with constraint registry to apply repair functions
   try {
@@ -144,7 +148,7 @@ export function repairSoftConstraints(
   } catch (error) {
     return {
       repaired: false,
-      error: error instanceof Error ? error.message : 'Unknown repair error',
+      error: error instanceof Error ? error.message : "Unknown repair error",
     };
   }
 }
@@ -154,7 +158,7 @@ export function repairSoftConstraints(
  */
 export function repairModelAnswer(
   pair: OraclePair,
-  _config: RepairConfig // eslint-disable-line @typescript-eslint/no-unused-vars
+  _config: RepairConfig, // eslint-disable-line @typescript-eslint/no-unused-vars
 ): { repaired: boolean; pair?: OraclePair; error?: string } {
   // STUB: Call generateModelAnswer with same seed
   // If deterministic, should produce identical code
@@ -167,7 +171,8 @@ export function repairModelAnswer(
   } catch (error) {
     return {
       repaired: false,
-      error: error instanceof Error ? error.message : 'Answer regeneration failed',
+      error:
+        error instanceof Error ? error.message : "Answer regeneration failed",
     };
   }
 }
@@ -177,7 +182,7 @@ export function repairModelAnswer(
  */
 export function repairTestCase(
   pair: OraclePair,
-  _config: RepairConfig // eslint-disable-line @typescript-eslint/no-unused-vars
+  _config: RepairConfig, // eslint-disable-line @typescript-eslint/no-unused-vars
 ): { repaired: boolean; pair?: OraclePair; error?: string } {
   // STUB: Call template materialization with same seed
 
@@ -188,7 +193,10 @@ export function repairTestCase(
   } catch (error) {
     return {
       repaired: false,
-      error: error instanceof Error ? error.message : 'Test case regeneration failed',
+      error:
+        error instanceof Error
+          ? error.message
+          : "Test case regeneration failed",
     };
   }
 }
@@ -199,7 +207,7 @@ export function repairTestCase(
 export async function executeRepair(
   decision: RepairDecision,
   context: RepairContext,
-  config: RepairConfig
+  config: RepairConfig,
 ): Promise<{
   success: boolean;
   pair?: OraclePair;
@@ -246,22 +254,25 @@ export async function executeRepair(
       case RepairActionType.USE_REFERENCE_IMPL:
         return {
           success: false,
-          error: 'Reference implementation requires external execution',
+          error: "Reference implementation requires external execution",
         };
 
       case RepairActionType.MANUAL_REVIEW:
         return {
           success: false,
-          error: 'Manual review required',
+          error: "Manual review required",
         };
 
       default:
-        return { success: false, error: `Unknown repair action: ${decision.action}` };
+        return {
+          success: false,
+          error: `Unknown repair action: ${decision.action}`,
+        };
     }
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Repair execution failed',
+      error: error instanceof Error ? error.message : "Repair execution failed",
     };
   }
 }
@@ -277,7 +288,7 @@ export function buildRepairLog(
     success: boolean;
     error?: string;
   }>,
-  finalStatus: 'repaired' | 'escalated' | 'failed'
+  finalStatus: "repaired" | "escalated" | "failed",
 ): RepairLog {
   return {
     version: 1,
@@ -301,11 +312,12 @@ export function buildRepairLog(
     finalStatus,
     finalValidation: validation,
     finalPair: pair,
-    requiresManualReview: finalStatus === 'escalated',
+    requiresManualReview: finalStatus === "escalated",
 
     repairDuration: 0,
     totalAttempts: repairs.length,
-    successRate: repairs.filter((r) => r.success).length / Math.max(1, repairs.length),
+    successRate:
+      repairs.filter((r) => r.success).length / Math.max(1, repairs.length),
   };
 }
 
@@ -315,26 +327,34 @@ export function buildRepairLog(
 export async function repairOraclePair(
   pair: OraclePair,
   validation: OracleValidationResult,
-  config: RepairConfig = DEFAULT_REPAIR_CONFIG
+  config: RepairConfig = DEFAULT_REPAIR_CONFIG,
 ): Promise<{
   pair: OraclePair;
   log: RepairLog;
   success: boolean;
 }> {
-  const repairs: Array<{ action: RepairActionType; success: boolean; error?: string }> = [];
+  const repairs: Array<{
+    action: RepairActionType;
+    success: boolean;
+    error?: string;
+  }> = [];
   let currentPair = pair;
   const currentValidation = validation;
   let repairAttempt = 0;
 
   // Repair loop
-  while (repairAttempt < config.maxAttempts && !currentValidation.isConsistent) {
+  while (
+    repairAttempt < config.maxAttempts &&
+    !currentValidation.isConsistent
+  ) {
     // Make repair decision
     const context: RepairContext = {
       pair: currentPair,
       validation: currentValidation,
       repairAttempt,
       confidenceBefore: currentValidation.confidence,
-      estimatedConfidenceAfter: currentValidation.confidence * (1 - config.confidenceDecayFactor),
+      estimatedConfidenceAfter:
+        currentValidation.confidence * (1 - config.confidenceDecayFactor),
     };
 
     const decision = makeRepairDecision(context, config);
@@ -343,7 +363,12 @@ export async function repairOraclePair(
     if (decision.recommendedEscalation) {
       return {
         pair: currentPair,
-        log: buildRepairLog(currentPair, currentValidation, repairs, 'escalated'),
+        log: buildRepairLog(
+          currentPair,
+          currentValidation,
+          repairs,
+          "escalated",
+        ),
         success: false,
       };
     }
@@ -367,7 +392,7 @@ export async function repairOraclePair(
     repairAttempt++;
   }
 
-  const finalStatus = currentValidation.isConsistent ? 'repaired' : 'failed';
+  const finalStatus = currentValidation.isConsistent ? "repaired" : "failed";
 
   return {
     pair: currentPair,

@@ -1,20 +1,23 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/lib/auth/auth-context';
-import { FullPageLoader } from '@/components/ui/loading';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/toast';
-import { addProblemToAssignment, fetchAssignments } from '@/lib/api/assignments-client';
-import { fetchProblemDetail } from '@/lib/api/problems-client';
-import { EXECUTION_LANGUAGE_LABELS } from '@/lib/execution/languages';
-import { detectSupportedLanguageFromCode } from '@/lib/execution/language-detection';
-import { queryKeys } from '@/lib/state/query';
-import { ReadOnlyCodeViewer } from '@/components/read-only-code-viewer';
+import { useEffect, useState } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/lib/auth/auth-context";
+import { FullPageLoader } from "@/components/ui/loading";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
+import {
+  addProblemToAssignment,
+  fetchAssignments,
+} from "@/lib/api/assignments-client";
+import { fetchProblemDetail } from "@/lib/api/problems-client";
+import { EXECUTION_LANGUAGE_LABELS } from "@/lib/execution/languages";
+import { detectSupportedLanguageFromCode } from "@/lib/execution/language-detection";
+import { queryKeys } from "@/lib/state/query";
+import { ReadOnlyCodeViewer } from "@/components/read-only-code-viewer";
 
-import { MarkdownRenderer } from '@/components/markdown-renderer';
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 
 interface TestCase {
   id: string;
@@ -28,7 +31,7 @@ interface ProblemDetail {
   id: string;
   title: string;
   description: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty: "easy" | "medium" | "hard";
   tags: string[];
   constraints: string | null;
   hints: string[] | null;
@@ -42,9 +45,9 @@ interface ProblemDetail {
 }
 
 const difficultyStyles = {
-  easy: 'flat-badge-green',
-  medium: 'flat-badge-amber',
-  hard: 'flat-badge-red',
+  easy: "flat-badge-green",
+  medium: "flat-badge-amber",
+  hard: "flat-badge-red",
 };
 
 export default function ProblemDetailPage() {
@@ -53,11 +56,11 @@ export default function ProblemDetailPage() {
   const { profile, loading: authLoading, initialized } = useAuth();
   const problemId = String(params.id);
   const queryClient = useQueryClient();
-  
+
   // Add to Assignment State
   const { toast } = useToast();
   const [showAddModal, setShowAddModal] = useState(false);
-  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('');
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>("");
 
   const {
     data: problem,
@@ -66,7 +69,7 @@ export default function ProblemDetailPage() {
   } = useQuery<ProblemDetail>({
     queryKey: queryKeys.problems.detail(problemId),
     queryFn: () => fetchProblemDetail<ProblemDetail>(problemId),
-    enabled: profile?.role === 'instructor',
+    enabled: profile?.role === "instructor",
   });
 
   const {
@@ -76,47 +79,68 @@ export default function ProblemDetailPage() {
   } = useQuery<{ id: string; title: string }[]>({
     queryKey: queryKeys.assignments.mine,
     queryFn: () => fetchAssignments<{ id: string; title: string }>(),
-    enabled: profile?.role === 'instructor' && showAddModal,
+    enabled: profile?.role === "instructor" && showAddModal,
   });
 
-  const { mutateAsync: addProblemToAssignmentAsync, isPending: isAdding } = useMutation({
-    mutationFn: ({ assignmentId, selectedProblemId }: { assignmentId: string; selectedProblemId: string }) =>
-      addProblemToAssignment(assignmentId, selectedProblemId),
-  });
+  const { mutateAsync: addProblemToAssignmentAsync, isPending: isAdding } =
+    useMutation({
+      mutationFn: ({
+        assignmentId,
+        selectedProblemId,
+      }: {
+        assignmentId: string;
+        selectedProblemId: string;
+      }) => addProblemToAssignment(assignmentId, selectedProblemId),
+    });
 
   // CRITICAL: Protect route - only instructors can access
   useEffect(() => {
     if (!initialized || authLoading) return;
 
     if (!profile) {
-      router.replace('/login');
+      router.replace("/login");
       return;
     }
 
-    if (profile.role !== 'instructor') {
-      router.replace('/dashboard/student');
+    if (profile.role !== "instructor") {
+      router.replace("/dashboard/student");
       return;
     }
   }, [profile, authLoading, initialized, router]);
 
   const handleAddToAssignment = async () => {
     if (!selectedAssignmentId) {
-      toast('Select an assignment', 'warning');
+      toast("Select an assignment", "warning");
       return;
     }
     try {
-      await addProblemToAssignmentAsync({ assignmentId: selectedAssignmentId, selectedProblemId: problemId });
-      toast('Problem added to assignment', 'success');
+      await addProblemToAssignmentAsync({
+        assignmentId: selectedAssignmentId,
+        selectedProblemId: problemId,
+      });
+      toast("Problem added to assignment", "success");
       setShowAddModal(false);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.assignments.mine });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.assignments.detail(selectedAssignmentId) });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.assignments.mine,
+      });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.assignments.detail(selectedAssignmentId),
+      });
     } catch (mutationError) {
-      const message = mutationError instanceof Error ? mutationError.message : 'Failed to add';
-      toast(message, 'error');
+      const message =
+        mutationError instanceof Error
+          ? mutationError.message
+          : "Failed to add";
+      toast(message, "error");
     }
   };
 
-  if (!initialized || authLoading || !profile || profile.role !== 'instructor') {
+  if (
+    !initialized ||
+    authLoading ||
+    !profile ||
+    profile.role !== "instructor"
+  ) {
     return <FullPageLoader />;
   }
 
@@ -124,26 +148,38 @@ export default function ProblemDetailPage() {
     return <FullPageLoader />;
   }
 
-  const errorMessage = error instanceof Error
-    ? error.message
-    : error
-      ? 'Problem not found'
-      : null;
+  const errorMessage =
+    error instanceof Error ? error.message : error ? "Problem not found" : null;
 
   if (errorMessage || !problem) {
     return (
       <div className="p-6 lg:p-8 max-w-7xl mx-auto">
         <div className="bg-white border border-[var(--border-primary)] rounded-2xl p-8 text-center">
           <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="28"
+              height="28"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#ef4444"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">{errorMessage || 'Problem not found'}</h2>
-          <p className="text-[var(--text-muted)] mb-6">This problem may have been deleted or you don&apos;t have access to it.</p>
-          <Button onClick={() => router.push('/dashboard/instructor/problems')}>
+          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">
+            {errorMessage || "Problem not found"}
+          </h2>
+          <p className="text-[var(--text-muted)] mb-6">
+            This problem may have been deleted or you don&apos;t have access to
+            it.
+          </p>
+          <Button onClick={() => router.push("/dashboard/instructor/problems")}>
             Back to Problems
           </Button>
         </div>
@@ -153,27 +189,42 @@ export default function ProblemDetailPage() {
 
   const solutionLanguage = problem.solution_code
     ? detectSupportedLanguageFromCode(problem.solution_code)
-    : 'cpp';
+    : "cpp";
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
         <button
-          onClick={() => router.push('/dashboard/instructor/problems')}
+          onClick={() => router.push("/dashboard/instructor/problems")}
           className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--accent-primary)] transition-colors mb-4 group cursor-pointer"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:-translate-x-0.5 transition-transform">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="group-hover:-translate-x-0.5 transition-transform"
+          >
             <polyline points="15 18 9 12 15 6" />
           </svg>
           Back to Problems
         </button>
-        
+
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-[var(--text-primary)] mb-2">{problem.title}</h1>
+            <h1 className="text-3xl font-bold text-[var(--text-primary)] mb-2">
+              {problem.title}
+            </h1>
             <div className="flex items-center gap-3">
-              <span className={`flat-badge ${difficultyStyles[problem.difficulty]}`}>
+              <span
+                className={`flat-badge ${difficultyStyles[problem.difficulty]}`}
+              >
                 {problem.difficulty}
               </span>
               <span className="text-sm text-[var(--text-muted)]">
@@ -184,7 +235,7 @@ export default function ProblemDetailPage() {
               </span>
             </div>
           </div>
-          <Button 
+          <Button
             onClick={() => {
               setShowAddModal(true);
               void refetchAssignments();
@@ -199,7 +250,10 @@ export default function ProblemDetailPage() {
       {problem.tags && problem.tags.length > 0 && (
         <div className="flex gap-1.5 mb-6 flex-wrap">
           {problem.tags.map((tag, i) => (
-            <span key={i} className="px-2 py-0.5 rounded-md bg-[var(--bg-secondary)] text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
+            <span
+              key={i}
+              className="px-2 py-0.5 rounded-md bg-[var(--bg-secondary)] text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-wide"
+            >
               {tag}
             </span>
           ))}
@@ -208,21 +262,33 @@ export default function ProblemDetailPage() {
 
       {/* Description */}
       <div className="bg-white border border-[var(--border-primary)] rounded-2xl p-6 mb-6">
-        <h2 className="text-base font-black tracking-tight text-[var(--text-primary)] mb-4">Description</h2>
+        <h2 className="text-base font-black tracking-tight text-[var(--text-primary)] mb-4">
+          Description
+        </h2>
         <MarkdownRenderer content={problem.description} />
       </div>
 
       {/* Hints */}
       {problem.hints && problem.hints.length > 0 && (
         <div className="bg-white border border-[var(--border-primary)] rounded-2xl p-6 mb-6">
-          <h2 className="text-base font-black tracking-tight text-[var(--text-primary)] mb-4">Hints ({problem.hints.length})</h2>
+          <h2 className="text-base font-black tracking-tight text-[var(--text-primary)] mb-4">
+            Hints ({problem.hints.length})
+          </h2>
           <div className="space-y-2">
             {problem.hints.map((hint, i) => (
-              <div key={i} className="p-3.5 rounded-xl bg-[rgba(253,183,20,0.07)] border border-[rgba(253,183,20,0.2)]">
+              <div
+                key={i}
+                className="p-3.5 rounded-xl bg-[rgba(253,183,20,0.07)] border border-[rgba(253,183,20,0.2)]"
+              >
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="font-bold text-[var(--text-primary)] text-sm">Hint {i + 1}</span>
+                  <span className="font-bold text-[var(--text-primary)] text-sm">
+                    Hint {i + 1}
+                  </span>
                 </div>
-                <MarkdownRenderer content={hint} className="text-sm text-[var(--text-secondary)]" />
+                <MarkdownRenderer
+                  content={hint}
+                  className="text-sm text-[var(--text-secondary)]"
+                />
               </div>
             ))}
           </div>
@@ -237,7 +303,10 @@ export default function ProblemDetailPage() {
           </h2>
           <div className="space-y-3">
             {problem.test_cases.map((tc, i) => (
-              <div key={tc.id || i} className="p-4 bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-xl">
+              <div
+                key={tc.id || i}
+                className="p-4 bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-xl"
+              >
                 <div className="flex items-center gap-3 mb-3">
                   <span className="text-xs font-black uppercase tracking-wide text-[var(--text-secondary)]">
                     Case {i + 1}
@@ -245,16 +314,26 @@ export default function ProblemDetailPage() {
                   {tc.is_sample && (
                     <span className="flat-badge-blue flat-badge">Sample</span>
                   )}
-                  <span className="text-xs text-[var(--text-muted)]">{tc.points} pt{tc.points !== 1 ? 's' : ''}</span>
+                  <span className="text-xs text-[var(--text-muted)]">
+                    {tc.points} pt{tc.points !== 1 ? "s" : ""}
+                  </span>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Input</p>
-                    <pre className="text-xs font-mono text-[var(--text-primary)] bg-white p-2.5 rounded-lg border border-[var(--border-primary)] whitespace-pre overflow-x-auto">{tc.input_data}</pre>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">
+                      Input
+                    </p>
+                    <pre className="text-xs font-mono text-[var(--text-primary)] bg-white p-2.5 rounded-lg border border-[var(--border-primary)] whitespace-pre overflow-x-auto">
+                      {tc.input_data}
+                    </pre>
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">Expected Output</p>
-                    <pre className="text-xs font-mono text-[var(--text-primary)] bg-white p-2.5 rounded-lg border border-[var(--border-primary)] whitespace-pre overflow-x-auto">{tc.expected_output}</pre>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">
+                      Expected Output
+                    </p>
+                    <pre className="text-xs font-mono text-[var(--text-primary)] bg-white p-2.5 rounded-lg border border-[var(--border-primary)] whitespace-pre overflow-x-auto">
+                      {tc.expected_output}
+                    </pre>
                   </div>
                 </div>
               </div>
@@ -267,50 +346,90 @@ export default function ProblemDetailPage() {
       {problem.solution_code && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#d97706"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
-            <h2 className="text-base font-black tracking-tight text-amber-900">Solution (Instructor Only)</h2>
+            <h2 className="text-base font-black tracking-tight text-amber-900">
+              Solution (Instructor Only)
+            </h2>
           </div>
           <div className="mb-3 inline-flex items-center rounded-md border border-amber-300 bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-900">
             {EXECUTION_LANGUAGE_LABELS[solutionLanguage]}
           </div>
-          <ReadOnlyCodeViewer code={problem.solution_code} language={solutionLanguage} />
+          <ReadOnlyCodeViewer
+            code={problem.solution_code}
+            language={solutionLanguage}
+          />
         </div>
       )}
 
       {/* Add to Assignment Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40 animate-fade-in" onClick={() => setShowAddModal(false)} />
+          <div
+            className="absolute inset-0 bg-black/40 animate-fade-in"
+            onClick={() => setShowAddModal(false)}
+          />
           <div className="relative w-full max-w-md mx-4 bg-white rounded-2xl border-2 border-[var(--border-primary)] animate-slide-up p-6">
-            <h2 className="text-xl font-bold text-[var(--text-primary)] mb-1">Add to Assignment</h2>
-            <p className="text-sm text-[var(--text-secondary)] mb-4">Select an assignment to add this problem to.</p>
-            
+            <h2 className="text-xl font-bold text-[var(--text-primary)] mb-1">
+              Add to Assignment
+            </h2>
+            <p className="text-sm text-[var(--text-secondary)] mb-4">
+              Select an assignment to add this problem to.
+            </p>
+
             <div className="max-h-60 overflow-y-auto space-y-2 mb-6">
               {loadingAssignments ? (
-                <div className="text-center py-4 text-sm text-[var(--text-muted)]">Loading assignments...</div>
+                <div className="text-center py-4 text-sm text-[var(--text-muted)]">
+                  Loading assignments...
+                </div>
               ) : assignments.length === 0 ? (
-                <div className="text-center py-4 text-sm text-[var(--text-muted)]">No active assignments found.</div>
+                <div className="text-center py-4 text-sm text-[var(--text-muted)]">
+                  No active assignments found.
+                </div>
               ) : (
-                assignments.map(a => (
-                  <label key={a.id} className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border-primary)] hover:bg-[var(--bg-secondary)] cursor-pointer transition-colors">
-                    <input 
-                      type="radio" 
+                assignments.map((a) => (
+                  <label
+                    key={a.id}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border-primary)] hover:bg-[var(--bg-secondary)] cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="radio"
                       name="assignment"
                       checked={selectedAssignmentId === a.id}
                       onChange={() => setSelectedAssignmentId(a.id)}
                       className="w-4 h-4 text-[var(--accent-primary)] border-gray-300 focus:ring-[var(--accent-primary)]"
                     />
-                    <div className="font-bold text-sm text-[var(--text-primary)]">{a.title}</div>
+                    <div className="font-bold text-sm text-[var(--text-primary)]">
+                      {a.title}
+                    </div>
                   </label>
                 ))
               )}
             </div>
 
             <div className="flex justify-end gap-3">
-              <Button variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
-              <Button onClick={handleAddToAssignment} loading={isAdding} disabled={!selectedAssignmentId}>
+              <Button
+                variant="secondary"
+                onClick={() => setShowAddModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddToAssignment}
+                loading={isAdding}
+                disabled={!selectedAssignmentId}
+              >
                 Add
               </Button>
             </div>

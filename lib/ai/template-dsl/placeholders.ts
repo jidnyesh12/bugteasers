@@ -1,4 +1,4 @@
-import { AUTO_EXPECTED_OUTPUT_TOKEN } from './types';
+import { AUTO_EXPECTED_OUTPUT_TOKEN } from "./types";
 
 const PLACEHOLDER_PATTERNS = [
   /\{\{\s*PLACEHOLDER(?::|_)[^}]+\}\}/i,
@@ -13,7 +13,10 @@ export function hasUnresolvedPlaceholder(value: string): boolean {
 }
 
 export function isAutoExpectedOutput(value: string): boolean {
-  return value.trim() === AUTO_EXPECTED_OUTPUT_TOKEN || hasUnresolvedPlaceholder(value);
+  return (
+    value.trim() === AUTO_EXPECTED_OUTPUT_TOKEN ||
+    hasUnresolvedPlaceholder(value)
+  );
 }
 
 export function buildTemplateStoragePlaceholder(seed: string): string {

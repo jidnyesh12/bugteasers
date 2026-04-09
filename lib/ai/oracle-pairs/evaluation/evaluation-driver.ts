@@ -5,12 +5,15 @@
  * Measures: success rate, attribution accuracy, repair success, performance
  */
 
+import { executeOraclePipeline } from "../index";
+import type { PipelineConfig, TestCaseInputTemplate } from "../index";
 import {
-  executeOraclePipeline,
-} from '../index';
-import type { PipelineConfig, TestCaseInputTemplate } from '../index';
-import { allProblems, getRandomProblems, getProblemsByDifficulty, getProblemsBySource } from './problem-corpus';
-import type { CompetitiveProblem } from './problem-corpus';
+  allProblems,
+  getRandomProblems,
+  getProblemsByDifficulty,
+  getProblemsBySource,
+} from "./problem-corpus";
+import type { CompetitiveProblem } from "./problem-corpus";
 
 /**
  * Evaluation metrics tracked per problem
@@ -21,7 +24,7 @@ export interface ProblemEvaluationResult {
   source: string;
   difficulty: string;
   success: boolean;
-  finalStatus: 'success' | 'escalated' | 'failed';
+  finalStatus: "success" | "escalated" | "failed";
   duration: number;
   errors: string[];
   metrics?: {
@@ -64,18 +67,20 @@ export interface EvaluationSummary {
  */
 export async function evaluateProblem(
   problem: CompetitiveProblem,
-  config?: PipelineConfig
+  config?: PipelineConfig,
 ): Promise<ProblemEvaluationResult> {
   const startTime = Date.now();
 
   try {
     const pipelineResult = await executeOraclePipeline(
-      { variables: [], output: '' } as unknown as TestCaseInputTemplate, // template (mock)
+      { variables: [], output: "" } as unknown as TestCaseInputTemplate, // template (mock)
       problem.description,
       problem.constraints,
-      problem.examples.map((ex) => `Input: ${ex.input}\nOutput: ${ex.output}`).join('\n'),
+      problem.examples
+        .map((ex) => `Input: ${ex.input}\nOutput: ${ex.output}`)
+        .join("\n"),
       problem.id,
-      config
+      config,
     );
 
     const duration = Date.now() - startTime;
@@ -99,7 +104,7 @@ export async function evaluateProblem(
       source: problem.source,
       difficulty: problem.difficulty,
       success: false,
-      finalStatus: 'failed',
+      finalStatus: "failed",
       duration,
       errors: [error instanceof Error ? error.message : String(error)],
     };
@@ -111,7 +116,7 @@ export async function evaluateProblem(
  */
 export async function runCompleteEvaluation(
   problems: CompetitiveProblem[],
-  config?: PipelineConfig
+  config?: PipelineConfig,
 ): Promise<{
   results: ProblemEvaluationResult[];
   summary: EvaluationSummary;
@@ -123,10 +128,14 @@ export async function runCompleteEvaluation(
 
   for (let i = 0; i < problems.length; i += batchSize) {
     const batch = problems.slice(i, i + batchSize);
-    const batchResults = await Promise.all(batch.map((p) => evaluateProblem(p, config)));
+    const batchResults = await Promise.all(
+      batch.map((p) => evaluateProblem(p, config)),
+    );
     results.push(...batchResults);
 
-    console.log(`Completed ${Math.min(i + batchSize, problems.length)}/${problems.length} problems`);
+    console.log(
+      `Completed ${Math.min(i + batchSize, problems.length)}/${problems.length} problems`,
+    );
   }
 
   // Calculate summary
@@ -139,12 +148,16 @@ export async function runCompleteEvaluation(
  * Calculate summary statistics
  */
 function calculateEvaluationSummary(
-  results: ProblemEvaluationResult[]
+  results: ProblemEvaluationResult[],
 ): EvaluationSummary {
   const totalProblems = results.length;
-  const successCount = results.filter((r) => r.finalStatus === 'success').length;
-  const escalatedCount = results.filter((r) => r.finalStatus === 'escalated').length;
-  const failedCount = results.filter((r) => r.finalStatus === 'failed').length;
+  const successCount = results.filter(
+    (r) => r.finalStatus === "success",
+  ).length;
+  const escalatedCount = results.filter(
+    (r) => r.finalStatus === "escalated",
+  ).length;
+  const failedCount = results.filter((r) => r.finalStatus === "failed").length;
 
   const durations = results.map((r) => r.duration);
   const totalDuration = durations.reduce((a, b) => a + b, 0);
@@ -155,37 +168,56 @@ function calculateEvaluationSummary(
   // By difficulty
   const byDifficulty = {
     easy: {
-      success: results.filter((r) => r.difficulty === 'easy' && r.finalStatus === 'success').length,
-      total: results.filter((r) => r.difficulty === 'easy').length,
+      success: results.filter(
+        (r) => r.difficulty === "easy" && r.finalStatus === "success",
+      ).length,
+      total: results.filter((r) => r.difficulty === "easy").length,
       rate: 0,
     },
     medium: {
-      success: results.filter((r) => r.difficulty === 'medium' && r.finalStatus === 'success').length,
-      total: results.filter((r) => r.difficulty === 'medium').length,
+      success: results.filter(
+        (r) => r.difficulty === "medium" && r.finalStatus === "success",
+      ).length,
+      total: results.filter((r) => r.difficulty === "medium").length,
       rate: 0,
     },
     hard: {
-      success: results.filter((r) => r.difficulty === 'hard' && r.finalStatus === 'success').length,
-      total: results.filter((r) => r.difficulty === 'hard').length,
+      success: results.filter(
+        (r) => r.difficulty === "hard" && r.finalStatus === "success",
+      ).length,
+      total: results.filter((r) => r.difficulty === "hard").length,
       rate: 0,
     },
   };
 
-  byDifficulty.easy.rate = byDifficulty.easy.total > 0 ? byDifficulty.easy.success / byDifficulty.easy.total : 0;
+  byDifficulty.easy.rate =
+    byDifficulty.easy.total > 0
+      ? byDifficulty.easy.success / byDifficulty.easy.total
+      : 0;
   byDifficulty.medium.rate =
-    byDifficulty.medium.total > 0 ? byDifficulty.medium.success / byDifficulty.medium.total : 0;
-  byDifficulty.hard.rate = byDifficulty.hard.total > 0 ? byDifficulty.hard.success / byDifficulty.hard.total : 0;
+    byDifficulty.medium.total > 0
+      ? byDifficulty.medium.success / byDifficulty.medium.total
+      : 0;
+  byDifficulty.hard.rate =
+    byDifficulty.hard.total > 0
+      ? byDifficulty.hard.success / byDifficulty.hard.total
+      : 0;
 
   // By source
   const sources = new Set(results.map((r) => r.source));
-  const bySource: Record<string, { success: number; total: number; rate: number }> = {};
+  const bySource: Record<
+    string,
+    { success: number; total: number; rate: number }
+  > = {};
 
   for (const source of sources) {
     const sourceResults = results.filter((r) => r.source === source);
     bySource[source] = {
-      success: sourceResults.filter((r) => r.finalStatus === 'success').length,
+      success: sourceResults.filter((r) => r.finalStatus === "success").length,
       total: sourceResults.length,
-      rate: sourceResults.filter((r) => r.finalStatus === 'success').length / sourceResults.length,
+      rate:
+        sourceResults.filter((r) => r.finalStatus === "success").length /
+        sourceResults.length,
     };
   }
 
@@ -212,16 +244,22 @@ function calculateEvaluationSummary(
  * Calculate attribution accuracy (test error vs answer error detection)
  * Estimated from success patterns
  */
-function calculateAttributionAccuracy(results: ProblemEvaluationResult[]): number {
+function calculateAttributionAccuracy(
+  results: ProblemEvaluationResult[],
+): number {
   // In a real evaluation, this would check actual error attribution
   // For now, estimate based on escalation patterns
-  const escalatedWithMetrics = results.filter((r) => r.finalStatus === 'escalated' && r.metrics);
+  const escalatedWithMetrics = results.filter(
+    (r) => r.finalStatus === "escalated" && r.metrics,
+  );
   if (escalatedWithMetrics.length === 0) return 1.0; // No escalations = perfect attribution
 
   // Heuristic: if escalation count is high, attribution might be uncertain
   const avgEscalations =
-    escalatedWithMetrics.reduce((sum, r) => sum + (r.metrics?.escalationCount || 0), 0) /
-    escalatedWithMetrics.length;
+    escalatedWithMetrics.reduce(
+      (sum, r) => sum + (r.metrics?.escalationCount || 0),
+      0,
+    ) / escalatedWithMetrics.length;
 
   return Math.max(0.75, 1.0 - avgEscalations * 0.05);
 }
@@ -230,13 +268,17 @@ function calculateAttributionAccuracy(results: ProblemEvaluationResult[]): numbe
  * Calculate repair success rate
  * Estimated from auto-repair metrics
  */
-function calculateRepairSuccessRate(results: ProblemEvaluationResult[]): number {
-  const resultsWithRepairs = results.filter((r) => r.metrics && r.metrics.autoRepairCount > 0);
+function calculateRepairSuccessRate(
+  results: ProblemEvaluationResult[],
+): number {
+  const resultsWithRepairs = results.filter(
+    (r) => r.metrics && r.metrics.autoRepairCount > 0,
+  );
   if (resultsWithRepairs.length === 0) return 1.0; // No repairs needed = success
 
   const successfulRepairs = resultsWithRepairs.filter(
     (r) =>
-      r.finalStatus === 'success' && r.metrics && r.metrics.autoRepairCount > 0
+      r.finalStatus === "success" && r.metrics && r.metrics.autoRepairCount > 0,
   ).length;
 
   return successfulRepairs / resultsWithRepairs.length;
@@ -275,8 +317,11 @@ Hard:    ${summary.byDifficulty.hard.success}/${summary.byDifficulty.hard.total}
 SUCCESS BY SOURCE
 ───────────────────────────────────────────────────────────────────────
 ${Object.entries(summary.bySource)
-  .map((e) => `${e[0].padEnd(15)}: ${e[1].success}/${e[1].total} (${(e[1].rate * 100).toFixed(1)}%)`)
-  .join('\n')}
+  .map(
+    (e) =>
+      `${e[0].padEnd(15)}: ${e[1].success}/${e[1].total} (${(e[1].rate * 100).toFixed(1)}%)`,
+  )
+  .join("\n")}
 
 ADVANCED METRICS
 ───────────────────────────────────────────────────────────────────────
@@ -285,10 +330,10 @@ Repair Success Rate:         ${((summary.repairSuccessRate || 0) * 100).toFixed(
 
 EVALUATION TARGETS
 ───────────────────────────────────────────────────────────────────────
-Success Rate Target:         >90%  ${summary.successRate > 0.9 ? '✅ MET' : '⚠️  Below target'}
-Attribution Accuracy Target: >80%  ${(summary.attributionAccuracy || 0) > 0.8 ? '✅ MET' : '⚠️  Below target'}
-Repair Success Target:       >75%  ${(summary.repairSuccessRate || 0) > 0.75 ? '✅ MET' : '⚠️  Below target'}
-Performance Target:          <3s   ${summary.averageDuration < 3000 ? '✅ MET' : '⚠️  Below target'}
+Success Rate Target:         >90%  ${summary.successRate > 0.9 ? "✅ MET" : "⚠️  Below target"}
+Attribution Accuracy Target: >80%  ${(summary.attributionAccuracy || 0) > 0.8 ? "✅ MET" : "⚠️  Below target"}
+Repair Success Target:       >75%  ${(summary.repairSuccessRate || 0) > 0.75 ? "✅ MET" : "⚠️  Below target"}
+Performance Target:          <3s   ${summary.averageDuration < 3000 ? "✅ MET" : "⚠️  Below target"}
 
 ═══════════════════════════════════════════════════════════════════════
 `;
@@ -298,7 +343,7 @@ Performance Target:          <3s   ${summary.averageDuration < 3000 ? '✅ MET' 
  * Run standard evaluation suite (85 problems)
  */
 export async function runStandardEvaluation(config?: PipelineConfig) {
-  console.log('Running Standard Evaluation on all 85 problems...');
+  console.log("Running Standard Evaluation on all 85 problems...");
   return runCompleteEvaluation(allProblems, config);
 }
 
@@ -306,7 +351,7 @@ export async function runStandardEvaluation(config?: PipelineConfig) {
  * Run quick evaluation (25 random problems)
  */
 export async function runQuickEvaluation(config?: PipelineConfig) {
-  console.log('Running Quick Evaluation on 25 random problems...');
+  console.log("Running Quick Evaluation on 25 random problems...");
   const problems = getRandomProblems(25);
   return runCompleteEvaluation(problems, config);
 }
@@ -315,10 +360,10 @@ export async function runQuickEvaluation(config?: PipelineConfig) {
  * Run targeted evaluation by difficulty
  */
 export async function runDifficultyEvaluation(config?: PipelineConfig) {
-  console.log('Running Difficulty-Targeted Evaluation...');
-  const easy = getProblemsByDifficulty('easy');
-  const medium = getProblemsByDifficulty('medium');
-  const hard = getProblemsByDifficulty('hard');
+  console.log("Running Difficulty-Targeted Evaluation...");
+  const easy = getProblemsByDifficulty("easy");
+  const medium = getProblemsByDifficulty("medium");
+  const hard = getProblemsByDifficulty("hard");
 
   const results: ProblemEvaluationResult[] = [];
 
@@ -342,8 +387,8 @@ export async function runDifficultyEvaluation(config?: PipelineConfig) {
  * Run source-specific evaluation
  */
 export async function runSourceEvaluation(config?: PipelineConfig) {
-  console.log('Running Source-Specific Evaluation...');
-  const sources = ['leetcode', 'codeforces', 'atcoder', 'usaco'] as const;
+  console.log("Running Source-Specific Evaluation...");
+  const sources = ["leetcode", "codeforces", "atcoder", "usaco"] as const;
 
   const allResults: ProblemEvaluationResult[] = [];
 

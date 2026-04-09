@@ -27,10 +27,16 @@ import type {
   ModelAnswerStatus,
   TemplateGeneratedValue,
   TestCaseInputTemplate,
-} from './types';
+} from "./types";
 
-import { ORACLE_PAIR_VERSION, ConstraintLevel, RepairActionType, isOraclePair, isConsistent } from './types';
-import type { GenerationSeedInfo } from './seeding';
+import {
+  ORACLE_PAIR_VERSION,
+  ConstraintLevel,
+  RepairActionType,
+  isOraclePair,
+  isConsistent,
+} from "./types";
+import type { GenerationSeedInfo } from "./seeding";
 
 // Re-export types
 export type {
@@ -57,14 +63,30 @@ export type {
   GenerationSeedInfo,
 };
 
-export { ORACLE_PAIR_VERSION, ConstraintLevel, RepairActionType, isOraclePair, isConsistent };
+export {
+  ORACLE_PAIR_VERSION,
+  ConstraintLevel,
+  RepairActionType,
+  isOraclePair,
+  isConsistent,
+};
 
 // Re-export seeding
-export { GenerationSeed, SeedDerivationBuilder, deriveSeedsForBatch, verifyBatchSeedConsistency } from './seeding';
-export { GENERATION_SEED_VERSION, GENERATION_SEED_LENGTH } from './seeding';
+export {
+  GenerationSeed,
+  SeedDerivationBuilder,
+  deriveSeedsForBatch,
+  verifyBatchSeedConsistency,
+} from "./seeding";
+export { GENERATION_SEED_VERSION, GENERATION_SEED_LENGTH } from "./seeding";
 
 // Re-export constraints
-export { ConstraintRegistry, getConstraintRegistry, registerConstraint, validateTestCaseConstraints } from './constraints';
+export {
+  ConstraintRegistry,
+  getConstraintRegistry,
+  registerConstraint,
+  validateTestCaseConstraints,
+} from "./constraints";
 
 // Re-export validator
 export {
@@ -74,14 +96,14 @@ export {
   attributeFailure,
   validateOraclePair,
   validateOraclePairWithDeterminismCheck,
-} from './validator';
-export type { ValidatorConfig, ValidationDiagnostics } from './validator';
-export { DEFAULT_VALIDATOR_CONFIG } from './validator';
+} from "./validator";
+export type { ValidatorConfig, ValidationDiagnostics } from "./validator";
+export { DEFAULT_VALIDATOR_CONFIG } from "./validator";
 
 // Re-export executor
-export { executeCode, executeAndCompare } from './executor';
-export type { ExecutorConfig } from './executor';
-export { DEFAULT_EXECUTOR_CONFIG } from './executor';
+export { executeCode, executeAndCompare } from "./executor";
+export type { ExecutorConfig } from "./executor";
+export { DEFAULT_EXECUTOR_CONFIG } from "./executor";
 
 // Re-export LLM generator
 export {
@@ -91,9 +113,9 @@ export {
   validateGeneratedCode,
   generateModelAnswer,
   generateMultipleAnswers,
-} from './llm-generator';
-export type { LLMGeneratorConfig } from './llm-generator';
-export { DEFAULT_LLM_CONFIG } from './llm-generator';
+} from "./llm-generator";
+export type { LLMGeneratorConfig } from "./llm-generator";
+export { DEFAULT_LLM_CONFIG } from "./llm-generator";
 
 // Re-export generation orchestrator
 export {
@@ -103,17 +125,17 @@ export {
   attemptRepair,
   generateOraclePair,
   generateOraclePairBatch,
-} from './generation-orchestrator';
+} from "./generation-orchestrator";
 export type {
   OrchestratorConfig,
   GenerationStats,
   GenerationResult,
-} from './generation-orchestrator';
-export { DEFAULT_ORCHESTRATOR_CONFIG } from './generation-orchestrator';
+} from "./generation-orchestrator";
+export { DEFAULT_ORCHESTRATOR_CONFIG } from "./generation-orchestrator";
 
 // Re-export batch utilities
-export { calculateBatchStatistics } from './batch-utils';
-export type { OrchestrationProgress } from './batch-utils';
+export { calculateBatchStatistics } from "./batch-utils";
+export type { OrchestrationProgress } from "./batch-utils";
 
 // Re-export repair engine
 export {
@@ -124,9 +146,13 @@ export {
   executeRepair,
   buildRepairLog,
   repairOraclePair,
-} from './repair-engine';
-export type { RepairConfig, RepairContext, RepairDecision } from './repair-engine';
-export { DEFAULT_REPAIR_CONFIG } from './repair-engine';
+} from "./repair-engine";
+export type {
+  RepairConfig,
+  RepairContext,
+  RepairDecision,
+} from "./repair-engine";
+export { DEFAULT_REPAIR_CONFIG } from "./repair-engine";
 
 // Re-export differential tester
 export {
@@ -137,22 +163,22 @@ export {
   runFullDifferentialTest,
   selectDiverseImplementations,
   scoreConsensusConfidence,
-} from './differential-tester';
-export type { OracleVote, ConsensusDecision } from './differential-tester';
+} from "./differential-tester";
+export type { OracleVote, ConsensusDecision } from "./differential-tester";
 
 // Re-export pipeline
 export {
   executeOraclePipeline,
   executePipelineBatch,
   calculatePipelineSummary,
-} from './pipeline';
+} from "./pipeline";
 export type {
   PipelineConfig,
   PipelineResult,
   StageResult,
   PipelineSummary,
-} from './pipeline';
-export { DEFAULT_PIPELINE_CONFIG } from './pipeline';
+} from "./pipeline";
+export { DEFAULT_PIPELINE_CONFIG } from "./pipeline";
 
 // Factory functions
 
@@ -165,7 +191,7 @@ export function createTestCase(
   generationSeed: string,
   resolvedSeed: string,
   variables: Record<string, TemplateGeneratedValue>,
-  templateVersion?: number
+  templateVersion?: number,
 ): TestCase {
   return {
     inputData,
@@ -185,7 +211,7 @@ export function createModelAnswer(
   code: string,
   language: SupportedLanguage,
   generationSeed: string,
-  modelName?: string
+  modelName?: string,
 ): ModelAnswer {
   return {
     code,
@@ -196,7 +222,7 @@ export function createModelAnswer(
     auditTrail: {
       originalSeed: generationSeed,
       timestamp: new Date().toISOString(),
-      model: modelName ?? 'unknown',
+      model: modelName ?? "unknown",
       retryCount: 0,
     },
   };
@@ -209,12 +235,12 @@ export function createModelAnswer(
 export function createOraclePair(
   testCase: TestCase,
   modelAnswer: ModelAnswer,
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown>,
 ): OraclePair {
   // Verify seed consistency
   if (testCase.generationSeed !== modelAnswer.generationSeed) {
     throw new Error(
-      `Seed mismatch: test case seed (${testCase.generationSeed}) != model answer seed (${modelAnswer.generationSeed})`
+      `Seed mismatch: test case seed (${testCase.generationSeed}) != model answer seed (${modelAnswer.generationSeed})`,
     );
   }
 
@@ -226,10 +252,22 @@ export function createOraclePair(
     createdAt: new Date().toISOString(),
     metadata: metadata
       ? {
-          problemId: typeof metadata.problemId === 'string' ? metadata.problemId : undefined,
-          problemName: typeof metadata.problemName === 'string' ? metadata.problemName : undefined,
-          difficulty: ['easy', 'medium', 'hard'].includes(String(metadata.difficulty)) ? (metadata.difficulty as 'easy' | 'medium' | 'hard') : undefined,
-          tags: Array.isArray(metadata.tags) ? (metadata.tags as string[]) : undefined,
+          problemId:
+            typeof metadata.problemId === "string"
+              ? metadata.problemId
+              : undefined,
+          problemName:
+            typeof metadata.problemName === "string"
+              ? metadata.problemName
+              : undefined,
+          difficulty: ["easy", "medium", "hard"].includes(
+            String(metadata.difficulty),
+          )
+            ? (metadata.difficulty as "easy" | "medium" | "hard")
+            : undefined,
+          tags: Array.isArray(metadata.tags)
+            ? (metadata.tags as string[])
+            : undefined,
         }
       : undefined,
   };
@@ -252,7 +290,7 @@ export function createOraclePairWithMetadata(
     repairLog?: RepairLog;
     savedAt?: string;
     savedToDatabase?: boolean;
-  }
+  },
 ): OraclePairWithMetadata {
   return {
     ...pair,

@@ -1,14 +1,16 @@
-import type { SupportedLanguage } from './types'
+import type { SupportedLanguage } from "./types";
 
 // UI-only heuristic for syntax highlighting. Validation paths should keep
 // using compile-based language detection for correctness guarantees.
-export function detectSupportedLanguageFromCode(code: string): SupportedLanguage {
+export function detectSupportedLanguageFromCode(
+  code: string,
+): SupportedLanguage {
   if (!code || code.trim().length === 0) {
-    return 'cpp'
+    return "cpp";
   }
 
-  const source = code.trim()
-  const lower = source.toLowerCase()
+  const source = code.trim();
+  const lower = source.toLowerCase();
 
   if (
     /\bdef\s+\w+\s*\(/.test(source) ||
@@ -16,7 +18,7 @@ export function detectSupportedLanguageFromCode(code: string): SupportedLanguage
     /if\s+__name__\s*==\s*['"]__main__['"]/.test(source) ||
     /\bfrom\s+\w+\s+import\b/.test(source)
   ) {
-    return 'python'
+    return "python";
   }
 
   if (
@@ -25,7 +27,7 @@ export function detectSupportedLanguageFromCode(code: string): SupportedLanguage
     /\bSystem\.out\.print/.test(source) ||
     /\bimport\s+java\./.test(source)
   ) {
-    return 'java'
+    return "java";
   }
 
   if (
@@ -34,7 +36,7 @@ export function detectSupportedLanguageFromCode(code: string): SupportedLanguage
     /\bstd::\w+/.test(source) ||
     /#include\s*<bits\/stdc\+\+\.h>/.test(lower)
   ) {
-    return 'cpp'
+    return "cpp";
   }
 
   if (
@@ -42,8 +44,8 @@ export function detectSupportedLanguageFromCode(code: string): SupportedLanguage
     /\bprintf\s*\(/.test(source) ||
     /\bscanf\s*\(/.test(source)
   ) {
-    return 'c'
+    return "c";
   }
 
-  return 'cpp'
+  return "cpp";
 }

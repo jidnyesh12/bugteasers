@@ -1,5 +1,5 @@
-import type { ProblemSubmissionHistoryItem, SubmissionStatus } from './types';
-import { normalizeSupportedLanguage } from '@/lib/execution/languages';
+import type { ProblemSubmissionHistoryItem, SubmissionStatus } from "./types";
+import { normalizeSupportedLanguage } from "@/lib/execution/languages";
 
 export interface RawProblemSubmissionRow {
   id: string;
@@ -19,35 +19,38 @@ interface NumericBounds {
 }
 
 const VALID_SUBMISSION_STATUSES: ReadonlySet<SubmissionStatus> = new Set([
-  'pending',
-  'passed',
-  'failed',
-  'partial',
-  'error',
+  "pending",
+  "passed",
+  "failed",
+  "partial",
+  "error",
 ]);
 
-export function parseNullableNumber(value: unknown, bounds?: NumericBounds): number | null {
+export function parseNullableNumber(
+  value: unknown,
+  bounds?: NumericBounds,
+): number | null {
   const isWithinBounds = (candidate: number): boolean => {
     if (!Number.isFinite(candidate)) {
       return false;
     }
 
-    if (typeof bounds?.min === 'number' && candidate < bounds.min) {
+    if (typeof bounds?.min === "number" && candidate < bounds.min) {
       return false;
     }
 
-    if (typeof bounds?.max === 'number' && candidate > bounds.max) {
+    if (typeof bounds?.max === "number" && candidate > bounds.max) {
       return false;
     }
 
     return true;
   };
 
-  if (typeof value === 'number' && Number.isFinite(value)) {
+  if (typeof value === "number" && Number.isFinite(value)) {
     return isWithinBounds(value) ? value : null;
   }
 
-  if (typeof value === 'string' && value.trim().length > 0) {
+  if (typeof value === "string" && value.trim().length > 0) {
     const parsed = Number(value);
     return isWithinBounds(parsed) ? parsed : null;
   }
@@ -60,16 +63,19 @@ export function normalizeSubmissionStatus(status: string): SubmissionStatus {
     return status as SubmissionStatus;
   }
 
-  return 'error';
+  return "error";
 }
 
-export function summarizeTestResults(testResults: unknown): { passedCount: number; totalTestCount: number } {
+export function summarizeTestResults(testResults: unknown): {
+  passedCount: number;
+  totalTestCount: number;
+} {
   if (!Array.isArray(testResults)) {
     return { passedCount: 0, totalTestCount: 0 };
   }
 
   const passedCount = testResults.reduce((count, entry) => {
-    if (!entry || typeof entry !== 'object') {
+    if (!entry || typeof entry !== "object") {
       return count;
     }
 
@@ -84,9 +90,11 @@ export function summarizeTestResults(testResults: unknown): { passedCount: numbe
 }
 
 export function mapRawProblemSubmission(
-  submission: RawProblemSubmissionRow
+  submission: RawProblemSubmissionRow,
 ): ProblemSubmissionHistoryItem {
-  const { passedCount, totalTestCount } = summarizeTestResults(submission.test_results);
+  const { passedCount, totalTestCount } = summarizeTestResults(
+    submission.test_results,
+  );
   const normalizedLanguage = normalizeSupportedLanguage(submission.language);
 
   return {

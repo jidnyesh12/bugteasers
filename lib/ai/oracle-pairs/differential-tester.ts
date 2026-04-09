@@ -11,8 +11,8 @@
  * - Score confidence based on voting strength
  */
 
-import type { ModelAnswer } from './types';
-import { executeAndCompare } from './executor';
+import type { ModelAnswer } from "./types";
+import { executeAndCompare } from "./executor";
 
 /**
  * Consensus result from multiple oracle executions
@@ -37,7 +37,7 @@ export interface ConsensusDecision {
     count: number;
     tiebreaker: boolean;
   }>;
-  attribution: 'test_case_error' | 'model_answer_error' | 'unknown';
+  attribution: "test_case_error" | "model_answer_error" | "unknown";
 }
 
 /**
@@ -54,30 +54,41 @@ export async function runDifferentialOracle(
   config: {
     timeout: number;
     outputNormalization: boolean;
-  } = { timeout: 5000, outputNormalization: true }
+  } = { timeout: 5000, outputNormalization: true },
 ): Promise<OracleVote[]> {
   const votes: OracleVote[] = [];
 
   for (const impl of implementations) {
     try {
       // Execute model answer and capture output
-      const result = await executeAndCompare(impl.answer, testInput, expectedOutput);
+      const result = await executeAndCompare(
+        impl.answer,
+        testInput,
+        expectedOutput,
+      );
 
-      const actualOutput = config.outputNormalization ? normalizeOutput(result.actual || '') : result.actual || '';
-      const expectedNorm = config.outputNormalization ? normalizeOutput(expectedOutput) : expectedOutput;
+      const actualOutput = config.outputNormalization
+        ? normalizeOutput(result.actual || "")
+        : result.actual || "";
+      const expectedNorm = config.outputNormalization
+        ? normalizeOutput(expectedOutput)
+        : expectedOutput;
 
       votes.push({
         implementation: impl.name,
-        output: result.actual || '',
+        output: result.actual || "",
         passed: actualOutput === expectedNorm,
-        error: result.executionStatus.status === 'error' ? result.executionStatus.stderr : undefined,
+        error:
+          result.executionStatus.status === "error"
+            ? result.executionStatus.stderr
+            : undefined,
       });
     } catch (error) {
       votes.push({
         implementation: impl.name,
-        output: '',
+        output: "",
         passed: false,
-        error: error instanceof Error ? error.message : 'Execution failed',
+        error: error instanceof Error ? error.message : "Execution failed",
       });
     }
   }
@@ -91,10 +102,10 @@ export async function runDifferentialOracle(
 export function normalizeOutput(output: string): string {
   return output
     .trim()
-    .split('\n')
+    .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
-    .join('\n');
+    .join("\n");
 }
 
 /**
@@ -103,10 +114,13 @@ export function normalizeOutput(output: string): string {
 export function reachConsensus(
   votes: OracleVote[],
   expectedOutput: string,
-  implementations: Array<{ name: string; weight?: number }>
+  implementations: Array<{ name: string; weight?: number }>,
 ): ConsensusDecision {
   // Build vote counts by output
-  const outputVotes: Record<string, Array<{ impl: string; weight: number }>> = {};
+  const outputVotes: Record<
+    string,
+    Array<{ impl: string; weight: number }>
+  > = {};
 
   votes.forEach((vote) => {
     const impl = implementations.find((i) => i.name === vote.implementation);
@@ -120,7 +134,7 @@ export function reachConsensus(
 
   // Find winning output
   let maxVotes = 0;
-  let consensusOutput = '';
+  let consensusOutput = "";
   const voteCounts: Array<{ output: string; count: number }> = [];
 
   for (const [output, votersArray] of Object.entries(outputVotes)) {
@@ -137,20 +151,22 @@ export function reachConsensus(
   // Strong consensus = high confidence, close vote = low confidence
   const totalWeight = votes.reduce((sum) => sum + 1, 0); // Simplified
   const majorityPercentage = maxVotes / Math.max(1, totalWeight);
-  const confidenceScore = majorityPercentage >= 0.5 ? majorityPercentage : 1 - majorityPercentage;
+  const confidenceScore =
+    majorityPercentage >= 0.5 ? majorityPercentage : 1 - majorityPercentage;
 
   // Determine if test case or model answer is wrong
   const normalizedConsensus = normalizeOutput(consensusOutput);
   const normalizedExpected = normalizeOutput(expectedOutput);
 
-  let attribution: 'test_case_error' | 'model_answer_error' | 'unknown' = 'unknown';
+  let attribution: "test_case_error" | "model_answer_error" | "unknown" =
+    "unknown";
 
   if (normalizedConsensus === normalizedExpected) {
     // Consensus matches expected → model answer was wrong
-    attribution = 'model_answer_error';
+    attribution = "model_answer_error";
   } else {
     // Consensus doesn't match expected → test case was wrong
-    attribution = 'test_case_error';
+    attribution = "test_case_error";
   }
 
   return {
@@ -158,7 +174,10 @@ export function reachConsensus(
     votingWeights: {},
     majorityWin: majorityPercentage >= 0.5,
     confidenceScore,
-    votingDetails: voteCounts.map((vc, i) => ({ ...vc, tiebreaker: i > 0 && voteCounts[0].count === vc.count })),
+    votingDetails: voteCounts.map((vc, i) => ({
+      ...vc,
+      tiebreaker: i > 0 && voteCounts[0].count === vc.count,
+    })),
     attribution,
   };
 }
@@ -171,9 +190,9 @@ export function reachConsensus(
 export function analyzeFailureMode(
   expectedOutput: string,
   actualOutput: string,
-  consensusOutput: string
+  consensusOutput: string,
 ): {
-  likelyError: 'test_case' | 'model_answer' | 'both' | 'unknown';
+  likelyError: "test_case" | "model_answer" | "both" | "unknown";
   confidence: number;
   reasoning: string[];
 } {
@@ -185,10 +204,10 @@ export function analyzeFailureMode(
 
   // If consensus matches expected
   if (consensusNorm === expectedNorm) {
-    reasons.push('Consensus matches expected output');
-    reasons.push('Model answer produces different output than consensus');
+    reasons.push("Consensus matches expected output");
+    reasons.push("Model answer produces different output than consensus");
     return {
-      likelyError: 'model_answer',
+      likelyError: "model_answer",
       confidence: 0.85,
       reasoning: reasons,
     };
@@ -196,23 +215,23 @@ export function analyzeFailureMode(
 
   // If consensus differs from expected
   if (consensusNorm !== expectedNorm) {
-    reasons.push('Consensus differs from expected output');
-    reasons.push('Multiple implementations agree on different output');
+    reasons.push("Consensus differs from expected output");
+    reasons.push("Multiple implementations agree on different output");
 
     // If actual matches consensus, then test case is wrong
     if (actualNorm === consensusNorm) {
-      reasons.push('Model answer output matches consensus');
+      reasons.push("Model answer output matches consensus");
       return {
-        likelyError: 'test_case',
+        likelyError: "test_case",
         confidence: 0.8,
         reasoning: reasons,
       };
     }
 
     // If actual differs from both, both may be wrong
-    reasons.push('Model answer differs from both expected and consensus');
+    reasons.push("Model answer differs from both expected and consensus");
     return {
-      likelyError: 'both',
+      likelyError: "both",
       confidence: 0.6,
       reasoning: reasons,
     };
@@ -220,9 +239,9 @@ export function analyzeFailureMode(
 
   // Unclear
   return {
-    likelyError: 'unknown',
+    likelyError: "unknown",
     confidence: 0.3,
-    reasoning: ['Unable to determine failure mode from consensus'],
+    reasoning: ["Unable to determine failure mode from consensus"],
   };
 }
 
@@ -240,22 +259,32 @@ export async function runFullDifferentialTest(
   config?: {
     timeout: number;
     outputNormalization: boolean;
-  }
+  },
 ): Promise<{
   votes: OracleVote[];
   consensus: ConsensusDecision;
   analysis: ReturnType<typeof analyzeFailureMode>;
 }> {
   // Get votes from all implementations
-  const votes = await runDifferentialOracle(testInput, expectedOutput, implementations, config);
+  const votes = await runDifferentialOracle(
+    testInput,
+    expectedOutput,
+    implementations,
+    config,
+  );
 
   // Reach consensus
   const consensus = reachConsensus(votes, expectedOutput, implementations);
 
   // Analyze failure mode
-  const consensusOutput = votes.find((v) => v.output === consensus.consensusOutput)?.output || '';
-  const actualOutput = votes[0]?.output || '';
-  const analysis = analyzeFailureMode(expectedOutput, actualOutput, consensusOutput);
+  const consensusOutput =
+    votes.find((v) => v.output === consensus.consensusOutput)?.output || "";
+  const actualOutput = votes[0]?.output || "";
+  const analysis = analyzeFailureMode(
+    expectedOutput,
+    actualOutput,
+    consensusOutput,
+  );
 
   return {
     votes,
@@ -271,7 +300,7 @@ export async function runFullDifferentialTest(
  */
 export function selectDiverseImplementations(
   allAnswers: ModelAnswer[],
-  count: number = 3
+  count: number = 3,
 ): Array<{ name: string; answer: ModelAnswer; weight: number }> {
   // STUB: Would use metadata to select diverse implementations
   // For now, just return first N
@@ -288,13 +317,14 @@ export function selectDiverseImplementations(
  */
 export function scoreConsensusConfidence(
   consensus: ConsensusDecision,
-  voteCounts: { passed: number; failed: number }
+  voteCounts: { passed: number; failed: number },
 ): number {
   // Strong consensus = high confidence
   const consensusStrength = consensus.confidenceScore;
 
   // High pass rate = high confidence
-  const passRate = voteCounts.passed / Math.max(1, voteCounts.passed + voteCounts.failed);
+  const passRate =
+    voteCounts.passed / Math.max(1, voteCounts.passed + voteCounts.failed);
 
   // Combine scores
   return (consensusStrength + passRate) / 2;

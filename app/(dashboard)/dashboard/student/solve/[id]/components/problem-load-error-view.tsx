@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 interface ProblemLoadErrorViewProps {
   message: string;
@@ -6,11 +6,17 @@ interface ProblemLoadErrorViewProps {
   onBack: () => void;
 }
 
-export function ProblemLoadErrorView({ message, onRetry, onBack }: ProblemLoadErrorViewProps) {
+export function ProblemLoadErrorView({
+  message,
+  onRetry,
+  onBack,
+}: ProblemLoadErrorViewProps) {
   return (
     <div className="h-[calc(100vh-3.5rem)] flex items-center justify-center bg-[var(--bg-primary)] px-6">
       <div className="w-full max-w-lg rounded-xl border border-[var(--border-primary)] bg-white p-6 text-center shadow-sm">
-        <h2 className="text-lg font-bold text-[var(--text-primary)]">Unable to Load Problem</h2>
+        <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          Unable to Load Problem
+        </h2>
         <p className="mt-2 text-sm text-[var(--text-secondary)]">{message}</p>
         <div className="mt-5 flex items-center justify-center gap-3">
           <button

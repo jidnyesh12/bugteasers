@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { supabase } from '@/lib/supabase/client';
-import type { SubmissionStatus } from '@/lib/submissions/types';
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { supabase } from "@/lib/supabase/client";
+import type { SubmissionStatus } from "@/lib/submissions/types";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -72,70 +72,91 @@ export async function GET() {
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (session.user.role === 'instructor') {
+    if (session.user.role === "instructor") {
       const payload = await buildInstructorStats(session.user.id);
       return NextResponse.json({
-        role: 'instructor',
+        role: "instructor",
         ...payload,
       });
     }
 
     const payload = await buildStudentStats(session.user.id);
     return NextResponse.json({
-      role: 'student',
+      role: "student",
       ...payload,
     });
   } catch (error) {
-    console.error('Error in dashboard stats API:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error("Error in dashboard stats API:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
-async function buildInstructorStats(userId: string): Promise<InstructorStatsPayload> {
+async function buildInstructorStats(
+  userId: string,
+): Promise<InstructorStatsPayload> {
   const { data: problemRows, error: problemRowsError } = await supabase
-    .from('problems')
-    .select('id')
-    .eq('created_by', userId);
+    .from("problems")
+    .select("id")
+    .eq("created_by", userId);
 
   if (problemRowsError) {
-    throw new Error(`Failed to fetch instructor problems: ${problemRowsError.message}`);
+    throw new Error(
+      `Failed to fetch instructor problems: ${problemRowsError.message}`,
+    );
   }
 
   const problemIds = ((problemRows as ProblemRow[] | null) ?? [])
     .map((problem) => problem.id)
-    .filter((problemId): problemId is string => typeof problemId === 'string' && problemId.length > 0);
+    .filter(
+      (problemId): problemId is string =>
+        typeof problemId === "string" && problemId.length > 0,
+    );
 
   const { data: classroomRows, error: classroomRowsError } = await supabase
-    .from('classrooms')
-    .select('id')
-    .eq('instructor_id', userId);
+    .from("classrooms")
+    .select("id")
+    .eq("instructor_id", userId);
 
   if (classroomRowsError) {
-    throw new Error(`Failed to fetch classrooms: ${classroomRowsError.message}`);
+    throw new Error(
+      `Failed to fetch classrooms: ${classroomRowsError.message}`,
+    );
   }
 
   const classroomIds = ((classroomRows as ClassroomRow[] | null) ?? [])
     .map((classroom) => classroom.id)
-    .filter((classroomId): classroomId is string => typeof classroomId === 'string' && classroomId.length > 0);
+    .filter(
+      (classroomId): classroomId is string =>
+        typeof classroomId === "string" && classroomId.length > 0,
+    );
 
   let activeStudents = 0;
   if (classroomIds.length > 0) {
-    const { data: classroomStudents, error: classroomStudentsError } = await supabase
-      .from('classroom_students')
-      .select('student_id')
-      .in('classroom_id', classroomIds);
+    const { data: classroomStudents, error: classroomStudentsError } =
+      await supabase
+        .from("classroom_students")
+        .select("student_id")
+        .in("classroom_id", classroomIds);
 
     if (classroomStudentsError) {
-      throw new Error(`Failed to fetch classroom students: ${classroomStudentsError.message}`);
+      throw new Error(
+        `Failed to fetch classroom students: ${classroomStudentsError.message}`,
+      );
     }
 
     activeStudents = new Set(
       ((classroomStudents as ClassroomStudentRow[] | null) ?? [])
         .map((student) => student.student_id)
-        .filter((studentId): studentId is string => typeof studentId === 'string' && studentId.length > 0)
+        .filter(
+          (studentId): studentId is string =>
+            typeof studentId === "string" && studentId.length > 0,
+        ),
     ).size;
   }
 
@@ -144,72 +165,99 @@ async function buildInstructorStats(userId: string): Promise<InstructorStatsPayl
 
   if (problemIds.length > 0) {
     const { count: pendingCount, error: pendingCountError } = await supabase
-      .from('problem_submissions')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'pending')
-      .in('problem_id', problemIds);
+      .from("problem_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending")
+      .in("problem_id", problemIds);
 
     if (pendingCountError) {
-      throw new Error(`Failed to fetch pending submissions: ${pendingCountError.message}`);
+      throw new Error(
+        `Failed to fetch pending submissions: ${pendingCountError.message}`,
+      );
     }
 
     pendingReviews = pendingCount ?? 0;
 
-    const { data: recentSubmissions, error: recentSubmissionsError } = await supabase
-      .from('problem_submissions')
-      .select('id, problem_id, student_id, status, score, submitted_at')
-      .in('problem_id', problemIds)
-      .order('submitted_at', { ascending: false })
-      .limit(5);
+    const { data: recentSubmissions, error: recentSubmissionsError } =
+      await supabase
+        .from("problem_submissions")
+        .select("id, problem_id, student_id, status, score, submitted_at")
+        .in("problem_id", problemIds)
+        .order("submitted_at", { ascending: false })
+        .limit(5);
 
     if (recentSubmissionsError) {
-      throw new Error(`Failed to fetch recent submissions: ${recentSubmissionsError.message}`);
+      throw new Error(
+        `Failed to fetch recent submissions: ${recentSubmissionsError.message}`,
+      );
     }
 
-    recentSubmissionRows = (recentSubmissions as RecentSubmissionRow[] | null) ?? [];
+    recentSubmissionRows =
+      (recentSubmissions as RecentSubmissionRow[] | null) ?? [];
   }
 
-  const recentStudentIds = [...new Set(
-    recentSubmissionRows
-      .map((submission) => submission.student_id)
-      .filter((studentId): studentId is string => typeof studentId === 'string' && studentId.length > 0)
-  )];
+  const recentStudentIds = [
+    ...new Set(
+      recentSubmissionRows
+        .map((submission) => submission.student_id)
+        .filter(
+          (studentId): studentId is string =>
+            typeof studentId === "string" && studentId.length > 0,
+        ),
+    ),
+  ];
 
-  const recentProblemIds = [...new Set(
-    recentSubmissionRows
-      .map((submission) => submission.problem_id)
-      .filter((problemId): problemId is string => typeof problemId === 'string' && problemId.length > 0)
-  )];
+  const recentProblemIds = [
+    ...new Set(
+      recentSubmissionRows
+        .map((submission) => submission.problem_id)
+        .filter(
+          (problemId): problemId is string =>
+            typeof problemId === "string" && problemId.length > 0,
+        ),
+    ),
+  ];
 
   let studentsById = new Map<string, UserRow>();
   if (recentStudentIds.length > 0) {
     const { data: studentRows, error: studentRowsError } = await supabase
-      .from('users')
-      .select('id, full_name, email')
-      .in('id', recentStudentIds);
+      .from("users")
+      .select("id, full_name, email")
+      .in("id", recentStudentIds);
 
     if (studentRowsError) {
-      throw new Error(`Failed to fetch submission students: ${studentRowsError.message}`);
+      throw new Error(
+        `Failed to fetch submission students: ${studentRowsError.message}`,
+      );
     }
 
     studentsById = new Map(
-      ((studentRows as UserRow[] | null) ?? []).map((student) => [student.id, student])
+      ((studentRows as UserRow[] | null) ?? []).map((student) => [
+        student.id,
+        student,
+      ]),
     );
   }
 
   let problemsById = new Map<string, ProblemMetaRow>();
   if (recentProblemIds.length > 0) {
-    const { data: problemMetaRows, error: problemMetaRowsError } = await supabase
-      .from('problems')
-      .select('id, title')
-      .in('id', recentProblemIds);
+    const { data: problemMetaRows, error: problemMetaRowsError } =
+      await supabase
+        .from("problems")
+        .select("id, title")
+        .in("id", recentProblemIds);
 
     if (problemMetaRowsError) {
-      throw new Error(`Failed to fetch submission problems: ${problemMetaRowsError.message}`);
+      throw new Error(
+        `Failed to fetch submission problems: ${problemMetaRowsError.message}`,
+      );
     }
 
     problemsById = new Map(
-      ((problemMetaRows as ProblemMetaRow[] | null) ?? []).map((problem) => [problem.id, problem])
+      ((problemMetaRows as ProblemMetaRow[] | null) ?? []).map((problem) => [
+        problem.id,
+        problem,
+      ]),
     );
   }
 
@@ -229,8 +277,9 @@ async function buildInstructorStats(userId: string): Promise<InstructorStatsPayl
         submittedAt: submission.submitted_at,
         status: submission.status,
         score: normalizeScore(submission.score),
-        studentName: student?.full_name?.trim() || student?.email || 'Unknown student',
-        problemTitle: problem?.title || 'Unknown problem',
+        studentName:
+          student?.full_name?.trim() || student?.email || "Unknown student",
+        problemTitle: problem?.title || "Unknown problem",
       };
     }),
   };
@@ -238,29 +287,36 @@ async function buildInstructorStats(userId: string): Promise<InstructorStatsPayl
 
 async function buildStudentStats(userId: string): Promise<StudentStatsPayload> {
   const { data: submissionRows, error: submissionRowsError } = await supabase
-    .from('problem_submissions')
-    .select('problem_id, status, score, submitted_at')
-    .eq('student_id', userId)
-    .order('submitted_at', { ascending: false });
+    .from("problem_submissions")
+    .select("problem_id, status, score, submitted_at")
+    .eq("student_id", userId)
+    .order("submitted_at", { ascending: false });
 
   if (submissionRowsError) {
-    throw new Error(`Failed to fetch student submissions: ${submissionRowsError.message}`);
+    throw new Error(
+      `Failed to fetch student submissions: ${submissionRowsError.message}`,
+    );
   }
 
   const submissions = (submissionRows as SubmissionStatsRow[] | null) ?? [];
 
   const solvedProblemIds = new Set(
     submissions
-      .filter((submission) => submission.status === 'passed')
+      .filter((submission) => submission.status === "passed")
       .map((submission) => submission.problem_id)
-      .filter((problemId): problemId is string => typeof problemId === 'string' && problemId.length > 0)
+      .filter(
+        (problemId): problemId is string =>
+          typeof problemId === "string" && problemId.length > 0,
+      ),
   );
 
   const scoredSubmissions = submissions
     .map((submission) => normalizeScore(submission.score))
     .filter((score): score is number => score !== null);
 
-  const passedSubmissionCount = submissions.filter((submission) => submission.status === 'passed').length;
+  const passedSubmissionCount = submissions.filter(
+    (submission) => submission.status === "passed",
+  ).length;
 
   let accuracy: number | null = null;
   if (scoredSubmissions.length > 0) {
@@ -273,7 +329,9 @@ async function buildStudentStats(userId: string): Promise<StudentStatsPayload> {
   return {
     stats: {
       problemsSolved: solvedProblemIds.size,
-      dayStreak: calculateDayStreak(submissions.map((submission) => submission.submitted_at)),
+      dayStreak: calculateDayStreak(
+        submissions.map((submission) => submission.submitted_at),
+      ),
       submissions: submissions.length,
       accuracy,
     },
@@ -285,7 +343,7 @@ function normalizeScore(value: number | string | null): number | null {
     return null;
   }
 
-  const parsed = typeof value === 'number' ? value : Number(value);
+  const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(parsed)) {
     return null;
   }
@@ -303,11 +361,15 @@ function toUtcDayKey(value: string): string | null {
 }
 
 function calculateDayStreak(submittedAtValues: string[]): number {
-  const sortedUniqueDays = [...new Set(
-    submittedAtValues
-      .map((value) => toUtcDayKey(value))
-      .filter((day): day is string => typeof day === 'string' && day.length > 0)
-  )].sort((left, right) => right.localeCompare(left));
+  const sortedUniqueDays = [
+    ...new Set(
+      submittedAtValues
+        .map((value) => toUtcDayKey(value))
+        .filter(
+          (day): day is string => typeof day === "string" && day.length > 0,
+        ),
+    ),
+  ].sort((left, right) => right.localeCompare(left));
 
   if (sortedUniqueDays.length === 0) {
     return 0;
@@ -318,7 +380,9 @@ function calculateDayStreak(submittedAtValues: string[]): number {
 
   for (let index = 1; index < sortedUniqueDays.length; index += 1) {
     const currentDate = new Date(`${sortedUniqueDays[index]}T00:00:00.000Z`);
-    const diffInDays = Math.round((previousDate.getTime() - currentDate.getTime()) / DAY_IN_MS);
+    const diffInDays = Math.round(
+      (previousDate.getTime() - currentDate.getTime()) / DAY_IN_MS,
+    );
 
     if (diffInDays !== 1) {
       break;

@@ -1,17 +1,16 @@
-
-import { PistonClientImpl } from '../../execution/client';
-import type { ExecutionResult, SupportedLanguage, ModelAnswer } from './types';
-import { TemplateDslError } from '../template-dsl/errors';
+import { PistonClientImpl } from "../../execution/client";
+import type { ExecutionResult, SupportedLanguage, ModelAnswer } from "./types";
+import { TemplateDslError } from "../template-dsl/errors";
 
 /**
  * Code executor configuration
  */
 export interface ExecutorConfig {
-  timeout: number; 
-  maxOutputLength: number; 
-  sandboxed: boolean; 
+  timeout: number;
+  maxOutputLength: number;
+  sandboxed: boolean;
   captureStderr: boolean;
-  seedRNG: boolean; 
+  seedRNG: boolean;
 }
 
 export const DEFAULT_EXECUTOR_CONFIG: ExecutorConfig = {
@@ -26,14 +25,14 @@ export const DEFAULT_EXECUTOR_CONFIG: ExecutorConfig = {
  * File extensions by language
  */
 const LANGUAGE_EXTENSIONS: Record<SupportedLanguage, string> = {
-  python: 'py',
-  cpp: 'cpp',
-  java: 'java',
-  javascript: 'js',
-  typescript: 'ts',
-  csharp: 'cs',
-  go: 'go',
-  rust: 'rs',
+  python: "py",
+  cpp: "cpp",
+  java: "java",
+  javascript: "js",
+  typescript: "ts",
+  csharp: "cs",
+  go: "go",
+  rust: "rs",
 };
 
 /**
@@ -45,7 +44,7 @@ function prepareCodeForExecution(
   code: string,
   language: SupportedLanguage,
   seed: string,
-  useSeeding: boolean
+  useSeeding: boolean,
 ): string {
   if (!useSeeding) {
     return code;
@@ -55,11 +54,11 @@ function prepareCodeForExecution(
   const seedValue = parseInt(seed.substring(0, 8), 16);
 
   switch (language) {
-    case 'python':
+    case "python":
       return `import random\nrandom.seed(${seedValue})\n${code}`;
 
-    case 'javascript':
-    case 'typescript':
+    case "javascript":
+    case "typescript":
       // Manual seeded RNG helper for JS
       return `
 const seededRandom = (() => {
@@ -72,19 +71,19 @@ const seededRandom = (() => {
 Math.random = seededRandom;
 ${code}`;
 
-    case 'java':
+    case "java":
       return `import java.util.Random;\nRandom random = new Random(${seedValue}L);\n${code}`;
 
-    case 'cpp':
+    case "cpp":
       return `#include <cstdlib>\nsrand(${seedValue});\n${code}`;
 
-    case 'csharp':
+    case "csharp":
       return `using System;\nvar random = new Random(${seedValue});\n${code}`;
 
-    case 'go':
+    case "go":
       return `rand.Seed(int64(${seedValue}))\n${code}`;
 
-    case 'rust':
+    case "rust":
       // Rust doesn't have built-in seeded RNG easily accessible
       return code;
 
@@ -101,7 +100,7 @@ ${code}`;
 export async function executeCode(
   modelAnswer: ModelAnswer,
   testInput: string,
-  config: ExecutorConfig = DEFAULT_EXECUTOR_CONFIG
+  config: ExecutorConfig = DEFAULT_EXECUTOR_CONFIG,
 ): Promise<ExecutionResult> {
   const startTime = Date.now();
   const language = modelAnswer.language;
@@ -112,7 +111,7 @@ export async function executeCode(
     modelAnswer.code,
     language,
     seed,
-    config.seedRNG
+    config.seedRNG,
   );
 
   try {
@@ -120,24 +119,26 @@ export async function executeCode(
     // Map oracle-pair SupportedLanguage to Piston language strings.
     // Languages not in PistonLanguage union are included for future expansion.
     const languageMap: Partial<Record<SupportedLanguage, string>> = {
-      python: 'python',
-      java: 'java',
-      cpp: 'c++',
-      javascript: 'javascript',
-      typescript: 'typescript',
-      csharp: 'csharp',
-      go: 'go',
-      rust: 'rust',
+      python: "python",
+      java: "java",
+      cpp: "c++",
+      javascript: "javascript",
+      typescript: "typescript",
+      csharp: "csharp",
+      go: "go",
+      rust: "rust",
     };
 
     const pistonLang = languageMap[language];
     if (!pistonLang) {
-      throw new TemplateDslError(`Unsupported language for Piston execution: ${language}`);
+      throw new TemplateDslError(
+        `Unsupported language for Piston execution: ${language}`,
+      );
     }
 
     const response = await pistonClient.execute({
       language: pistonLang,
-      version: '*',
+      version: "*",
       files: [{ content: preparedCode }],
       stdin: testInput,
       // Compile timeout must be generous — g++ can be slow even with explicit includes.
@@ -148,40 +149,42 @@ export async function executeCode(
     });
 
     const duration = Date.now() - startTime;
-    let status: 'success' | 'timeout' | 'error' = 'success';
+    let status: "success" | "timeout" | "error" = "success";
 
-
-    if (response.compile && response.compile.signal === 'SIGKILL') {
-      const compileOutput = response.compile.output || response.compile.stderr || '';
-      const isTimeLimitExceeded = compileOutput.toLowerCase().includes('time limit exceeded');
+    if (response.compile && response.compile.signal === "SIGKILL") {
+      const compileOutput =
+        response.compile.output || response.compile.stderr || "";
+      const isTimeLimitExceeded = compileOutput
+        .toLowerCase()
+        .includes("time limit exceeded");
       return {
-        output: '',
+        output: "",
         exitCode: response.compile.code ?? 137,
-        stderr:
-          isTimeLimitExceeded
-            ? 'Compilation timed out (SIGKILL). This usually means #include <bits/stdc++.h> was used. Use explicit includes instead.'
-            : `Compilation killed by signal SIGKILL: ${compileOutput.substring(0, 500)}`,
+        stderr: isTimeLimitExceeded
+          ? "Compilation timed out (SIGKILL). This usually means #include <bits/stdc++.h> was used. Use explicit includes instead."
+          : `Compilation killed by signal SIGKILL: ${compileOutput.substring(0, 500)}`,
         duration,
-        status: 'timeout',
+        status: "timeout",
       };
     }
-    
+
     if (response.compile && response.compile.code !== 0) {
       return {
-        output: '',
+        output: "",
         exitCode: response.compile.code ?? 1,
-        stderr: response.compile.stderr || 'Compilation failed',
+        stderr: response.compile.stderr || "Compilation failed",
         duration,
-        status: 'error',
+        status: "error",
       };
     }
 
-    const runCode = typeof response.run.code === 'number' ? response.run.code : 1;
+    const runCode =
+      typeof response.run.code === "number" ? response.run.code : 1;
     if (runCode !== 0) {
-      status = 'error';
+      status = "error";
     }
 
-    let output = response.run.stdout || response.run.output || '';
+    let output = response.run.stdout || response.run.output || "";
     if (output.length > config.maxOutputLength) {
       output = output.substring(0, config.maxOutputLength);
     }
@@ -189,21 +192,23 @@ export async function executeCode(
     return {
       output: output.trim(),
       exitCode: runCode,
-      stderr: config.captureStderr ? (response.run.stderr || undefined) : undefined,
+      stderr: config.captureStderr
+        ? response.run.stderr || undefined
+        : undefined,
       duration,
       status,
     };
   } catch (error) {
     const duration = Date.now() - startTime;
-    let status: 'success' | 'timeout' | 'error' = 'error';
+    let status: "success" | "timeout" | "error" = "error";
     const stderr = error instanceof Error ? error.message : String(error);
 
-    if (stderr.includes('timeout') || stderr.includes('timed out')) {
-      status = 'timeout';
+    if (stderr.includes("timeout") || stderr.includes("timed out")) {
+      status = "timeout";
     }
 
     return {
-      output: '',
+      output: "",
       exitCode: 1,
       stderr: config.captureStderr ? stderr : undefined,
       duration,
@@ -212,9 +217,6 @@ export async function executeCode(
   }
 }
 
-
-
-
 /**
  * Execute and compare outputs (with tolerance for whitespace)
  */
@@ -222,7 +224,7 @@ export async function executeAndCompare(
   modelAnswer: ModelAnswer,
   testInput: string,
   expectedOutput: string,
-  config: ExecutorConfig = DEFAULT_EXECUTOR_CONFIG
+  config: ExecutorConfig = DEFAULT_EXECUTOR_CONFIG,
 ): Promise<{
   matches: boolean;
   actual: string;
@@ -233,10 +235,10 @@ export async function executeAndCompare(
   // Normalize outputs for comparison
   const normalizeOutput = (out: string) =>
     out
-      .split('\n')
+      .split("\n")
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
-      .join('\n');
+      .join("\n");
 
   const expectedNorm = normalizeOutput(expectedOutput);
   const actualNorm = normalizeOutput(result.output);

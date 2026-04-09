@@ -16,13 +16,13 @@ import type {
   OracleValidationResult,
   TestCase,
   ModelAnswer,
-} from './types';
-import type { TestCaseInputTemplate } from '../template-dsl/types';
-import type { OrchestratorConfig } from './generation-orchestrator';
-import type { RepairConfig } from './repair-engine';
-import { DEFAULT_ORCHESTRATOR_CONFIG } from './generation-orchestrator';
-import { DEFAULT_REPAIR_CONFIG } from './repair-engine';
-import { TemplateDslError } from '../template-dsl/errors';
+} from "./types";
+import type { TestCaseInputTemplate } from "../template-dsl/types";
+import type { OrchestratorConfig } from "./generation-orchestrator";
+import type { RepairConfig } from "./repair-engine";
+import { DEFAULT_ORCHESTRATOR_CONFIG } from "./generation-orchestrator";
+import { DEFAULT_REPAIR_CONFIG } from "./repair-engine";
+import { TemplateDslError } from "../template-dsl/errors";
 
 /**
  * Pipeline configuration - combines all sub-configs
@@ -80,7 +80,7 @@ export interface PipelineResult {
   validation?: OracleValidationResult;
   stages: StageResult[];
   totalDuration: number;
-  finalStatus: 'success' | 'escalated' | 'failed';
+  finalStatus: "success" | "escalated" | "failed";
   errors: string[];
   metrics?: {
     stageTimings: Record<string, number>;
@@ -115,15 +115,15 @@ interface PipelineContext {
  * Stage 1: Materialize test case from template
  */
 async function stageMaterializeTestCase(
-  ctx: PipelineContext
+  ctx: PipelineContext,
 ): Promise<{ testCase: TestCase; success: boolean; error?: string }> {
   const startTime = Date.now();
 
   try {
     // STUB: Would call actual materialization from template-dsl
     const testCase: TestCase = {
-      inputData: ctx.examples.split('\n')[0] || '5',
-      expectedOutput: ctx.examples.split('\n')[1] || '120',
+      inputData: ctx.examples.split("\n")[0] || "5",
+      expectedOutput: ctx.examples.split("\n")[1] || "120",
       generationSeed: ctx.generationSeed,
       resolvedSeed: ctx.generationSeed,
       variables: { n: 5 },
@@ -132,7 +132,7 @@ async function stageMaterializeTestCase(
 
     const duration = Date.now() - startTime;
     ctx.stages.push({
-      stage: 'materialize_test_case',
+      stage: "materialize_test_case",
       success: true,
       duration,
       data: testCase,
@@ -144,7 +144,7 @@ async function stageMaterializeTestCase(
     const errorMsg = error instanceof Error ? error.message : String(error);
 
     ctx.stages.push({
-      stage: 'materialize_test_case',
+      stage: "materialize_test_case",
       success: false,
       duration,
       error: errorMsg,
@@ -159,7 +159,7 @@ async function stageMaterializeTestCase(
  * Stage 2: Generate model answer
  */
 async function stageGenerateModelAnswer(
-  ctx: PipelineContext
+  ctx: PipelineContext,
 ): Promise<{ answer: ModelAnswer; success: boolean; error?: string }> {
   const startTime = Date.now();
 
@@ -182,7 +182,7 @@ async function stageGenerateModelAnswer(
 
     const duration = Date.now() - startTime;
     ctx.stages.push({
-      stage: 'generate_model_answer',
+      stage: "generate_model_answer",
       success: true,
       duration,
       data: answer,
@@ -194,7 +194,7 @@ async function stageGenerateModelAnswer(
     const errorMsg = error instanceof Error ? error.message : String(error);
 
     ctx.stages.push({
-      stage: 'generate_model_answer',
+      stage: "generate_model_answer",
       success: false,
       duration,
       error: errorMsg,
@@ -211,7 +211,7 @@ async function stageGenerateModelAnswer(
 async function stageCreateOraclePair(
   ctx: PipelineContext,
   testCase: TestCase,
-  answer: ModelAnswer
+  answer: ModelAnswer,
 ): Promise<{ pair: OraclePair; success: boolean; error?: string }> {
   const startTime = Date.now();
 
@@ -223,7 +223,7 @@ async function stageCreateOraclePair(
       modelAnswer: answer,
       createdAt: new Date().toISOString(),
       metadata: {
-        problemName: ctx.problemStatement.split('\n')[0],
+        problemName: ctx.problemStatement.split("\n")[0],
       },
     };
 
@@ -231,7 +231,7 @@ async function stageCreateOraclePair(
 
     const duration = Date.now() - startTime;
     ctx.stages.push({
-      stage: 'create_oracle_pair',
+      stage: "create_oracle_pair",
       success: true,
       duration,
     });
@@ -242,7 +242,7 @@ async function stageCreateOraclePair(
     const errorMsg = error instanceof Error ? error.message : String(error);
 
     ctx.stages.push({
-      stage: 'create_oracle_pair',
+      stage: "create_oracle_pair",
       success: false,
       duration,
       error: errorMsg,
@@ -258,8 +258,12 @@ async function stageCreateOraclePair(
  */
 async function stageValidateOraclePair(
   ctx: PipelineContext,
-  pair: OraclePair
-): Promise<{ validation: OracleValidationResult; success: boolean; error?: string }> {
+  pair: OraclePair,
+): Promise<{
+  validation: OracleValidationResult;
+  success: boolean;
+  error?: string;
+}> {
   const startTime = Date.now();
 
   try {
@@ -270,12 +274,12 @@ async function stageValidateOraclePair(
       generationSeed: pair.generationSeed,
       timestamp: new Date().toISOString(),
       isConsistent: true,
-      testCaseStatus: 'valid',
-      modelAnswerStatus: 'correct',
+      testCaseStatus: "valid",
+      modelAnswerStatus: "correct",
       expectedOutput: pair.testCase.expectedOutput,
       actualOutput: pair.testCase.expectedOutput,
       outputMatch: true,
-      failureAttributed: 'unknown',
+      failureAttributed: "unknown",
       confidence: 1.0,
       diagnostics: {
         constraintViolations: [],
@@ -288,7 +292,7 @@ async function stageValidateOraclePair(
 
     const duration = Date.now() - startTime;
     ctx.stages.push({
-      stage: 'validate_oracle_pair',
+      stage: "validate_oracle_pair",
       success: true,
       duration,
     });
@@ -299,14 +303,18 @@ async function stageValidateOraclePair(
     const errorMsg = error instanceof Error ? error.message : String(error);
 
     ctx.stages.push({
-      stage: 'validate_oracle_pair',
+      stage: "validate_oracle_pair",
       success: false,
       duration,
       error: errorMsg,
     });
 
     ctx.errors.push(`Validation failed: ${errorMsg}`);
-    return { validation: {} as OracleValidationResult, success: false, error: errorMsg };
+    return {
+      validation: {} as OracleValidationResult,
+      success: false,
+      error: errorMsg,
+    };
   }
 }
 
@@ -316,15 +324,20 @@ async function stageValidateOraclePair(
 async function stageRepairIfNeeded(
   ctx: PipelineContext,
   pair: OraclePair,
-  validation: OracleValidationResult
-): Promise<{ pair: OraclePair; repaired: boolean; success: boolean; error?: string }> {
+  validation: OracleValidationResult,
+): Promise<{
+  pair: OraclePair;
+  repaired: boolean;
+  success: boolean;
+  error?: string;
+}> {
   const startTime = Date.now();
 
   try {
     if (validation.isConsistent) {
       const duration = Date.now() - startTime;
       ctx.stages.push({
-        stage: 'repair_if_needed',
+        stage: "repair_if_needed",
         success: true,
         duration,
       });
@@ -337,20 +350,20 @@ async function stageRepairIfNeeded(
 
     const duration = Date.now() - startTime;
     ctx.stages.push({
-      stage: 'repair_if_needed',
+      stage: "repair_if_needed",
       success: false,
       duration,
-      error: 'Escalated to manual review',
+      error: "Escalated to manual review",
     });
 
-    ctx.errors.push('Oracle pair inconsistent - escalated');
-    return { pair, repaired: false, success: false, error: 'Escalated' };
+    ctx.errors.push("Oracle pair inconsistent - escalated");
+    return { pair, repaired: false, success: false, error: "Escalated" };
   } catch (error) {
     const duration = Date.now() - startTime;
     const errorMsg = error instanceof Error ? error.message : String(error);
 
     ctx.stages.push({
-      stage: 'repair_if_needed',
+      stage: "repair_if_needed",
       success: false,
       duration,
       error: errorMsg,
@@ -366,7 +379,7 @@ async function stageRepairIfNeeded(
  */
 async function stageFinalizeResult(
   ctx: PipelineContext,
-  _pair: OraclePair // eslint-disable-line @typescript-eslint/no-unused-vars
+  _pair: OraclePair, // eslint-disable-line @typescript-eslint/no-unused-vars
 ): Promise<{ success: boolean; error?: string }> {
   const startTime = Date.now();
 
@@ -374,7 +387,7 @@ async function stageFinalizeResult(
     // STUB: Would persist to database if configured
     const validation = ctx.currentValidation;
     if (!validation) {
-      throw new TemplateDslError('No validation result to finalize');
+      throw new TemplateDslError("No validation result to finalize");
     }
 
     // Determine final status
@@ -388,7 +401,7 @@ async function stageFinalizeResult(
 
     const duration = Date.now() - startTime;
     ctx.stages.push({
-      stage: 'finalize_result',
+      stage: "finalize_result",
       success: true,
       duration,
     });
@@ -399,7 +412,7 @@ async function stageFinalizeResult(
     const errorMsg = error instanceof Error ? error.message : String(error);
 
     ctx.stages.push({
-      stage: 'finalize_result',
+      stage: "finalize_result",
       success: false,
       duration,
       error: errorMsg,
@@ -419,7 +432,7 @@ export async function executeOraclePipeline(
   constraints: string,
   examples: string,
   generationSeed: string,
-  config: PipelineConfig = DEFAULT_PIPELINE_CONFIG
+  config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
 ): Promise<PipelineResult> {
   const overallStartTime = Date.now();
 
@@ -443,7 +456,9 @@ export async function executeOraclePipeline(
     // Stage 1: Materialize test case
     const materializeResult = await stageMaterializeTestCase(ctx);
     if (!materializeResult.success) {
-      throw new TemplateDslError(`Materialization failed: ${materializeResult.error}`);
+      throw new TemplateDslError(
+        `Materialization failed: ${materializeResult.error}`,
+      );
     }
 
     // Stage 2: Generate model answer
@@ -453,26 +468,42 @@ export async function executeOraclePipeline(
     }
 
     // Stage 3: Create oracle pair
-    const pairResult = await stageCreateOraclePair(ctx, materializeResult.testCase, generateResult.answer);
+    const pairResult = await stageCreateOraclePair(
+      ctx,
+      materializeResult.testCase,
+      generateResult.answer,
+    );
     if (!pairResult.success) {
       throw new TemplateDslError(`Pair creation failed: ${pairResult.error}`);
     }
 
     // Stage 4: Validate oracle pair
-    const validationResult = await stageValidateOraclePair(ctx, pairResult.pair);
+    const validationResult = await stageValidateOraclePair(
+      ctx,
+      pairResult.pair,
+    );
     if (!validationResult.success) {
-      throw new TemplateDslError(`Validation failed: ${validationResult.error}`);
+      throw new TemplateDslError(
+        `Validation failed: ${validationResult.error}`,
+      );
     }
 
     // Stage 5: Repair if needed
-    const repairResult = await stageRepairIfNeeded(ctx, pairResult.pair, validationResult.validation);
+    const repairResult = await stageRepairIfNeeded(
+      ctx,
+      pairResult.pair,
+      validationResult.validation,
+    );
     if (!repairResult.success) {
       // Check if it's escalation vs real failure
-      if (repairResult.error === 'Escalated') {
+      if (repairResult.error === "Escalated") {
         // This is expected escalation, not a hard failure
-        const finalizeResult = await stageFinalizeResult(ctx, repairResult.pair);
+        const finalizeResult = await stageFinalizeResult(
+          ctx,
+          repairResult.pair,
+        );
         if (!finalizeResult.success) {
-          ctx.errors.push(finalizeResult.error || 'Finalization failed');
+          ctx.errors.push(finalizeResult.error || "Finalization failed");
         }
       } else {
         throw new TemplateDslError(`Repair failed: ${repairResult.error}`);
@@ -481,22 +512,24 @@ export async function executeOraclePipeline(
       // Stage 6: Finalize result
       const finalizeResult = await stageFinalizeResult(ctx, repairResult.pair);
       if (!finalizeResult.success) {
-        throw new TemplateDslError(`Finalization failed: ${finalizeResult.error}`);
+        throw new TemplateDslError(
+          `Finalization failed: ${finalizeResult.error}`,
+        );
       }
     }
 
     // Determine final status
     const hasConsistentPair = ctx.currentValidation?.isConsistent || false;
-    const finalStatus: 'success' | 'escalated' | 'failed' = hasConsistentPair
-      ? 'success'
+    const finalStatus: "success" | "escalated" | "failed" = hasConsistentPair
+      ? "success"
       : ctx.metrics.escalationCount > 0
-        ? 'escalated'
-        : 'failed';
+        ? "escalated"
+        : "failed";
 
     const totalDuration = Date.now() - overallStartTime;
 
     return {
-      success: finalStatus === 'success',
+      success: finalStatus === "success",
       oraclePair: ctx.currentPair,
       validation: ctx.currentValidation,
       stages: ctx.stages,
@@ -509,7 +542,7 @@ export async function executeOraclePipeline(
             acc[stage.stage] = (acc[stage.stage] || 0) + stage.duration;
             return acc;
           },
-          {} as Record<string, number>
+          {} as Record<string, number>,
         ),
         ...ctx.metrics,
       },
@@ -524,7 +557,7 @@ export async function executeOraclePipeline(
       success: false,
       stages: ctx.stages,
       totalDuration,
-      finalStatus: 'failed',
+      finalStatus: "failed",
       errors: ctx.errors,
       metrics: {
         stageTimings: ctx.stages.reduce(
@@ -532,7 +565,7 @@ export async function executeOraclePipeline(
             acc[stage.stage] = (acc[stage.stage] || 0) + stage.duration;
             return acc;
           },
-          {} as Record<string, number>
+          {} as Record<string, number>,
         ),
         ...ctx.metrics,
       },
@@ -551,7 +584,7 @@ export async function executePipelineBatch(
     examples: string;
     generationSeed: string;
   }>,
-  config: PipelineConfig = DEFAULT_PIPELINE_CONFIG
+  config: PipelineConfig = DEFAULT_PIPELINE_CONFIG,
 ): Promise<PipelineResult[]> {
   const results: PipelineResult[] = [];
 
@@ -562,7 +595,7 @@ export async function executePipelineBatch(
       item.constraints,
       item.examples,
       item.generationSeed,
-      config
+      config,
     );
     results.push(result);
   }
@@ -588,11 +621,17 @@ export interface PipelineSummary {
 /**
  * Calculate batch execution summary
  */
-export function calculatePipelineSummary(results: PipelineResult[]): PipelineSummary {
+export function calculatePipelineSummary(
+  results: PipelineResult[],
+): PipelineSummary {
   const totalPipelines = results.length;
-  const successCount = results.filter((r) => r.finalStatus === 'success').length;
-  const escalatedCount = results.filter((r) => r.finalStatus === 'escalated').length;
-  const failedCount = results.filter((r) => r.finalStatus === 'failed').length;
+  const successCount = results.filter(
+    (r) => r.finalStatus === "success",
+  ).length;
+  const escalatedCount = results.filter(
+    (r) => r.finalStatus === "escalated",
+  ).length;
+  const failedCount = results.filter((r) => r.finalStatus === "failed").length;
 
   // Calculate stage health
   const stageHealthScores: Record<string, number> = {};
@@ -615,7 +654,8 @@ export function calculatePipelineSummary(results: PipelineResult[]): PipelineSum
   });
 
   const totalDuration = results.reduce((sum, r) => sum + r.totalDuration, 0);
-  const averageDuration = totalPipelines > 0 ? totalDuration / totalPipelines : 0;
+  const averageDuration =
+    totalPipelines > 0 ? totalDuration / totalPipelines : 0;
   const totalErrors = results.reduce((sum, r) => sum + r.errors.length, 0);
 
   return {

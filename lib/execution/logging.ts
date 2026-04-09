@@ -1,18 +1,18 @@
 // Structured logging utilities for execution workflows.
 
 const SENSITIVE_KEYS = new Set([
-  'code',
-  'token',
-  'password',
-  'authorization',
-  'pistonApiUrl',
-  'apiKey',
-  'apikey',
-  'secret',
+  "code",
+  "token",
+  "password",
+  "authorization",
+  "pistonApiUrl",
+  "apiKey",
+  "apikey",
+  "secret",
 ]);
 
 export interface ExecutionLogContext {
-  mode?: 'run' | 'submit';
+  mode?: "run" | "submit";
   userId?: string;
   problemId?: string;
   language?: string;
@@ -28,13 +28,18 @@ export interface ExecutionLogger {
   logExecutionWarning(message: string, context?: ExecutionLogContext): void;
 }
 
-function sanitizeContext(context: ExecutionLogContext): Record<string, unknown> {
-  return Object.entries(context).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    if (!SENSITIVE_KEYS.has(key)) {
-      acc[key] = value;
-    }
-    return acc;
-  }, {});
+function sanitizeContext(
+  context: ExecutionLogContext,
+): Record<string, unknown> {
+  return Object.entries(context).reduce<Record<string, unknown>>(
+    (acc, [key, value]) => {
+      if (!SENSITIVE_KEYS.has(key)) {
+        acc[key] = value;
+      }
+      return acc;
+    },
+    {},
+  );
 }
 
 function serializeError(error: unknown): Record<string, unknown> {
@@ -47,7 +52,7 @@ function serializeError(error: unknown): Record<string, unknown> {
   }
 
   return {
-    name: 'UnknownError',
+    name: "UnknownError",
     message: String(error),
   };
 }
@@ -55,11 +60,11 @@ function serializeError(error: unknown): Record<string, unknown> {
 export function createExecutionLogger(): ExecutionLogger {
   return {
     logExecutionStarted(context: ExecutionLogContext): void {
-      console.info('execution.started', sanitizeContext(context));
+      console.info("execution.started", sanitizeContext(context));
     },
 
     logExecutionCompleted(context: ExecutionLogContext): void {
-      console.info('execution.completed', sanitizeContext(context));
+      console.info("execution.completed", sanitizeContext(context));
     },
 
     logExecutionFailed(context: ExecutionLogContext, error: unknown): void {
@@ -68,10 +73,13 @@ export function createExecutionLogger(): ExecutionLogger {
         error: serializeError(error),
       };
 
-      console.error('execution.failed', payload);
+      console.error("execution.failed", payload);
     },
 
-    logExecutionWarning(message: string, context: ExecutionLogContext = {}): void {
+    logExecutionWarning(
+      message: string,
+      context: ExecutionLogContext = {},
+    ): void {
       console.warn(`execution.warning: ${message}`, sanitizeContext(context));
     },
   };

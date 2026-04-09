@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
-import type { SupportedLanguage } from '@/lib/execution/types';
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+import type { SupportedLanguage } from "@/lib/execution/types";
 
 interface SolveEditorDraftScope {
   userId: string | null;
@@ -54,7 +54,7 @@ interface SolveEditorStoreState {
 }
 
 function getUserScope(userId: string | null): string {
-  return userId ?? 'anonymous';
+  return userId ?? "anonymous";
 }
 
 export function buildSolveEditorDraftKey(scope: SolveEditorDraftScope): string {
@@ -96,7 +96,8 @@ export const useSolveEditorStore = create<SolveEditorStoreState>()(
       },
       setPaneState: (paneKey, patch) => {
         set((state) => {
-          const current = state.paneState[paneKey] ?? DEFAULT_SOLVE_EDITOR_PANE_STATE;
+          const current =
+            state.paneState[paneKey] ?? DEFAULT_SOLVE_EDITOR_PANE_STATE;
 
           return {
             paneState: {
@@ -111,13 +112,13 @@ export const useSolveEditorStore = create<SolveEditorStoreState>()(
       },
     }),
     {
-      name: 'solve-editor-store-v1',
+      name: "solve-editor-store-v1",
       version: 1,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         drafts: state.drafts,
         paneState: state.paneState,
       }),
-    }
-  )
+    },
+  ),
 );

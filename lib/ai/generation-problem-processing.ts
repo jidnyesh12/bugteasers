@@ -1,26 +1,29 @@
-import { createHash } from 'node:crypto';
-import { TestCaseEvaluatorImpl } from '@/lib/execution/evaluator';
-import { PistonInfrastructureError } from '@/lib/execution/client';
+import { createHash } from "node:crypto";
+import { TestCaseEvaluatorImpl } from "@/lib/execution/evaluator";
+import { PistonInfrastructureError } from "@/lib/execution/client";
 import {
   hasUnresolvedPlaceholder,
   hashTemplateSpec,
   materializeTestCaseInputTemplate,
-} from '@/lib/ai/template-dsl';
+} from "@/lib/ai/template-dsl";
 import {
   createTestCase,
   createModelAnswer,
   createOraclePair,
-} from '@/lib/ai/oracle-pairs';
-import { validateOraclePair, DEFAULT_VALIDATOR_CONFIG } from '@/lib/ai/oracle-pairs/validator';
-import type { GeneratedProblem, GeneratedTestCase } from './types';
+} from "@/lib/ai/oracle-pairs";
+import {
+  validateOraclePair,
+  DEFAULT_VALIDATOR_CONFIG,
+} from "@/lib/ai/oracle-pairs/validator";
+import type { GeneratedProblem, GeneratedTestCase } from "./types";
 
 // Constants
 
 /** Model answer validation always runs in C++. */
-const MODEL_ANSWER_LANGUAGE = 'cpp' as const;
+const MODEL_ANSWER_LANGUAGE = "cpp" as const;
 
 /** Sentinel value placed by the LLM in hidden test cases. */
-const AUTO_EXPECTED_OUTPUT_SENTINEL = '__AUTO_EXPECTED_OUTPUT__';
+const AUTO_EXPECTED_OUTPUT_SENTINEL = "__AUTO_EXPECTED_OUTPUT__";
 
 /** Maximum number of self-correction repair attempts before human fallback. */
 const MAX_REPAIR_ATTEMPTS = 3;
@@ -29,11 +32,11 @@ const MAX_REPAIR_ATTEMPTS = 3;
 
 /** Discriminated error types the Oracle Pipeline can produce. */
 export type OracleErrorType =
-  | 'compile_error'
-  | 'model_answer_error'
-  | 'logic_consistency_error'
-  | 'materialization_error'
-  | 'infrastructure_error';
+  | "compile_error"
+  | "model_answer_error"
+  | "logic_consistency_error"
+  | "materialization_error"
+  | "infrastructure_error";
 
 /**
  * Structured failure payload returned by the validation pipeline.
@@ -69,7 +72,7 @@ export interface ValidationOutcome {
 export function annotateGeneratedProblems(
   problems: GeneratedProblem[],
   model: string,
-  seed: string
+  seed: string,
 ): GeneratedProblem[] {
   const generatedAt = new Date().toISOString();
 
@@ -87,9 +90,11 @@ export function annotateGeneratedProblems(
 
       const inputHash =
         templateHash ??
-        createHash('sha256')
-          .update(typeof testCase.input_data === 'string' ? testCase.input_data : '')
-          .digest('hex');
+        createHash("sha256")
+          .update(
+            typeof testCase.input_data === "string" ? testCase.input_data : "",
+          )
+          .digest("hex");
 
       return {
         ...testCase,
@@ -107,8 +112,8 @@ export function annotateGeneratedProblems(
 
 /** Strip single-line and multi-line comments from C++ source code. */
 function stripCppComments(code: string): string {
-  let result = code.replace(/\/\*[\s\S]*?\*\//g, '');
-  result = result.replace(/\/\/.*/g, '');
+  let result = code.replace(/\/\*[\s\S]*?\*\//g, "");
+  result = result.replace(/\/\/.*/g, "");
   return result;
 }
 
@@ -146,7 +151,7 @@ async function executeTestCaseAgainstOracle(
   testCaseIndex: number,
   seedMaterial: string,
   runTimeout: number,
-  evaluator: TestCaseEvaluatorImpl
+  evaluator: TestCaseEvaluatorImpl,
 ): Promise<ExecutedTestCaseResult | ExecutedTestCaseFailure> {
   const referenceLanguage = MODEL_ANSWER_LANGUAGE;
   const fallbackSeed =
@@ -156,18 +161,22 @@ async function executeTestCaseAgainstOracle(
 
   // Phase 1: Materialization
   let expandedInput =
-    typeof testCase.input_data === 'string' ? testCase.input_data : '';
+    typeof testCase.input_data === "string" ? testCase.input_data : "";
   let persistedInput = expandedInput;
   let inputHash =
-    typeof testCase.input_hash === 'string' && testCase.input_hash.trim().length > 0
+    typeof testCase.input_hash === "string" &&
+    testCase.input_hash.trim().length > 0
       ? testCase.input_hash
-      : createHash('sha256').update(expandedInput).digest('hex');
+      : createHash("sha256").update(expandedInput).digest("hex");
 
   if (testCase.input_template) {
     try {
-      const materialized = materializeTestCaseInputTemplate(testCase.input_template, {
-        seedMaterial: fallbackSeed,
-      });
+      const materialized = materializeTestCaseInputTemplate(
+        testCase.input_template,
+        {
+          seedMaterial: fallbackSeed,
+        },
+      );
       expandedInput = materialized.inputData;
       inputHash = hashTemplateSpec(testCase.input_template);
       persistedInput = expandedInput;
@@ -175,10 +184,10 @@ async function executeTestCaseAgainstOracle(
       return {
         ok: false,
         failure: {
-          errorType: 'materialization_error',
+          errorType: "materialization_error",
           message:
             `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: ` +
-            `template materialization failed - ${error instanceof Error ? error.message : 'Unknown template error'}`,
+            `template materialization failed - ${error instanceof Error ? error.message : "Unknown template error"}`,
           problemIndex,
           testCaseIndex,
           failedCode: solutionCode,
@@ -191,10 +200,10 @@ async function executeTestCaseAgainstOracle(
     return {
       ok: false,
       failure: {
-        errorType: 'materialization_error',
+        errorType: "materialization_error",
         message:
           `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: ` +
-          'input_data is empty after template materialization.',
+          "input_data is empty after template materialization.",
         problemIndex,
         testCaseIndex,
         failedCode: solutionCode,
@@ -204,20 +213,27 @@ async function executeTestCaseAgainstOracle(
 
   // Phase 2: Sandbox Hand-off (Piston execution)
   const expectedOutput =
-    typeof testCase.expected_output === 'string' ? testCase.expected_output : '';
+    typeof testCase.expected_output === "string"
+      ? testCase.expected_output
+      : "";
   const shouldAutoDeriveExpected = isAutoPlaceholder(expectedOutput);
 
   try {
     const oraclePair = createOraclePair(
       createTestCase(
         expandedInput,
-        shouldAutoDeriveExpected ? '' : expectedOutput,
+        shouldAutoDeriveExpected ? "" : expectedOutput,
         fallbackSeed,
         fallbackSeed,
         {},
-        1
+        1,
       ),
-      createModelAnswer(solutionCode, referenceLanguage, fallbackSeed, 'gemini-3-flash')
+      createModelAnswer(
+        solutionCode,
+        referenceLanguage,
+        fallbackSeed,
+        "gemini-3-flash",
+      ),
     );
 
     const validationResult = await validateOraclePair(oraclePair, {
@@ -228,12 +244,14 @@ async function executeTestCaseAgainstOracle(
     });
 
     // Phase 3: Failure Attribution
-    if (validationResult.modelAnswerStatus === 'syntax_error') {
-      const errMsg = validationResult.diagnostics?.executionErrors?.[0] || 'Compilation error';
+    if (validationResult.modelAnswerStatus === "syntax_error") {
+      const errMsg =
+        validationResult.diagnostics?.executionErrors?.[0] ||
+        "Compilation error";
       return {
         ok: false,
         failure: {
-          errorType: 'compile_error',
+          errorType: "compile_error",
           message: `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: compile error - ${errMsg}`,
           problemIndex,
           testCaseIndex,
@@ -244,12 +262,13 @@ async function executeTestCaseAgainstOracle(
       };
     }
 
-    if (validationResult.modelAnswerStatus === 'runtime_error') {
-      const errMsg = validationResult.diagnostics?.executionErrors?.[0] || 'Runtime error';
+    if (validationResult.modelAnswerStatus === "runtime_error") {
+      const errMsg =
+        validationResult.diagnostics?.executionErrors?.[0] || "Runtime error";
       return {
         ok: false,
         failure: {
-          errorType: 'model_answer_error',
+          errorType: "model_answer_error",
           message: `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: runtime error - ${errMsg}`,
           problemIndex,
           testCaseIndex,
@@ -260,11 +279,11 @@ async function executeTestCaseAgainstOracle(
       };
     }
 
-    if (validationResult.modelAnswerStatus === 'timeout') {
+    if (validationResult.modelAnswerStatus === "timeout") {
       return {
         ok: false,
         failure: {
-          errorType: 'model_answer_error',
+          errorType: "model_answer_error",
           message: `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: execution timed out`,
           problemIndex,
           testCaseIndex,
@@ -275,7 +294,9 @@ async function executeTestCaseAgainstOracle(
       };
     }
 
-    const normalizedActual = evaluator.normalizeOutput(validationResult.actualOutput || '');
+    const normalizedActual = evaluator.normalizeOutput(
+      validationResult.actualOutput || "",
+    );
 
     return {
       ok: true,
@@ -294,7 +315,7 @@ async function executeTestCaseAgainstOracle(
       return {
         ok: false,
         failure: {
-          errorType: 'infrastructure_error',
+          errorType: "infrastructure_error",
           message:
             `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: ` +
             `Piston API infrastructure failure (HTTP ${error.statusCode}). ` +
@@ -309,10 +330,10 @@ async function executeTestCaseAgainstOracle(
     return {
       ok: false,
       failure: {
-        errorType: 'model_answer_error',
+        errorType: "model_answer_error",
         message:
           `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: execution failed - ` +
-          `${error instanceof Error ? error.message : 'Unknown execution failure'}`,
+          `${error instanceof Error ? error.message : "Unknown execution failure"}`,
         problemIndex,
         testCaseIndex,
         failedCode: solutionCode,
@@ -325,18 +346,24 @@ async function executeTestCaseAgainstOracle(
 
 // Main Validation Orchestrator - Two-Pass Execution Model
 
-
 export async function validateProblemsAgainstModel(
   problems: readonly GeneratedProblem[],
-  seedMaterial: string
+  seedMaterial: string,
 ): Promise<ValidationOutcome> {
   const evaluator = new TestCaseEvaluatorImpl();
   const validatedProblems: GeneratedProblem[] = [];
 
-  for (let problemIndex = 0; problemIndex < problems.length; problemIndex += 1) {
+  for (
+    let problemIndex = 0;
+    problemIndex < problems.length;
+    problemIndex += 1
+  ) {
     const problem = problems[problemIndex];
     const solutionCode = stripCppComments(problem.solution_code);
-    const runTimeout = Math.min(Math.max(problem.time_limit || 2000, 500), 10_000);
+    const runTimeout = Math.min(
+      Math.max(problem.time_limit || 2000, 500),
+      10_000,
+    );
 
     // Partition test cases by is_sample
     const sampleIndices: number[] = [];
@@ -350,7 +377,9 @@ export async function validateProblemsAgainstModel(
     }
 
     // Accumulate validated test cases (ordered: samples first, then hidden)
-    const validatedTestCases: GeneratedTestCase[] = new Array(problem.test_cases.length);
+    const validatedTestCases: GeneratedTestCase[] = new Array(
+      problem.test_cases.length,
+    );
 
     // PASS 1: Sample test cases - verify AI-provided expected outputs
 
@@ -360,9 +389,9 @@ export async function validateProblemsAgainstModel(
       // Map __AUTO_EXPECTED_OUTPUT__ to examples[i].output for sample cases
       if (testCase.is_sample && isAutoPlaceholder(testCase.expected_output)) {
         const materializedInput =
-          typeof testCase.input_data === 'string' ? testCase.input_data : '';
+          typeof testCase.input_data === "string" ? testCase.input_data : "";
         const matchingExample = problem.examples.find(
-          (ex) => ex.input === materializedInput
+          (ex) => ex.input === materializedInput,
         );
         if (matchingExample) {
           testCase.expected_output = matchingExample.output;
@@ -376,7 +405,7 @@ export async function validateProblemsAgainstModel(
         tcIndex,
         seedMaterial,
         runTimeout,
-        evaluator
+        evaluator,
       );
 
       if (!result.ok) {
@@ -388,9 +417,10 @@ export async function validateProblemsAgainstModel(
       }
 
       // Normalize both expected and actual outputs for comparison
-      const providedExpected = typeof testCase.expected_output === 'string'
-        ? testCase.expected_output
-        : '';
+      const providedExpected =
+        typeof testCase.expected_output === "string"
+          ? testCase.expected_output
+          : "";
       // Normalize BOTH expected and actual outputs to handle trailing newlines, whitespace differences
       const normalizedExpected = evaluator.normalizeOutput(providedExpected);
       const normalizedActual = evaluator.normalizeOutput(result.actualOutput);
@@ -404,9 +434,8 @@ export async function validateProblemsAgainstModel(
             `sample output mismatch (logic_consistency_error). ` +
             `Expected "${normalizedExpected}" but Oracle returned "${normalizedActual}".`,
           failure: {
-            errorType: 'logic_consistency_error',
-            message:
-              `Sample test case ${tcIndex + 1}: Expected "${normalizedExpected}" but Oracle returned "${normalizedActual}"`,
+            errorType: "logic_consistency_error",
+            message: `Sample test case ${tcIndex + 1}: Expected "${normalizedExpected}" but Oracle returned "${normalizedActual}"`,
             problemIndex,
             testCaseIndex: tcIndex,
             failedCode: solutionCode,
@@ -435,7 +464,7 @@ export async function validateProblemsAgainstModel(
         tcIndex,
         seedMaterial,
         runTimeout,
-        evaluator
+        evaluator,
       );
 
       if (!result.ok) {

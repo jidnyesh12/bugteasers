@@ -2,7 +2,7 @@ import {
   defaultShouldDehydrateQuery,
   isServer,
   QueryClient,
-} from '@tanstack/react-query';
+} from "@tanstack/react-query";
 
 const ONE_MINUTE = 60 * 1000;
 const FIVE_MINUTES = 5 * ONE_MINUTE;
@@ -21,7 +21,8 @@ function makeQueryClient() {
       },
       dehydrate: {
         shouldDehydrateQuery: (query) =>
-          defaultShouldDehydrateQuery(query) || query.state.status === 'pending',
+          defaultShouldDehydrateQuery(query) ||
+          query.state.status === "pending",
         shouldRedactErrors: () => false,
       },
     },

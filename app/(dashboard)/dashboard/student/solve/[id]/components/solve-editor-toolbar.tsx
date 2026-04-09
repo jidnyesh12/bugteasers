@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { LoadingSpinner } from '@/components/ui/loading';
+import { LoadingSpinner } from "@/components/ui/loading";
 import {
   EXECUTION_FILE_EXTENSIONS,
   EXECUTION_LANGUAGE_LABELS,
   SUPPORTED_EXECUTION_LANGUAGES,
   normalizeSupportedLanguage,
-} from '@/lib/execution/languages';
-import type { SupportedLanguage } from '@/lib/execution/types';
+} from "@/lib/execution/languages";
+import type { SupportedLanguage } from "@/lib/execution/types";
 
 interface SolveEditorToolbarProps {
   language: SupportedLanguage;
@@ -54,7 +54,9 @@ export function SolveEditorToolbar({
             </option>
           ))}
         </select>
-        <span className="text-[10px] text-gray-500 font-mono">solution.{EXECUTION_FILE_EXTENSIONS[language]}</span>
+        <span className="text-[10px] text-gray-500 font-mono">
+          solution.{EXECUTION_FILE_EXTENSIONS[language]}
+        </span>
       </div>
       <div className="flex items-center gap-2">
         <button
@@ -79,7 +81,13 @@ export function SolveEditorToolbar({
             </>
           ) : (
             <>
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
                 <polygon points="5 3 19 12 5 21 5 3" />
               </svg>
               Run
@@ -90,7 +98,7 @@ export function SolveEditorToolbar({
           onClick={onSubmit}
           disabled={isSubmitDisabled}
           className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-md transition-colors cursor-pointer disabled:opacity-50"
-          title={submitBlockedReason || 'Submit (Ctrl + Enter)'}
+          title={submitBlockedReason || "Submit (Ctrl + Enter)"}
         >
           {isSubmitting ? (
             <>
@@ -100,7 +108,7 @@ export function SolveEditorToolbar({
               Submitting...
             </>
           ) : (
-            'Submit'
+            "Submit"
           )}
         </button>
       </div>

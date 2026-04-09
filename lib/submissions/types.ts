@@ -1,4 +1,9 @@
-export type SubmissionStatus = 'pending' | 'passed' | 'failed' | 'partial' | 'error';
+export type SubmissionStatus =
+  | "pending"
+  | "passed"
+  | "failed"
+  | "partial"
+  | "error";
 
 export interface ProblemSubmissionHistoryItem {
   id: string;

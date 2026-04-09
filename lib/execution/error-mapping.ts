@@ -4,7 +4,7 @@ import {
   ExecutionForbiddenError,
   ExecutionNotFoundError,
   ExecutionValidationError,
-} from './errors';
+} from "./errors";
 
 interface ErrorHttpMapping {
   status: number;
@@ -36,5 +36,5 @@ export function mapExecutionErrorToHttp(error: unknown): ErrorHttpMapping {
     return { status: 500, message: error.message };
   }
 
-  return { status: 500, message: 'Internal server error' };
+  return { status: 500, message: "Internal server error" };
 }

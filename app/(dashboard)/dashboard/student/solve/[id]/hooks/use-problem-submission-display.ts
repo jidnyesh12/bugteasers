@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useMemo } from 'react';
-import type { SupportedLanguage } from '@/lib/execution/types';
-import type { ProblemSubmissionHistoryItem } from '@/lib/submissions/types';
-import type { ProblemSubmissionDisplayItem } from '@/lib/submissions/view-types';
-import type { ExecutionPanelResult } from './use-problem-execution';
+import { useMemo } from "react";
+import type { SupportedLanguage } from "@/lib/execution/types";
+import type { ProblemSubmissionHistoryItem } from "@/lib/submissions/types";
+import type { ProblemSubmissionDisplayItem } from "@/lib/submissions/view-types";
+import type { ExecutionPanelResult } from "./use-problem-execution";
 
 export interface PendingSubmissionMeta {
   code: string;
@@ -20,12 +20,12 @@ interface UseProblemSubmissionDisplayOptions {
 }
 
 function buildPendingPreviewSubmission(
-  pendingSubmissionMeta: PendingSubmissionMeta
+  pendingSubmissionMeta: PendingSubmissionMeta,
 ): ProblemSubmissionDisplayItem {
   return {
-    id: '__pending_submission__',
+    id: "__pending_submission__",
     language: pendingSubmissionMeta.language,
-    status: 'pending',
+    status: "pending",
     score: null,
     earnedPoints: null,
     totalPoints: null,
@@ -39,20 +39,21 @@ function buildPendingPreviewSubmission(
 
 function buildSubmitResultPreviewSubmission(
   executionResult: ExecutionPanelResult,
-  pendingSubmissionMeta: PendingSubmissionMeta
+  pendingSubmissionMeta: PendingSubmissionMeta,
 ): ProblemSubmissionDisplayItem | null {
   if (
-    executionResult.mode !== 'submit' ||
-    executionResult.status === 'running' ||
+    executionResult.mode !== "submit" ||
+    executionResult.status === "running" ||
     !executionResult.submissionId ||
     !executionResult.score
   ) {
     return null;
   }
 
-  const passedCount = executionResult.results.reduce((count, result) => (
-    result.passed ? count + 1 : count
-  ), 0);
+  const passedCount = executionResult.results.reduce(
+    (count, result) => (result.passed ? count + 1 : count),
+    0,
+  );
 
   return {
     id: executionResult.submissionId,
@@ -70,14 +71,10 @@ function buildSubmitResultPreviewSubmission(
 }
 
 export function useProblemSubmissionDisplay(
-  options: UseProblemSubmissionDisplayOptions
+  options: UseProblemSubmissionDisplayOptions,
 ): ProblemSubmissionDisplayItem[] {
-  const {
-    submissions,
-    executionResult,
-    isSubmitting,
-    pendingSubmissionMeta,
-  } = options;
+  const { submissions, executionResult, isSubmitting, pendingSubmissionMeta } =
+    options;
 
   return useMemo(() => {
     if (!pendingSubmissionMeta) {
@@ -87,7 +84,10 @@ export function useProblemSubmissionDisplay(
     const previewSubmission = isSubmitting
       ? buildPendingPreviewSubmission(pendingSubmissionMeta)
       : executionResult
-        ? buildSubmitResultPreviewSubmission(executionResult, pendingSubmissionMeta)
+        ? buildSubmitResultPreviewSubmission(
+            executionResult,
+            pendingSubmissionMeta,
+          )
         : null;
 
     if (!previewSubmission) {
@@ -95,7 +95,7 @@ export function useProblemSubmissionDisplay(
     }
 
     if (
-      previewSubmission.id !== '__pending_submission__' &&
+      previewSubmission.id !== "__pending_submission__" &&
       submissions.some((submission) => submission.id === previewSubmission.id)
     ) {
       return submissions;

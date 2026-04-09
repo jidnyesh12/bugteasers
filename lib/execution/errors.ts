@@ -3,36 +3,42 @@
 export class ExecutionValidationError extends Error {
   readonly statusCode = 400;
 
-  constructor(message: string, public readonly details?: unknown) {
+  constructor(
+    message: string,
+    public readonly details?: unknown,
+  ) {
     super(message);
-    this.name = 'ExecutionValidationError';
+    this.name = "ExecutionValidationError";
   }
 }
 
 export class ExecutionDatabaseError extends Error {
   readonly statusCode = 500;
 
-  constructor(message: string, public readonly cause?: unknown) {
+  constructor(
+    message: string,
+    public readonly cause?: unknown,
+  ) {
     super(message);
-    this.name = 'ExecutionDatabaseError';
+    this.name = "ExecutionDatabaseError";
   }
 }
 
 export class ExecutionAuthorizationError extends Error {
   readonly statusCode = 401;
 
-  constructor(message = 'Unauthorized') {
+  constructor(message = "Unauthorized") {
     super(message);
-    this.name = 'ExecutionAuthorizationError';
+    this.name = "ExecutionAuthorizationError";
   }
 }
 
 export class ExecutionForbiddenError extends Error {
   readonly statusCode = 403;
 
-  constructor(message = 'Access denied') {
+  constructor(message = "Access denied") {
     super(message);
-    this.name = 'ExecutionForbiddenError';
+    this.name = "ExecutionForbiddenError";
   }
 }
 
@@ -41,6 +47,6 @@ export class ExecutionNotFoundError extends Error {
 
   constructor(message: string) {
     super(message);
-    this.name = 'ExecutionNotFoundError';
+    this.name = "ExecutionNotFoundError";
   }
 }
