@@ -61,6 +61,7 @@ jobs:
         env:
           # Dummy values for build — Supabase client is lazy-initialized
           # so these are only needed to satisfy Next.js static analysis.
+          PISTON_API_URL: ${{ secrets.PISTON_API_URL }}
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: placeholder-key-for-build
           NEXTAUTH_URL: http://localhost:3000
