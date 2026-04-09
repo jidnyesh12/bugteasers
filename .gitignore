@@ -10,6 +10,11 @@
 !.yarn/releases
 !.yarn/versions
 .kiro
+node_modules/
+apps/**/node_modules/
+packages/**/node_modules/
+.next/
+apps/**/.next/
 
 # testing
 /coverage
@@ -40,3 +45,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+cmd.txt
