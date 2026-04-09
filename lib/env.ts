@@ -60,8 +60,8 @@ function getRequiredUrlEnv(key: string): string {
 
 // Piston API configuration
 export const PISTON_API_URL = getRequiredUrlEnv('PISTON_API_URL');
-export const PISTON_TIMEOUT_MS = getPositiveIntEnv('PISTON_TIMEOUT_MS', 30000);
-export const PISTON_MAX_RETRIES = getPositiveIntEnv('PISTON_MAX_RETRIES', 3);
+export const PISTON_TIMEOUT_MS = 30000;
+export const PISTON_MAX_RETRIES = 3;
 
 // Supabase configuration
 export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
