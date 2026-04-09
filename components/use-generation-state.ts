@@ -81,14 +81,11 @@ export function useGenerationState() {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setCooldownEndTime(Date.now() + parseInt(match[1], 10) * 1000);
       } else {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCooldownEndTime(null);
         setCooldownSeconds(0);
       }
     } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCooldownEndTime(null);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCooldownSeconds(0);
     }
   }, [error]);

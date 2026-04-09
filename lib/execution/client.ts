@@ -105,7 +105,7 @@ export class PistonClientImpl implements PistonClient {
         let data: unknown;
         try {
           data = JSON.parse(rawText);
-        } catch (parseError) {
+        } catch {
           console.error(
             "[PISTON] Response body is not valid JSON.",
             "Content-Type:",

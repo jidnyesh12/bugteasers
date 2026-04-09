@@ -69,8 +69,7 @@ export class ConstraintRegistry {
       name: "matrix_dimensions_valid",
       description: "Matrix rows and cols must be positive integers",
       category: "bounds",
-      check: (_testCase: MaterializedTestCaseWithVariables) => {
-        // eslint-disable-line @typescript-eslint/no-unused-vars
+      check: () => {
         // This would be checked during variable generation
         // Ensure no matrix has 0 rows or cols
         return true;

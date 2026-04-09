@@ -25,9 +25,6 @@ const MODEL_ANSWER_LANGUAGE = "cpp" as const;
 /** Sentinel value placed by the LLM in hidden test cases. */
 const AUTO_EXPECTED_OUTPUT_SENTINEL = "__AUTO_EXPECTED_OUTPUT__";
 
-/** Maximum number of self-correction repair attempts before human fallback. */
-const MAX_REPAIR_ATTEMPTS = 3;
-
 // Error Types
 
 /** Discriminated error types the Oracle Pipeline can produce. */

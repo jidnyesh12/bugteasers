@@ -22,20 +22,6 @@ export const DEFAULT_EXECUTOR_CONFIG: ExecutorConfig = {
 };
 
 /**
- * File extensions by language
- */
-const LANGUAGE_EXTENSIONS: Record<SupportedLanguage, string> = {
-  python: "py",
-  cpp: "cpp",
-  java: "java",
-  javascript: "js",
-  typescript: "ts",
-  csharp: "cs",
-  go: "go",
-  rust: "rs",
-};
-
-/**
  * Prepare code for execution
  *
  * Wraps code with seed initialization if needed

@@ -16,27 +16,6 @@ function getRequiredEnv(key: string): string {
   return value;
 }
 
-function getPositiveIntEnv(key: string, defaultValue: number): number {
-  const rawValue = process.env[key];
-
-  if (rawValue === undefined || rawValue === "") {
-    return defaultValue;
-  }
-
-  const parsed = Number.parseInt(rawValue, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    if (IS_SERVER) {
-      throw new Error(
-        `Invalid environment variable ${key}: must be a positive integer`,
-      );
-    }
-
-    return defaultValue;
-  }
-
-  return parsed;
-}
-
 function getRequiredUrlEnv(key: string): string {
   const value = getRequiredEnv(key);
 

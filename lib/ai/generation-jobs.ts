@@ -793,8 +793,6 @@ async function handleOracleRepairLoop(
   const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const errorType = currentFailure.errorType;
-
     // Locate the failing problem
     const failIdx = currentFailure.problemIndex;
     const failingProblem = currentProblems[failIdx];
@@ -866,7 +864,7 @@ async function handleOracleRepairLoop(
       if (revalidation.failure) {
         currentFailure = revalidation.failure;
       }
-    } catch (repairError) {
+    } catch {
       // Continue to next attempt
     }
   }
