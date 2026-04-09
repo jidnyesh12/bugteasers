@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import type { SupportedLanguage } from "@/lib/execution/types";
 import { getCodeMirrorLanguageExtension } from "@/lib/execution/codemirror-language-extension";
 import { createEditableCodeMirrorTheme } from "@/lib/execution/codemirror-theme";
@@ -6,16 +6,19 @@ import { acceptCompletion, autocompletion } from "@codemirror/autocomplete";
 import { vscodeDark } from "@uiw/codemirror-theme-vscode";
 import { EditorView, keymap } from "@codemirror/view";
 import { indentWithTab, insertNewlineAndIndent } from "@codemirror/commands";
-import { EditorState, Prec } from "@codemirror/state";
+import { EditorState, Prec, Extension } from "@codemirror/state";
 import { indentUnit } from "@codemirror/language";
 import { getLanguageAutocompleteData } from "../utils/editor-autocomplete";
 
+type TelemetryExtensionFactory = () => Extension;
+
 interface UseCodeMirrorConfigOptions {
   language: SupportedLanguage;
+  telemetryExtension?: TelemetryExtensionFactory;
 }
 
 export function useCodeMirrorConfig(options: UseCodeMirrorConfigOptions) {
-  const { language } = options;
+  const { language, telemetryExtension } = options;
 
   const acceptCompletionOrIndent = useMemo(
     () => (view: EditorView) =>
@@ -64,15 +67,23 @@ export function useCodeMirrorConfig(options: UseCodeMirrorConfigOptions) {
   );
 
   const editorExtensions = useMemo(
-    () => [
-      editorKeymapExt,
-      languageExtension,
-      languageAutocompleteDataExt,
-      editorAutocompleteExt,
-      editorThemeExt,
-      editorTabSizeExt,
-      editorIndentUnitExt,
-    ],
+    () => {
+      const extensions = [
+        editorKeymapExt,
+        languageExtension,
+        languageAutocompleteDataExt,
+        editorAutocompleteExt,
+        editorThemeExt,
+        editorTabSizeExt,
+        editorIndentUnitExt,
+      ];
+      
+      if (telemetryExtension) {
+        extensions.push(telemetryExtension());
+      }
+      
+      return extensions;
+    },
     [
       editorAutocompleteExt,
       editorIndentUnitExt,
@@ -81,6 +92,7 @@ export function useCodeMirrorConfig(options: UseCodeMirrorConfigOptions) {
       editorThemeExt,
       languageAutocompleteDataExt,
       languageExtension,
+      telemetryExtension,
     ],
   );
 

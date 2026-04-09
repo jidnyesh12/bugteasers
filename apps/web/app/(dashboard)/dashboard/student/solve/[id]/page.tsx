@@ -47,6 +47,7 @@ import {
 } from "@/lib/state/stores";
 import { normalizeSupportedLanguage } from "@/lib/execution/languages";
 import { useCodeMirrorConfig } from "./hooks/use-codemirror-config";
+import { useCodeMirrorTelemetry } from "./hooks/use-codemirror-telemetry";
 import { useProblemLoader } from "./hooks/use-problem-loader";
 import {
   useProblemExecution,
@@ -135,6 +136,19 @@ export default function SolveProblemPage() {
       : isAssignmentClosed
         ? "Assignment is closed. Submissions are disabled."
         : undefined;
+  
+  // Telemetry tracking for plagiarism detection (must be before handlers that use it)
+  const { 
+    telemetryExtension,
+    recordRun: recordTelemetryRun,
+    recordSubmit: recordTelemetrySubmit,
+  } = useCodeMirrorTelemetry({
+    studentId: profile?.id ?? "",
+    problemId: params.id,
+    assignmentId,
+    isAssignmentClosed,
+  });
+
   const paneStorageKey = useMemo(
     () =>
       buildSolveEditorPaneKey({
@@ -272,10 +286,11 @@ export default function SolveProblemPage() {
   }, [profile, authLoading, initialized, router]);
 
   const handleRunClick = useCallback(() => {
+    recordTelemetryRun();
     setOutputTab("result");
     setPaneState(paneStorageKey, { isOutputCollapsed: false });
     void runCode();
-  }, [paneStorageKey, runCode, setPaneState]);
+  }, [paneStorageKey, recordTelemetryRun, runCode, setPaneState]);
 
   const handleSubmitClick = useCallback(() => {
     if (assignmentId) {
@@ -298,6 +313,7 @@ export default function SolveProblemPage() {
       language,
       submittedAt: new Date().toISOString(),
     });
+    recordTelemetrySubmit();
     setOutputTab("result");
     setPaneState(paneStorageKey, { isOutputCollapsed: false });
     void submitCode();
@@ -308,6 +324,7 @@ export default function SolveProblemPage() {
     isAssignmentWindowLoading,
     language,
     paneStorageKey,
+    recordTelemetrySubmit,
     setPaneState,
     submitCode,
     toast,
@@ -341,6 +358,7 @@ export default function SolveProblemPage() {
   const { editorExtensions, editorBasicSetup, editorTheme } =
     useCodeMirrorConfig({
       language,
+      telemetryExtension,
     });
 
   const getStarterCode = useCallback((targetLanguage: SupportedLanguage) => {

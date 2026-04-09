@@ -50,6 +50,9 @@ export const PISTON_MAX_RETRIES = 3;
 export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 export const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+// Public anon key for client-side operations (safe to expose)
+export const SUPABASE_ANON_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 // NextAuth configuration
 export const NEXTAUTH_URL = process.env.NEXTAUTH_URL || "";
