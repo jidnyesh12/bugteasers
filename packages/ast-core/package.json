@@ -1,5 +1,8 @@
 {
   "name": "@bugteasers/ast-core",
   "version": "1.0.0",
-  "main": "index.js"
+  "main": "index.js",
+  "dependencies": {
+    "web-tree-sitter": "^0.22.6"
+  }
 }

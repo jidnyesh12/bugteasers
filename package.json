@@ -5,5 +5,10 @@
     "dev": "pnpm -r --parallel run dev",
     "build": "pnpm -r run build"
   },
-  "packageManager": "pnpm@10.15.1"
+  "packageManager": "pnpm@10.15.1",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "tree-sitter"
+    ]
+  }
 }
