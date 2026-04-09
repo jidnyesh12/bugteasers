@@ -1,9 +1,9 @@
 // API route for assignment management
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { supabase } from '@/lib/supabase/client';
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { supabase } from "@/lib/supabase/client";
 
 // GET - List instructor's assignments
 export async function GET() {
@@ -11,31 +11,39 @@ export async function GET() {
     const session = await getServerSession(authOptions);
 
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (session.user.role !== 'instructor') {
-      return NextResponse.json({ error: 'Only instructors can view assignments' }, { status: 403 });
+    if (session.user.role !== "instructor") {
+      return NextResponse.json(
+        { error: "Only instructors can view assignments" },
+        { status: 403 },
+      );
     }
 
     // Fetch assignments with problem count and classroom count
     const { data: assignments, error } = await supabase
-      .from('assignments')
-      .select(`
+      .from("assignments")
+      .select(
+        `
         *,
         assignment_problems(count),
         classroom_assignments(count)
-      `)
-      .eq('created_by', session.user.id)
-      .order('created_at', { ascending: false });
+      `,
+      )
+      .eq("created_by", session.user.id)
+      .order("created_at", { ascending: false });
 
     if (error) {
-      console.error('Error fetching assignments:', error);
-      return NextResponse.json({ error: 'Failed to fetch assignments' }, { status: 500 });
+      console.error("Error fetching assignments:", error);
+      return NextResponse.json(
+        { error: "Failed to fetch assignments" },
+        { status: 500 },
+      );
     }
 
     // Transform the data
-    const transformedAssignments = assignments?.map(assignment => ({
+    const transformedAssignments = assignments?.map((assignment) => ({
       ...assignment,
       problem_count: assignment.assignment_problems?.[0]?.count || 0,
       classroom_count: assignment.classroom_assignments?.[0]?.count || 0,
@@ -43,8 +51,11 @@ export async function GET() {
 
     return NextResponse.json({ assignments: transformedAssignments || [] });
   } catch (error) {
-    console.error('Error in assignments API:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error("Error in assignments API:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
@@ -54,11 +65,14 @@ export async function POST(request: NextRequest) {
     const session = await getServerSession(authOptions);
 
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (session.user.role !== 'instructor') {
-      return NextResponse.json({ error: 'Only instructors can create assignments' }, { status: 403 });
+    if (session.user.role !== "instructor") {
+      return NextResponse.json(
+        { error: "Only instructors can create assignments" },
+        { status: 403 },
+      );
     }
 
     const body = await request.json();
@@ -66,20 +80,30 @@ export async function POST(request: NextRequest) {
 
     // Validation
     if (!title?.trim()) {
-      return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+      return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
 
     if (!deadline) {
-      return NextResponse.json({ error: 'Deadline is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: "Deadline is required" },
+        { status: 400 },
+      );
     }
 
-    if (!problem_ids || !Array.isArray(problem_ids) || problem_ids.length === 0) {
-      return NextResponse.json({ error: 'At least one problem is required' }, { status: 400 });
+    if (
+      !problem_ids ||
+      !Array.isArray(problem_ids) ||
+      problem_ids.length === 0
+    ) {
+      return NextResponse.json(
+        { error: "At least one problem is required" },
+        { status: 400 },
+      );
     }
 
     // Create assignment
     const { data: assignment, error: assignmentError } = await supabase
-      .from('assignments')
+      .from("assignments")
       .insert({
         title: title.trim(),
         description: description?.trim() || null,
@@ -90,31 +114,42 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (assignmentError) {
-      console.error('Error creating assignment:', assignmentError);
-      return NextResponse.json({ error: 'Failed to create assignment' }, { status: 500 });
+      console.error("Error creating assignment:", assignmentError);
+      return NextResponse.json(
+        { error: "Failed to create assignment" },
+        { status: 500 },
+      );
     }
 
     // Add problems to assignment
-    const assignmentProblems = problem_ids.map((problem_id: string, index: number) => ({
-      assignment_id: assignment.id,
-      problem_id,
-      order_index: index,
-    }));
+    const assignmentProblems = problem_ids.map(
+      (problem_id: string, index: number) => ({
+        assignment_id: assignment.id,
+        problem_id,
+        order_index: index,
+      }),
+    );
 
     const { error: problemsError } = await supabase
-      .from('assignment_problems')
+      .from("assignment_problems")
       .insert(assignmentProblems);
 
     if (problemsError) {
-      console.error('Error adding problems to assignment:', problemsError);
+      console.error("Error adding problems to assignment:", problemsError);
       // Rollback: delete the assignment
-      await supabase.from('assignments').delete().eq('id', assignment.id);
-      return NextResponse.json({ error: 'Failed to add problems to assignment' }, { status: 500 });
+      await supabase.from("assignments").delete().eq("id", assignment.id);
+      return NextResponse.json(
+        { error: "Failed to add problems to assignment" },
+        { status: 500 },
+      );
     }
 
     return NextResponse.json({ assignment }, { status: 201 });
   } catch (error) {
-    console.error('Error in create assignment API:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error("Error in create assignment API:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

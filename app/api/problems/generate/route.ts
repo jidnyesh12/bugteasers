@@ -1,25 +1,33 @@
 // API route for problem generation
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { generateProblems } from '@/lib/ai/problem-generator';
-import { ProblemGenerationRequest } from '@/lib/ai/types';
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import {
+  enqueueProblemGenerationJob,
+  ProblemGenerationConcurrencyLimitError,
+} from "@/lib/ai/generation-jobs";
+import { ProblemGenerationRequest } from "@/lib/ai/types";
+import { GEMINI_API_KEY } from "@/lib/env";
+import {
+  dedupeSupportedLanguages,
+  SUPPORTED_EXECUTION_LANGUAGES,
+} from "@/lib/execution/languages";
 
 export async function POST(request: NextRequest) {
   try {
     // Verify authentication via NextAuth
     const session = await getServerSession(authOptions);
 
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Check if user is instructor or admin
-    if (session.user.role !== 'instructor' && session.user.role !== 'admin') {
+    if (session.user.role !== "instructor" && session.user.role !== "admin") {
       return NextResponse.json(
-        { error: 'Only instructors can generate problems' },
-        { status: 403 }
+        { error: "Only instructors can generate problems" },
+        { status: 403 },
       );
     }
 
@@ -27,47 +35,90 @@ export async function POST(request: NextRequest) {
     const body: ProblemGenerationRequest = await request.json();
 
     // Validate required fields
-    if (!body.topic || !body.difficulty) {
+    if (
+      typeof body.topic !== "string" ||
+      body.topic.trim().length === 0 ||
+      !body.difficulty
+    ) {
       return NextResponse.json(
-        { error: 'Topic and difficulty are required' },
-        { status: 400 }
+        { error: "Topic and difficulty are required" },
+        { status: 400 },
       );
     }
 
-    if (!['easy', 'medium', 'hard'].includes(body.difficulty)) {
+    if (!["easy", "medium", "hard"].includes(body.difficulty)) {
       return NextResponse.json(
-        { error: 'Invalid difficulty level' },
-        { status: 400 }
+        { error: "Invalid difficulty level" },
+        { status: 400 },
       );
     }
+
+    const rawLanguages = Array.isArray(
+      (body as { languages?: unknown }).languages,
+    )
+      ? (body as { languages: unknown[] }).languages.filter(
+          (language): language is string => typeof language === "string",
+        )
+      : [];
+
+    const requestedLanguages = dedupeSupportedLanguages(rawLanguages);
+    const languages =
+      requestedLanguages.length > 0
+        ? requestedLanguages
+        : [...SUPPORTED_EXECUTION_LANGUAGES];
 
     // Check if Gemini API key is configured
-    if (!process.env.GEMINI_API_KEY) {
+    if (!GEMINI_API_KEY) {
       return NextResponse.json(
-        { error: 'AI service not configured. Please add GEMINI_API_KEY to environment variables.' },
-        { status: 500 }
+        {
+          error:
+            "AI service not configured. Please add GEMINI_API_KEY to environment variables.",
+        },
+        { status: 500 },
       );
     }
 
-    // Generate problems using AI
-    const result = await generateProblems({
+    const generationRequest: ProblemGenerationRequest = {
       topic: body.topic,
       difficulty: body.difficulty,
       tags: body.tags || [],
       constraints: body.constraints,
       numProblems: body.numProblems || 1,
-      languages: body.languages || ['python', 'javascript', 'java', 'cpp'],
+      languages,
+    };
+
+    const job = await enqueueProblemGenerationJob({
+      createdBy: session.user.id,
+      request: generationRequest,
     });
 
-    return NextResponse.json(result, { status: 200 });
-  } catch (error) {
-    console.error('Error in problem generation API:', error);
     return NextResponse.json(
       {
-        error: 'Failed to generate problems',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        jobId: job.jobId,
+        status: job.status,
+        progressMessage: job.progressMessage,
+        problems: job.problems,
+        error: job.errorMessage,
       },
-      { status: 500 }
+      { status: 202 },
+    );
+  } catch (error) {
+    if (error instanceof ProblemGenerationConcurrencyLimitError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+        },
+        { status: 429 },
+      );
+    }
+
+    console.error("Error in problem generation API:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to enqueue problem generation",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
     );
   }
 }

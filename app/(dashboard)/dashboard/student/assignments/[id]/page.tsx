@@ -1,18 +1,21 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { useAuth } from '@/lib/auth/auth-context';
-import { FullPageLoader } from '@/components/ui/loading';
-import { useToast } from '@/components/ui/toast';
-import type { Assignment } from '@/lib/types';
+import { useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/lib/auth/auth-context";
+import { FullPageLoader } from "@/components/ui/loading";
+import { useToast } from "@/components/ui/toast";
+import type { Assignment } from "@/lib/types";
+import { fetchAssignmentDetail } from "@/lib/api/assignments-client";
+import { queryKeys } from "@/lib/state/query";
 
-import { MarkdownRenderer } from '@/components/markdown-renderer';
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 
 interface Problem {
   id: string;
   title: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty: "easy" | "medium" | "hard";
   tags: string[];
   order_index: number;
 }
@@ -22,9 +25,9 @@ interface AssignmentDetails extends Assignment {
 }
 
 const difficultyStyles = {
-  easy: 'flat-badge-green',
-  medium: 'flat-badge-amber',
-  hard: 'flat-badge-red',
+  easy: "flat-badge-green",
+  medium: "flat-badge-amber",
+  hard: "flat-badge-red",
 };
 
 export default function StudentAssignmentDetailsPage() {
@@ -32,43 +35,40 @@ export default function StudentAssignmentDetailsPage() {
   const params = useParams<{ id: string }>();
   const { profile, loading: authLoading, initialized } = useAuth();
   const { toast } = useToast();
-  
-  const [assignment, setAssignment] = useState<AssignmentDetails | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+
+  const {
+    data: assignment,
+    isFetching: isLoading,
+    error,
+  } = useQuery<AssignmentDetails>({
+    queryKey: queryKeys.assignments.detail(params.id),
+    queryFn: () => fetchAssignmentDetail<AssignmentDetails>(params.id),
+    enabled: profile?.role === "student",
+  });
 
   useEffect(() => {
     if (!initialized || authLoading) return;
-    if (!profile) { router.replace('/login'); return; }
-    if (profile.role !== 'student') { router.replace('/dashboard/instructor'); return; }
+    if (!profile) {
+      router.replace("/login");
+      return;
+    }
+    if (profile.role !== "student") {
+      router.replace("/dashboard/instructor");
+      return;
+    }
   }, [profile, authLoading, initialized, router]);
 
   useEffect(() => {
-    if (profile?.role === 'student') {
-      loadAssignment();
+    if (profile?.role !== "student" || !error) {
+      return;
     }
-  }, [profile?.role, params.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadAssignment = async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch(`/api/assignments/${params.id}`);
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to load assignment');
-      }
-      
-      setAssignment(data.assignment);
-    } catch (error) {
-      console.error('Error loading assignment:', error);
-      toast('Failed to load assignment', 'error');
-      router.push('/dashboard/student/classrooms');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    toast("Failed to load assignment", "error");
+    router.push("/dashboard/student/classrooms");
+  }, [error, profile?.role, router, toast]);
 
-  if (!initialized || authLoading || !profile || isLoading) return <FullPageLoader />;
+  if (!initialized || authLoading || !profile || isLoading)
+    return <FullPageLoader />;
   if (!assignment) return null;
 
   return (
@@ -78,7 +78,18 @@ export default function StudentAssignmentDetailsPage() {
           onClick={() => router.back()}
           className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--accent-primary)] transition-colors mb-4 group cursor-pointer"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:-translate-x-0.5 transition-transform">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="group-hover:-translate-x-0.5 transition-transform"
+          >
             <polyline points="15 18 9 12 15 6" />
           </svg>
           Back to Classroom
@@ -91,7 +102,17 @@ export default function StudentAssignmentDetailsPage() {
             </h1>
             <div className="flex items-center gap-4 text-sm text-[var(--text-secondary)]">
               <span className="flex items-center gap-1.5">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
@@ -108,19 +129,30 @@ export default function StudentAssignmentDetailsPage() {
         {/* Description */}
         {assignment.description && (
           <div className="bg-white border border-[var(--border-primary)] rounded-2xl p-6">
-            <h3 className="text-sm font-bold text-[var(--text-primary)] mb-3">Instructions</h3>
-            <MarkdownRenderer content={assignment.description} className="text-sm" />
+            <h3 className="text-sm font-bold text-[var(--text-primary)] mb-3">
+              Instructions
+            </h3>
+            <MarkdownRenderer
+              content={assignment.description}
+              className="text-sm"
+            />
           </div>
         )}
 
         {/* Problems List */}
         <div className="bg-white border border-[var(--border-primary)] rounded-2xl p-6">
-          <h3 className="text-sm font-bold text-[var(--text-primary)] mb-4">Problems</h3>
+          <h3 className="text-sm font-bold text-[var(--text-primary)] mb-4">
+            Problems
+          </h3>
           <div className="space-y-3">
             {assignment.problems.map((problem, index) => (
               <div
                 key={problem.id}
-                onClick={() => router.push(`/dashboard/student/solve/${problem.id}`)}
+                onClick={() =>
+                  router.push(
+                    `/dashboard/student/solve/${problem.id}?assignmentId=${assignment.id}`,
+                  )
+                }
                 className="flex items-center gap-4 p-4 rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] hover:border-[var(--accent-primary)] hover:bg-white transition-colors cursor-pointer group"
               >
                 <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-[var(--border-primary)] font-bold text-sm text-[var(--text-muted)] shrink-0">
@@ -131,19 +163,34 @@ export default function StudentAssignmentDetailsPage() {
                     {problem.title}
                   </h4>
                   <div className="flex gap-1.5 mt-1 flex-wrap">
-                    {problem.tags.slice(0, 3).map(tag => (
-                      <span key={tag} className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] bg-white px-1.5 py-0.5 rounded border border-[var(--border-primary)]">
+                    {problem.tags.slice(0, 3).map((tag) => (
+                      <span
+                        key={tag}
+                        className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] bg-white px-1.5 py-0.5 rounded border border-[var(--border-primary)]"
+                      >
                         {tag}
                       </span>
                     ))}
                   </div>
                 </div>
-                <span className={`flat-badge ${difficultyStyles[problem.difficulty]} shrink-0`}>
+                <span
+                  className={`flat-badge ${difficultyStyles[problem.difficulty]} shrink-0`}
+                >
                   {problem.difficulty}
                 </span>
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--accent-primary)] opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                   Solve
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <polyline points="9 18 15 12 9 6" />
                   </svg>
                 </div>

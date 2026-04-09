@@ -1,56 +1,58 @@
-'use client'
+"use client";
 
-import { useState, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
-import { useAuth } from '@/lib/auth/auth-context'
-import { useToast } from '@/components/ui/toast'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useAuth } from "@/lib/auth/auth-context";
+import { useToast } from "@/components/ui/toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 function LoginForm() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const { signIn } = useAuth()
-  const { toast } = useToast()
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { signIn } = useAuth();
+  const { toast } = useToast();
 
-  const redirectTo = searchParams.get('redirect') || null
+  const redirectTo = searchParams.get("redirect") || null;
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
+    e.preventDefault();
+    setLoading(true);
 
     try {
-      const res = await signIn(email, password)
-      
+      const res = await signIn(email, password);
+
       if (res.error) {
-        throw new Error(res.error)
+        throw new Error(res.error);
       }
 
-      toast('Welcome back!', 'success')
+      toast("Welcome back!", "success");
 
       if (redirectTo) {
-        router.push(redirectTo)
+        router.push(redirectTo);
       } else {
         // Redirect to student dashboard by default.
         // If the user is an instructor, the student dashboard will automatically redirect them.
-        router.push('/dashboard/student')
+        router.push("/dashboard/student");
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Sign in failed'
-      toast(message, 'error')
+      const message = err instanceof Error ? err.message : "Sign in failed";
+      toast(message, "error");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <>
       <div className="mb-6">
-        <h1 className="text-2xl font-black tracking-tight text-[var(--text-primary)]">Welcome back</h1>
+        <h1 className="text-2xl font-black tracking-tight text-[var(--text-primary)]">
+          Welcome back
+        </h1>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
           Sign in to continue your learning journey
         </p>
@@ -66,7 +68,17 @@ function LoginForm() {
           required
           id="login-email-input"
           icon={
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <rect x="2" y="4" width="20" height="16" rx="2" />
               <path d="M22 7l-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
             </svg>
@@ -83,7 +95,17 @@ function LoginForm() {
           showPasswordToggle
           id="login-password-input"
           icon={
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
@@ -102,7 +124,7 @@ function LoginForm() {
       </form>
 
       <p className="mt-6 text-center text-sm text-[var(--text-muted)]">
-        Don&apos;t have an account?{' '}
+        Don&apos;t have an account?{" "}
         <Link
           href="/register"
           className="font-semibold text-[var(--accent-primary)] hover:text-[var(--accent-primary-hover)] transition-colors"
@@ -111,17 +133,19 @@ function LoginForm() {
         </Link>
       </p>
     </>
-  )
+  );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center py-12">
-        <div className="h-8 w-8 rounded-full border-4 border-[var(--bg-tertiary)] border-t-[var(--accent-primary)] animate-spin" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-12">
+          <div className="h-8 w-8 rounded-full border-4 border-[var(--bg-tertiary)] border-t-[var(--accent-primary)] animate-spin" />
+        </div>
+      }
+    >
       <LoginForm />
     </Suspense>
-  )
+  );
 }

@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -51,11 +51,17 @@ jobs:
       - name: Type check
         run: pnpm exec tsc --noEmit
 
+      - name: Run tests
+        run: pnpm test:run
+        env:
+          PISTON_API_URL: http://placeholder-for-ci-tests:2000
+
       - name: Build application
         run: pnpm build
         env:
           # Dummy values for build — Supabase client is lazy-initialized
           # so these are only needed to satisfy Next.js static analysis.
+          PISTON_API_URL: ${{ secrets.PISTON_API_URL }}
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: placeholder-key-for-build
           NEXTAUTH_URL: http://localhost:3000
