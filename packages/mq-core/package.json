@@ -1,0 +1,14 @@
+{
+  "name": "@bugteasers/mq-core",
+  "version": "1.0.0",
+  "description": "RabbitMQ message queue utilities for BugTeasers",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.5"
+  },
+  "keywords": ["rabbitmq", "amqp", "message-queue"],
+  "license": "MIT"
+}
