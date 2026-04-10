@@ -10,12 +10,12 @@ import { useToast } from "@/components/ui/toast";
 import type { Assignment, Classroom } from "@/lib/types";
 import {
   assignAssignmentToClassrooms,
-  closeAssignment,
   deleteAssignment,
   fetchAssignmentDetail,
   fetchAssignmentSubmissionOverview,
   reopenAssignment,
 } from "@/lib/api/assignments-client";
+import { closeAssignmentAndAnalyze } from "@/lib/actions/assignments";
 import { fetchClassrooms } from "@/lib/api/classrooms-client";
 import { queryKeys } from "@/lib/state/query";
 import type {
@@ -70,6 +70,8 @@ export default function AssignmentDetailsPage() {
   // Assign Modal State
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedClassrooms, setSelectedClassrooms] = useState<string[]>([]);
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showReopenModal, setShowReopenModal] = useState(false);
 
   const { data: assignment, isFetching: isLoading } =
     useQuery<AssignmentDetails>({
@@ -119,7 +121,7 @@ export default function AssignmentDetailsPage() {
 
   const { mutateAsync: closeAssignmentAsync, isPending: isClosingAssignment } =
     useMutation({
-      mutationFn: closeAssignment,
+      mutationFn: closeAssignmentAndAnalyze,
     });
 
   const {
@@ -201,16 +203,20 @@ export default function AssignmentDetailsPage() {
       return;
     }
 
-    if (
-      !confirm(
-        "Close this assignment? Students will no longer be able to submit for it.",
-      )
-    )
-      return;
+    setShowCloseModal(true);
+  };
 
+  const confirmCloseAssignment = async () => {
     try {
-      await closeAssignmentAsync(params.id);
-      toast("Assignment closed. New submissions are now blocked.", "success");
+      const result = await closeAssignmentAsync(params.id);
+      
+      if (!result.success) {
+        toast(result.error || "Failed to close assignment", "error");
+        return;
+      }
+      
+      toast("Assignment closed. Analysis started. New submissions are now blocked.", "success");
+      setShowCloseModal(false);
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: queryKeys.assignments.detail(params.id),
@@ -233,14 +239,14 @@ export default function AssignmentDetailsPage() {
       return;
     }
 
-    if (
-      !confirm("Reopen this assignment? Students will be able to submit again.")
-    )
-      return;
+    setShowReopenModal(true);
+  };
 
+  const confirmReopenAssignment = async () => {
     try {
       await reopenAssignmentAsync(params.id);
       toast("Assignment reopened. Students can submit again.", "success");
+      setShowReopenModal(false);
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: queryKeys.assignments.detail(params.id),
@@ -730,6 +736,119 @@ export default function AssignmentDetailsPage() {
                 disabled={selectedClassrooms.length === 0}
               >
                 Assign
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Close Assignment Modal */}
+      {showCloseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40 animate-fade-in"
+            onClick={() => setShowCloseModal(false)}
+          />
+          <div className="relative w-full max-w-md mx-4 bg-white rounded-2xl border-2 border-[var(--border-primary)] animate-slide-up p-6">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-amber-100">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-amber-600"
+                >
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-[var(--text-primary)] mb-1">
+                  Close Assignment
+                </h2>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Students will no longer be able to submit solutions for this assignment. This action will also trigger an analysis of all submissions.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => setShowCloseModal(false)}
+                disabled={isClosingAssignment}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-[#F59E0B] text-white hover:bg-[#D97706] focus-visible:ring-[#F59E0B]"
+                onClick={confirmCloseAssignment}
+                loading={isClosingAssignment}
+              >
+                Close Assignment
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reopen Assignment Modal */}
+      {showReopenModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40 animate-fade-in"
+            onClick={() => setShowReopenModal(false)}
+          />
+          <div className="relative w-full max-w-md mx-4 bg-white rounded-2xl border-2 border-[var(--border-primary)] animate-slide-up p-6">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-green-100">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-green-600"
+                >
+                  <polyline points="23 4 23 10 17 10" />
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-[var(--text-primary)] mb-1">
+                  Reopen Assignment
+                </h2>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Students will be able to submit solutions again. Any previous submissions will remain intact.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => setShowReopenModal(false)}
+                disabled={isReopeningAssignment}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-[#059669] text-white hover:bg-[#047857] focus-visible:ring-[#059669]"
+                onClick={confirmReopenAssignment}
+                loading={isReopeningAssignment}
+              >
+                Reopen Assignment
               </Button>
             </div>
           </div>

@@ -10,6 +10,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@bugteasers/mq-core':
+        specifier: workspace:*
+        version: link:../../packages/mq-core
       '@codemirror/autocomplete':
         specifier: ^6.20.1
         version: 6.20.1
