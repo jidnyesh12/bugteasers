@@ -1,11 +1,15 @@
 {
   "name": "@bugteasers/worker",
   "version": "1.0.0",
-  "main": "app.js",
+  "main": "worker.js",
   "scripts": {
-    "dev": "node app.js"
+    "dev": "node worker.js",
+    "start": "node worker.js"
   },
   "dependencies": {
-    "@bugteasers/ast-core": "workspace:*"
+    "@bugteasers/ast-core": "workspace:*",
+    "@bugteasers/mq-core": "workspace:*",
+    "dotenv": "^16.4.7",
+    "postgres": "^3.4.9"
   }
 }
