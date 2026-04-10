@@ -145,17 +145,20 @@ async function handleStartAnalysis(assignmentId) {
     // ============================================
     console.log(`\n[START_ANALYSIS] 🔬 Starting AST comparison phase...`);
     console.log(`[START_ANALYSIS] 📋 Problems to analyze: ${Object.keys(submissionsByProblem).length}`);
+    console.log(`[START_ANALYSIS] ℹ️  Comparisons are done PER PROBLEM (not across problems)`);
 
     const allComparisonResults = [];
     let totalComparisons = 0;
     let totalHighSimilarities = 0;
+    let problemsProcessed = 0;
 
     // Process each problem
     for (const [problemId, problemData] of Object.entries(submissionsByProblem)) {
       console.log(`\n${"─".repeat(80)}`);
-      console.log(`[AST] 📝 Problem: "${problemData.problemTitle}"`);
+      console.log(`[AST] 📝 Problem ${problemsProcessed + 1}/${Object.keys(submissionsByProblem).length}: "${problemData.problemTitle}"`);
       console.log(`[AST]    ID: ${problemId}`);
       console.log(`[AST]    Submissions: ${problemData.submissions.length}`);
+      console.log(`[AST]    ⚠️  Comparisons ONLY within this problem (not across problems)`);
       
       const submissions = problemData.submissions;
       const solutionCode = problemData.solutionCode;
@@ -191,6 +194,21 @@ async function handleStartAnalysis(assignmentId) {
         console.log(`[AST] ⚠️  No valid fingerprints, skipping problem`);
         continue;
       }
+
+      // Store fingerprints in database
+      console.log(`[AST] 💾 Storing fingerprints in database...`);
+      for (const submission of submissionsWithFingerprints) {
+        try {
+          await sql`
+            UPDATE problem_submissions
+            SET fingerprint = ${JSON.stringify(submission.fingerprint.map(String))}::jsonb
+            WHERE id = ${submission.id}
+          `;
+        } catch (error) {
+          console.error(`[AST]    ❌ Failed to store fingerprint for ${submission.studentName}:`, error.message);
+        }
+      }
+      console.log(`[AST] ✅ Fingerprints stored in database`);
 
       // Step 2: AI Check - Compare against solution code
       console.log(`\n[AST] 🤖 Step 2: AI Check (vs solution code)...`);
@@ -299,6 +317,96 @@ async function handleStartAnalysis(assignmentId) {
       console.log(`[AST]    Comparisons performed: ${totalPeerComparisons}`);
       console.log(`[AST]    High similarities (>30%): ${allComparisonResults.filter(r => r.problemId === problemId).length}`);
       
+      // Store comparison results in database
+      const problemResults = allComparisonResults.filter(r => r.problemId === problemId);
+      if (problemResults.length > 0) {
+        console.log(`[AST] 💾 Storing ${problemResults.length} comparison results in database...`);
+        
+        // First, delete existing matches for this assignment and problem
+        // This ensures we don't have duplicates if analysis is run multiple times
+        try {
+          const deletedCount = await sql`
+            DELETE FROM plagiarism_matches
+            WHERE assignment_id = ${assignmentId}
+              AND match_metadata->>'problemId' = ${problemId}
+          `;
+          if (deletedCount.count > 0) {
+            console.log(`[AST]    🗑️  Deleted ${deletedCount.count} old matches for this problem`);
+          }
+        } catch (error) {
+          console.error(`[AST]    ⚠️  Failed to delete old matches:`, error.message);
+        }
+        
+        // Insert new matches
+        for (const result of problemResults) {
+          try {
+            // Insert plagiarism match
+            await sql`
+              INSERT INTO plagiarism_matches (
+                assignment_id,
+                submission_a_id,
+                submission_b_id,
+                similarity_score,
+                match_metadata
+              ) VALUES (
+                ${assignmentId},
+                ${result.studentA.submissionId},
+                ${result.studentB.submissionId},
+                ${result.similarity},
+                ${JSON.stringify({
+                  problemId: result.problemId,
+                  problemTitle: result.problemTitle,
+                  studentA: result.studentA,
+                  studentB: result.studentB,
+                  comparedAt: result.comparedAt
+                })}::jsonb
+              )
+            `;
+          } catch (error) {
+            console.error(`[AST]    ❌ Failed to store comparison result:`, error.message);
+          }
+        }
+        
+        console.log(`[AST] ✅ Comparison results stored in database`);
+      }
+      
+      // Update max_plagiarism_score and top_match for each submission
+      console.log(`[AST] 💾 Updating max plagiarism scores...`);
+      for (const submission of submissionsWithFingerprints) {
+        const maxScore = Math.max(submission.aiSimilarity || 0, submission.maxPeerSimilarity);
+        const isAiMatch = (submission.aiSimilarity || 0) > submission.maxPeerSimilarity;
+        
+        // Find top match submission ID (if peer match is highest)
+        let topMatchId = null;
+        if (!isAiMatch && submission.maxPeerSimilarity > 0) {
+          // Find the submission that had the highest similarity with this one
+          for (const result of problemResults) {
+            if (result.studentA.submissionId === submission.id && result.similarity === submission.maxPeerSimilarity) {
+              topMatchId = result.studentB.submissionId;
+              break;
+            }
+            if (result.studentB.submissionId === submission.id && result.similarity === submission.maxPeerSimilarity) {
+              topMatchId = result.studentA.submissionId;
+              break;
+            }
+          }
+        }
+        
+        try {
+          await sql`
+            UPDATE problem_submissions
+            SET 
+              max_plagiarism_score = ${maxScore},
+              top_match_submission_id = ${topMatchId},
+              is_ai_match = ${isAiMatch}
+            WHERE id = ${submission.id}
+          `;
+        } catch (error) {
+          console.error(`[AST]    ❌ Failed to update scores for ${submission.studentName}:`, error.message);
+        }
+      }
+      console.log(`[AST] ✅ Max plagiarism scores updated`);
+      
       // Step 4: Summary for this problem
       console.log(`\n[AST] 📊 Summary for "${problemData.problemTitle}":`);
       for (const submission of submissionsWithFingerprints) {
@@ -309,6 +417,8 @@ async function handleStartAnalysis(assignmentId) {
         console.log(`[AST]       Max Peer Similarity: ${submission.maxPeerSimilarity.toFixed(2)}%`);
         console.log(`[AST]       Absolute Highest: ${Math.max(submission.aiSimilarity || 0, submission.maxPeerSimilarity).toFixed(2)}%`);
       }
+      
+      problemsProcessed++;
     }
 
     // ============================================
@@ -316,9 +426,10 @@ async function handleStartAnalysis(assignmentId) {
     // ============================================
     console.log(`\n${"=".repeat(80)}`);
     console.log(`[START_ANALYSIS] 📈 Final Summary:`);
+    console.log(`[START_ANALYSIS]    Problems processed: ${problemsProcessed}`);
     console.log(`[START_ANALYSIS]    Total comparisons: ${totalComparisons}`);
     console.log(`[START_ANALYSIS]    High similarities (>30%): ${totalHighSimilarities}`);
-    console.log(`[START_ANALYSIS]    Detailed results stored: ${allComparisonResults.length}`);
+    console.log(`[START_ANALYSIS]    Results stored in DB: ${allComparisonResults.length}`);
     
     if (allComparisonResults.length > 0) {
       console.log(`\n[START_ANALYSIS] 🚨 Top 5 highest similarities:`);
@@ -331,9 +442,11 @@ async function handleStartAnalysis(assignmentId) {
         console.log(`[START_ANALYSIS]       Problem: ${result.problemTitle}`);
       });
       
-      // TODO: Store results in database
-      console.log(`\n[START_ANALYSIS] 💾 TODO: Store ${allComparisonResults.length} results in database`);
-      console.log(`[START_ANALYSIS] 📊 Results structure:`, JSON.stringify(allComparisonResults[0], null, 2));
+      console.log(`\n[START_ANALYSIS] ✅ All results stored in plagiarism_matches table`);
+      console.log(`[START_ANALYSIS] ✅ Fingerprints stored in problem_submissions table`);
+      console.log(`[START_ANALYSIS] ✅ Max scores updated in problem_submissions table`);
+    } else {
+      console.log(`\n[START_ANALYSIS] ✅ No high similarities detected (all < 30%)`);
     }
 
     console.log(`\n[START_ANALYSIS] ✅ Analysis completed for assignment ${assignmentId}`);
