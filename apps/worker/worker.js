@@ -7,6 +7,7 @@
 require("dotenv").config();
 
 const { consumeMessages } = require("@bugteasers/mq-core");
+const { analyzeCode, calculateSimilarity } = require("@bugteasers/ast-core");
 const postgres = require("postgres");
 
 // ============================================
@@ -139,34 +140,200 @@ async function handleStartAnalysis(assignmentId) {
 
     console.log(`[START_ANALYSIS] ✅ Grouped into ${Object.keys(submissionsByProblem).length} problems`);
 
-    // TODO: Perform AST comparison analysis
-    // This is where you would use @bugteasers/ast-core to compare submissions
-    console.log(`\n[START_ANALYSIS] 🔬 Ready for AST comparison phase`);
+    // ============================================
+    // AST Comparison Phase
+    // ============================================
+    console.log(`\n[START_ANALYSIS] 🔬 Starting AST comparison phase...`);
     console.log(`[START_ANALYSIS] 📋 Problems to analyze: ${Object.keys(submissionsByProblem).length}`);
 
-    // Example structure for AST comparison (to be implemented):
-    console.log(`\n[START_ANALYSIS] 📊 Detailed breakdown by problem:`);
+    const allComparisonResults = [];
+    let totalComparisons = 0;
+    let totalHighSimilarities = 0;
+
+    // Process each problem
     for (const [problemId, problemData] of Object.entries(submissionsByProblem)) {
-      console.log(`\n[START_ANALYSIS]    📝 Problem: "${problemData.problemTitle}"`);
-      console.log(`[START_ANALYSIS]       ID: ${problemId}`);
-      console.log(`[START_ANALYSIS]       Submissions: ${problemData.submissions.length}`);
-      console.log(`[START_ANALYSIS]       Solution code: ${problemData.solutionCode ? `${problemData.solutionCode.length} chars` : 'Not available'}`);
+      console.log(`\n${"─".repeat(80)}`);
+      console.log(`[AST] 📝 Problem: "${problemData.problemTitle}"`);
+      console.log(`[AST]    ID: ${problemId}`);
+      console.log(`[AST]    Submissions: ${problemData.submissions.length}`);
       
-      // Log languages used
-      const languages = [...new Set(problemData.submissions.map(s => s.language))];
-      console.log(`[START_ANALYSIS]       Languages: ${languages.join(', ')}`);
+      const submissions = problemData.submissions;
+      const solutionCode = problemData.solutionCode;
+
+      // Step 1: Generate fingerprints for all submissions
+      console.log(`[AST] 🔍 Step 1: Generating fingerprints...`);
+      const fingerprintStart = Date.now();
       
-      // Log status distribution
-      const statusCounts = problemData.submissions.reduce((acc, s) => {
-        acc[s.status] = (acc[s.status] || 0) + 1;
-        return acc;
-      }, {});
-      console.log(`[START_ANALYSIS]       Status distribution:`, statusCounts);
+      const submissionsWithFingerprints = [];
       
-      // TODO: Call AST comparison logic here
-      // Example:
-      // const similarities = await compareSubmissions(problemData);
-      // await storeSimilarityResults(assignmentId, problemId, similarities);
+      for (const submission of submissions) {
+        try {
+          console.log(`[AST]    Analyzing ${submission.studentName} (${submission.language})...`);
+          const fingerprint = await analyzeCode(submission.code, submission.language);
+          
+          submissionsWithFingerprints.push({
+            ...submission,
+            fingerprint,
+          });
+          
+          console.log(`[AST]    ✅ Fingerprint generated: ${fingerprint.length} hashes`);
+        } catch (error) {
+          console.error(`[AST]    ❌ Failed to analyze ${submission.studentName}:`, error.message);
+          // Skip this submission if fingerprinting fails
+        }
+      }
+      
+      const fingerprintTime = Date.now() - fingerprintStart;
+      console.log(`[AST] ✅ Fingerprints generated in ${fingerprintTime}ms`);
+      console.log(`[AST]    Success: ${submissionsWithFingerprints.length}/${submissions.length}`);
+
+      if (submissionsWithFingerprints.length === 0) {
+        console.log(`[AST] ⚠️  No valid fingerprints, skipping problem`);
+        continue;
+      }
+
+      // Step 2: AI Check - Compare against solution code
+      console.log(`\n[AST] 🤖 Step 2: AI Check (vs solution code)...`);
+      let solutionFingerprint = null;
+      
+      if (solutionCode) {
+        try {
+          // Assume solution is in the same language as first submission
+          const solutionLanguage = submissionsWithFingerprints[0].language;
+          console.log(`[AST]    Generating solution fingerprint (${solutionLanguage})...`);
+          solutionFingerprint = await analyzeCode(solutionCode, solutionLanguage);
+          console.log(`[AST]    ✅ Solution fingerprint: ${solutionFingerprint.length} hashes`);
+          
+          // Compare each submission against solution
+          for (const submission of submissionsWithFingerprints) {
+            const aiSimilarity = calculateSimilarity(submission.fingerprint, solutionFingerprint);
+            submission.aiSimilarity = aiSimilarity;
+            
+            console.log(`[AST]    ${submission.studentName}: ${aiSimilarity.toFixed(2)}% similar to solution`);
+            
+            if (aiSimilarity > 30) {
+              totalHighSimilarities++;
+            }
+          }
+        } catch (error) {
+          console.error(`[AST]    ❌ Failed to analyze solution code:`, error.message);
+        }
+      } else {
+        console.log(`[AST]    ⚠️  No solution code available, skipping AI check`);
+      }
+
+      // Step 3: Peer Check - N×N comparison
+      console.log(`\n[AST] 👥 Step 3: Peer Check (N×N comparison)...`);
+      const n = submissionsWithFingerprints.length;
+      const totalPeerComparisons = (n * (n - 1)) / 2; // Combinations, not permutations
+      console.log(`[AST]    Students: ${n}`);
+      console.log(`[AST]    Comparisons to perform: ${totalPeerComparisons}`);
+      
+      const peerComparisonStart = Date.now();
+      
+      // Initialize max similarity tracking for each submission
+      for (const submission of submissionsWithFingerprints) {
+        submission.maxPeerSimilarity = 0;
+      }
+      
+      // N×N loop (only upper triangle to avoid duplicates)
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const submissionA = submissionsWithFingerprints[i];
+          const submissionB = submissionsWithFingerprints[j];
+          
+          const similarity = calculateSimilarity(
+            submissionA.fingerprint,
+            submissionB.fingerprint
+          );
+          
+          totalComparisons++;
+          
+          // Track max similarity for each submission
+          if (similarity > submissionA.maxPeerSimilarity) {
+            submissionA.maxPeerSimilarity = similarity;
+          }
+          if (similarity > submissionB.maxPeerSimilarity) {
+            submissionB.maxPeerSimilarity = similarity;
+          }
+          
+          // Store detailed results if similarity > 30%
+          if (similarity > 30) {
+            totalHighSimilarities++;
+            
+            const comparisonResult = {
+              assignmentId,
+              problemId,
+              problemTitle: problemData.problemTitle,
+              studentA: {
+                id: submissionA.studentId,
+                name: submissionA.studentName,
+                email: submissionA.studentEmail,
+                submissionId: submissionA.id,
+                language: submissionA.language,
+                status: submissionA.status,
+                score: submissionA.score,
+              },
+              studentB: {
+                id: submissionB.studentId,
+                name: submissionB.studentName,
+                email: submissionB.studentEmail,
+                submissionId: submissionB.id,
+                language: submissionB.language,
+                status: submissionB.status,
+                score: submissionB.score,
+              },
+              similarity: similarity,
+              comparedAt: new Date().toISOString(),
+            };
+            
+            allComparisonResults.push(comparisonResult);
+            
+            console.log(`[AST]    🚨 ${similarity.toFixed(2)}% - ${submissionA.studentName} ↔ ${submissionB.studentName}`);
+          }
+        }
+      }
+      
+      const peerComparisonTime = Date.now() - peerComparisonStart;
+      console.log(`[AST] ✅ Peer comparisons completed in ${peerComparisonTime}ms`);
+      console.log(`[AST]    Comparisons performed: ${totalPeerComparisons}`);
+      console.log(`[AST]    High similarities (>30%): ${allComparisonResults.filter(r => r.problemId === problemId).length}`);
+      
+      // Step 4: Summary for this problem
+      console.log(`\n[AST] 📊 Summary for "${problemData.problemTitle}":`);
+      for (const submission of submissionsWithFingerprints) {
+        console.log(`[AST]    ${submission.studentName}:`);
+        if (submission.aiSimilarity !== undefined) {
+          console.log(`[AST]       AI Similarity: ${submission.aiSimilarity.toFixed(2)}%`);
+        }
+        console.log(`[AST]       Max Peer Similarity: ${submission.maxPeerSimilarity.toFixed(2)}%`);
+        console.log(`[AST]       Absolute Highest: ${Math.max(submission.aiSimilarity || 0, submission.maxPeerSimilarity).toFixed(2)}%`);
+      }
+    }
+
+    // ============================================
+    // Final Summary
+    // ============================================
+    console.log(`\n${"=".repeat(80)}`);
+    console.log(`[START_ANALYSIS] 📈 Final Summary:`);
+    console.log(`[START_ANALYSIS]    Total comparisons: ${totalComparisons}`);
+    console.log(`[START_ANALYSIS]    High similarities (>30%): ${totalHighSimilarities}`);
+    console.log(`[START_ANALYSIS]    Detailed results stored: ${allComparisonResults.length}`);
+    
+    if (allComparisonResults.length > 0) {
+      console.log(`\n[START_ANALYSIS] 🚨 Top 5 highest similarities:`);
+      const topResults = allComparisonResults
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, 5);
+      
+      topResults.forEach((result, idx) => {
+        console.log(`[START_ANALYSIS]    ${idx + 1}. ${result.similarity.toFixed(2)}% - ${result.studentA.name} ↔ ${result.studentB.name}`);
+        console.log(`[START_ANALYSIS]       Problem: ${result.problemTitle}`);
+      });
+      
+      // TODO: Store results in database
+      console.log(`\n[START_ANALYSIS] 💾 TODO: Store ${allComparisonResults.length} results in database`);
+      console.log(`[START_ANALYSIS] 📊 Results structure:`, JSON.stringify(allComparisonResults[0], null, 2));
     }
 
     console.log(`\n[START_ANALYSIS] ✅ Analysis completed for assignment ${assignmentId}`);
