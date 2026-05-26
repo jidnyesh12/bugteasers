@@ -688,6 +688,11 @@ export default function AssignmentDetailsPage() {
             </p>
           ) : (
             <>
+              <div className="mb-4 rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4 text-sm text-[var(--text-secondary)]">
+                Click a student row to open the plagiarism and submission
+                details. You can review the plagiarism context, telemetry
+                summary, and submitted code there.
+              </div>
               {isAssignmentClosed && !forensicAnalysisReady && (
                 <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
                   Plagiarism and telemetry analysis are still being processed.
@@ -707,9 +712,6 @@ export default function AssignmentDetailsPage() {
                       <th className="px-4 py-3 font-bold text-[var(--text-secondary)] whitespace-nowrap">
                         Total Score
                       </th>
-                      <th className="px-4 py-3 font-bold text-[var(--text-secondary)] whitespace-nowrap">
-                        Forensic Status
-                      </th>
                       {submissionProblems.map((problem) => (
                         <th
                           key={problem.id}
@@ -723,14 +725,6 @@ export default function AssignmentDetailsPage() {
                   </thead>
                   <tbody className="divide-y divide-[var(--border-primary)]">
                     {submissionStudents.map((student) => {
-                      const studentPlagiarism = studentPlagiarismLookup.get(
-                        student.id,
-                      );
-                      const plagiarismBadge = getPlagiarismStatus(
-                        studentPlagiarism?.score ?? null,
-                        studentPlagiarism?.isAiMatch ?? null,
-                      );
-
                       return (
                         <Fragment key={student.id}>
                           <tr
@@ -756,13 +750,6 @@ export default function AssignmentDetailsPage() {
                                   "No score"}
                               </span>
                             </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <span
-                                className={`flat-badge ${plagiarismBadge.style}`}
-                              >
-                                {plagiarismBadge.label}
-                              </span>
-                            </td>
                             {submissionProblems.map((problem) => {
                               const summary = submissionSummaryLookup.get(
                                 `${student.id}:${problem.id}`,
@@ -781,7 +768,7 @@ export default function AssignmentDetailsPage() {
                           {expandedStudentId === student.id && (
                             <tr className="bg-[var(--bg-secondary)]">
                               <td
-                                colSpan={3 + submissionProblems.length}
+                                colSpan={2 + submissionProblems.length}
                                 className="px-4 py-4"
                               >
                                 <div className="space-y-4">
