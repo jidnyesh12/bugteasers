@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
+import type { SupportedLanguage } from "@/lib/execution/types";
 import { useRouter, useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -822,6 +823,7 @@ export default function AssignmentDetailsPage() {
                                           </span>
                                         </div>
 
+                                        {isAssignmentClosed ? (
                                         <div className="grid gap-4 md:grid-cols-2">
                                           <div className="space-y-3">
                                             <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
@@ -914,8 +916,8 @@ export default function AssignmentDetailsPage() {
                                                   <ReadOnlyCodeViewer
                                                     code={submission.code}
                                                     language={
-                                                      (submission.language as any) ||
-                                                      ("javascript" as any)
+                                                      (submission.language as SupportedLanguage) ||
+                                                      ("cpp" as SupportedLanguage)
                                                     }
                                                     maxHeight="360px"
                                                   />
@@ -929,6 +931,15 @@ export default function AssignmentDetailsPage() {
                                             </div>
                                           </div>
                                         </div>
+                                        ) : (
+                                          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700 flex items-center gap-3">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                            </svg>
+                                            <span>Close the assignment to generate the plagiarism and telemetry report.</span>
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })}
