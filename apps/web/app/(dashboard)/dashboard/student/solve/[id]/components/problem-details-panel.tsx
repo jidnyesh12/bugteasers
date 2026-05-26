@@ -4,7 +4,9 @@ import { useState } from "react";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import type { Problem } from "../solve-types";
 import type { ProblemSubmissionDisplayItem } from "@/lib/submissions/view-types";
+import type { ExecutionPanelResult } from "../hooks/use-problem-execution";
 import { SubmissionsTabContent } from "./submissions-tab-content";
+import { AiHintsSection } from "./ai-hints-section";
 
 const difficultyColor = {
   easy: {
@@ -28,6 +30,13 @@ interface ProblemDetailsPanelProps {
   submissionsError: string | null;
   onRetrySubmissions: () => void;
   onLoadSubmissionCode: (submission: ProblemSubmissionDisplayItem) => void;
+  // AI Hints props
+  aiHints: string[];
+  hintsRemaining: number;
+  resetAt?: string;
+  isGeneratingHint: boolean;
+  hintError: string | null;
+  onGenerateHint: () => void;
 }
 
 export function ProblemDetailsPanel({
@@ -38,6 +47,12 @@ export function ProblemDetailsPanel({
   submissionsError,
   onRetrySubmissions,
   onLoadSubmissionCode,
+  aiHints,
+  hintsRemaining,
+  resetAt,
+  isGeneratingHint,
+  hintError,
+  onGenerateHint,
 }: ProblemDetailsPanelProps) {
   const [activeTab, setActiveTab] = useState<
     "description" | "hints" | "submissions"
@@ -196,50 +211,105 @@ export function ProblemDetailsPanel({
         )}
 
         {activeTab === "hints" && (
-          <div>
-            <h2 className="text-base font-bold text-[var(--text-primary)] mb-4">
-              Hints
-            </h2>
-            {!problem.hints || problem.hints.length === 0 ? (
-              <div className="text-center py-10">
-                <p className="text-sm text-[var(--text-muted)]">
-                  No hints available for this problem.
-                </p>
+          <div className="space-y-6">
+            {/* Static Hints Section (Primary) */}
+            {problem.hints && problem.hints.length > 0 ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-sm">
+                    <svg
+                      className="w-5 h-5 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-base font-bold text-[var(--text-primary)]">
+                    Problem Hints
+                  </h3>
+                </div>
+
+                {/* Static hints list */}
+                <div className="space-y-3">
+                  {problem.hints.map((hint, index) => (
+                    <div
+                      key={index}
+                      className="rounded-xl border border-[var(--border-primary)] overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      {revealedHints.includes(index) ? (
+                        <div className="p-4 bg-amber-50/50">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white text-sm font-bold shadow-sm">
+                              {index + 1}
+                            </div>
+                            <p className="text-xs font-bold text-amber-700">
+                              Hint {index + 1}
+                            </p>
+                          </div>
+                          <MarkdownRenderer
+                            content={hint}
+                            className="text-sm text-[var(--text-secondary)]"
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => revealHint(index)}
+                          className="w-full p-4 text-left hover:bg-[var(--bg-secondary)] transition-colors flex items-center justify-between cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white text-sm font-bold shadow-sm">
+                              {index + 1}
+                            </div>
+                            <span className="text-sm font-semibold text-[var(--text-primary)]">
+                              Hint {index + 1}
+                            </span>
+                          </div>
+                          <span className="text-xs text-amber-600 font-bold px-2.5 py-1 bg-amber-50 rounded-full">
+                            Reveal
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
-              <div className="space-y-3">
-                {problem.hints.map((hint, index) => (
-                  <div
-                    key={index}
-                    className="rounded-xl border border-[var(--border-primary)] overflow-hidden"
-                  >
-                    {revealedHints.includes(index) ? (
-                      <div className="p-4 bg-amber-50/50">
-                        <p className="text-xs font-bold text-amber-700 mb-1">
-                          Hint {index + 1}
-                        </p>
-                        <MarkdownRenderer
-                          content={hint}
-                          className="text-sm text-[var(--text-secondary)]"
-                        />
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => revealHint(index)}
-                        className="w-full p-4 text-left hover:bg-[var(--bg-secondary)] transition-colors flex items-center justify-between cursor-pointer"
-                      >
-                        <span className="text-sm font-semibold text-[var(--text-primary)]">
-                          Hint {index + 1}
-                        </span>
-                        <span className="text-xs text-[var(--accent-primary)] font-bold">
-                          Reveal
-                        </span>
-                      </button>
-                    )}
-                  </div>
-                ))}
+              <div className="text-center py-8 px-4 bg-gray-50 rounded-xl border border-gray-200">
+                <p className="text-sm text-[var(--text-muted)]">
+                  No problem hints available for this problem.
+                </p>
               </div>
             )}
+
+            {/* Divider with "Need More Help?" */}
+            <div className="relative py-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-[var(--border-primary)]" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-white px-3 py-1.5 text-xs font-semibold text-purple-700 uppercase tracking-wider rounded-full border-2 border-purple-200 bg-purple-50">
+                  💡 Need More Help?
+                </span>
+              </div>
+            </div>
+
+            {/* AI Hints Section (Secondary/On-Demand) */}
+            <AiHintsSection
+              hints={aiHints}
+              hintsRemaining={hintsRemaining}
+              resetAt={resetAt}
+              isGenerating={isGeneratingHint}
+              error={hintError}
+              canGetMoreHints={hintsRemaining > 0}
+              onGenerateHint={onGenerateHint}
+            />
           </div>
         )}
 

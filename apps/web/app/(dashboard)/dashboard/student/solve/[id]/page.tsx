@@ -64,6 +64,7 @@ import {
 import { useProblemSubmissions } from "./hooks/use-problem-submissions";
 import { useSolveKeyboardShortcuts } from "./hooks/use-solve-keyboard-shortcuts";
 import { useSolveEditorState } from "./hooks/use-solve-editor-state";
+import { useAiHints } from "./hooks/use-ai-hints";
 import type { ProblemSubmissionDisplayItem } from "@/lib/submissions/view-types";
 
 type AssignmentWindow = Pick<Assignment, "id" | "closed_at">;
@@ -271,6 +272,19 @@ export default function SolveProblemPage() {
       executionResult?.mode === "submit"
         ? (executionResult.submissionId ?? null)
         : null,
+  });
+
+  // AI Hints
+  const {
+    hints: aiHints,
+    hintsRemaining,
+    resetAt,
+    isGenerating: isGeneratingHint,
+    error: hintError,
+    generateHint,
+  } = useAiHints({
+    problemId: params.id,
+    assignmentId,
   });
 
   useEffect(() => {
@@ -545,6 +559,41 @@ export default function SolveProblemPage() {
           void loadSubmissions();
         }}
         onLoadSubmissionCode={handleLoadSubmissionCode}
+        aiHints={aiHints}
+        hintsRemaining={hintsRemaining}
+        resetAt={resetAt}
+        isGeneratingHint={isGeneratingHint}
+        hintError={hintError}
+        onGenerateHint={() => {
+          void generateHint({
+            code: codeRef.current,
+            language,
+            executionResults: executionResult
+              ? {
+                  status:
+                    executionResult.status === "passed"
+                      ? "passed"
+                      : executionResult.status === "failed" ||
+                          executionResult.status === "partial"
+                        ? "failed"
+                        : executionResult.status === "running"
+                          ? "error"
+                          : "error",
+                  score: executionResult.score?.percentage,
+                  failedTestCases:
+                    executionResult.status === "failed" ||
+                    executionResult.status === "partial"
+                      ? executionResult.results.filter((r) => !r.passed).length
+                      : undefined,
+                  totalTestCases: executionResult.results.length,
+                  error:
+                    executionResult.status === "error"
+                      ? executionResult.message
+                      : undefined,
+                }
+              : undefined,
+          });
+        }}
       />
 
       <div
