@@ -16,6 +16,16 @@ export interface ProblemSubmissionHistoryItem {
   totalTestCount: number;
   submittedAt: string;
   code: string;
+  maxPlagiarismScore?: number | null;
+  topMatchSubmissionId?: string | null;
+  isAiMatch?: boolean | null;
+}
+
+export interface TelemetrySummary {
+  pasteCount: number | null;
+  pastedChars: number | null;
+  tabSwitchCount: number | null;
+  backspaceCount: number | null;
 }
 
 export interface AssignmentSubmissionStudent {
@@ -35,6 +45,8 @@ export interface AssignmentSubmissionSummary {
   problemId: string;
   attemptsCount: number;
   selectedSubmission: ProblemSubmissionHistoryItem | null;
+  topMatchStudentName?: string | null;
+  telemetrySummary?: TelemetrySummary | null;
 }
 
 export interface AssignmentSubmissionOverview {

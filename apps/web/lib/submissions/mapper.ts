@@ -11,6 +11,9 @@ export interface RawProblemSubmissionRow {
   submitted_at: string;
   code: string;
   test_results: unknown;
+  max_plagiarism_score?: unknown;
+  top_match_submission_id?: string | null;
+  is_ai_match?: unknown;
 }
 
 interface NumericBounds {
@@ -108,5 +111,19 @@ export function mapRawProblemSubmission(
     totalTestCount,
     submittedAt: submission.submitted_at,
     code: submission.code,
+    maxPlagiarismScore: parseNullableNumber(submission.max_plagiarism_score, {
+      min: 0,
+      max: 100,
+    }),
+    topMatchSubmissionId:
+      typeof submission.top_match_submission_id === "string"
+        ? submission.top_match_submission_id
+        : null,
+    isAiMatch:
+      submission.is_ai_match === true || submission.is_ai_match === "true"
+        ? true
+        : submission.is_ai_match === false || submission.is_ai_match === "false"
+        ? false
+        : null,
   };
 }

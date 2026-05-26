@@ -1,6 +1,7 @@
 import { ExecutionDatabaseError } from "@/lib/execution/errors";
 import {
   mapRawProblemSubmission,
+  parseNullableNumber,
   type RawProblemSubmissionRow,
 } from "./mapper";
 import {
@@ -8,6 +9,7 @@ import {
   type AssignmentSubmissionProblem,
   type AssignmentSubmissionStudent,
   type ProblemSubmissionHistoryItem,
+  type TelemetrySummary,
 } from "./types";
 import { selectRepresentativeSubmission } from "./selection";
 
@@ -64,6 +66,15 @@ interface RawClassroomStudentRow {
 interface RawAssignmentSubmissionRow extends RawProblemSubmissionRow {
   student_id: string;
   problem_id: string;
+  max_plagiarism_score?: unknown;
+  top_match_submission_id?: string | null;
+  is_ai_match?: unknown;
+}
+
+interface RawTelemetryRow {
+  student_id: string;
+  problem_id: string;
+  events: unknown;
 }
 
 function firstRelationRecord<TRow>(
@@ -255,7 +266,7 @@ export async function getAssignmentSubmissionOverview(
   const { data: rawSubmissions, error: submissionsError } = await supabase
     .from("problem_submissions")
     .select(
-      "id, student_id, problem_id, language, status, score, earned_points, total_points, submitted_at, code, test_results",
+      "id, student_id, problem_id, language, status, score, earned_points, total_points, submitted_at, code, test_results, max_plagiarism_score, top_match_submission_id, is_ai_match",
     )
     .eq("assignment_id", assignmentId)
     .in("student_id", studentIds)
@@ -270,30 +281,136 @@ export async function getAssignmentSubmissionOverview(
   }
 
   const submissionsByBucket = new Map<string, ProblemSubmissionHistoryItem[]>();
-  for (const row of (rawSubmissions as RawAssignmentSubmissionRow[] | null) ??
-    []) {
+  const topMatchSubmissionIds = new Set<string>();
+
+  for (const row of (rawSubmissions as RawAssignmentSubmissionRow[] | null) ?? []) {
     const key = `${row.student_id}:${row.problem_id}`;
     const mappedSubmission = mapRawProblemSubmission(row);
     const existing = submissionsByBucket.get(key);
 
     if (existing) {
       existing.push(mappedSubmission);
-      continue;
+    } else {
+      submissionsByBucket.set(key, [mappedSubmission]);
     }
 
-    submissionsByBucket.set(key, [mappedSubmission]);
+    if (row.top_match_submission_id) {
+      topMatchSubmissionIds.add(row.top_match_submission_id);
+    }
+  }
+
+  const topMatchStudentNames = new Map<string, string>();
+  if (topMatchSubmissionIds.size > 0) {
+    const { data: topMatchSubmissions, error: topMatchSubmissionsError } =
+      await supabase
+        .from("problem_submissions")
+        .select("id, student_id")
+        .in("id", Array.from(topMatchSubmissionIds));
+
+    if (topMatchSubmissionsError) {
+      throw new ExecutionDatabaseError(
+        `Failed to fetch plagiarism match submissions: ${topMatchSubmissionsError.message}`,
+        topMatchSubmissionsError,
+      );
+    }
+
+    const topMatchStudentIds = [
+      ...new Set(
+        ((topMatchSubmissions as Array<{ student_id: string }> | null) ?? [])
+          .map((row) => row.student_id)
+          .filter((value): value is string => typeof value === "string"),
+      ),
+    ];
+
+    if (topMatchStudentIds.length > 0) {
+      const { data: topMatchUsers, error: topMatchUsersError } = await supabase
+        .from("users")
+        .select("id, full_name, email")
+        .in("id", topMatchStudentIds);
+
+      if (topMatchUsersError) {
+        throw new ExecutionDatabaseError(
+          `Failed to fetch plagiarism match users: ${topMatchUsersError.message}`,
+          topMatchUsersError,
+        );
+      }
+
+      const userNameById = new Map<string, string>();
+      for (const user of (topMatchUsers as Array<{
+        id: string;
+        full_name: string | null;
+        email: string | null;
+      }> | null) ?? []) {
+        userNameById.set(
+          user.id,
+          user.full_name?.trim() || user.email?.trim() || user.id,
+        );
+      }
+
+      for (const row of (topMatchSubmissions as Array<{
+        id: string;
+        student_id: string;
+      }> | null) ?? []) {
+        const studentName = userNameById.get(row.student_id) ?? row.student_id;
+        topMatchStudentNames.set(row.id, studentName);
+      }
+    }
+  }
+
+  const { data: telemetryRows, error: telemetryError } = await supabase
+    .from("telemetry")
+    .select("student_id, problem_id, events")
+    .eq("assignment_id", assignmentId)
+    .in("student_id", studentIds)
+    .in("problem_id", problemIds);
+
+  if (telemetryError) {
+    throw new ExecutionDatabaseError(
+      `Failed to fetch telemetry data: ${telemetryError.message}`,
+      telemetryError,
+    );
+  }
+
+  const telemetryByKey = new Map<string, TelemetrySummary>();
+  for (const row of (telemetryRows as RawTelemetryRow[] | null) ?? []) {
+    const events =
+      row.events && typeof row.events === "object"
+        ? (row.events as Record<string, unknown>)
+        : undefined;
+    const summary =
+      events && typeof events.summary === "object"
+        ? (events.summary as Record<string, unknown>)
+        : undefined;
+
+    telemetryByKey.set(`${row.student_id}:${row.problem_id}`, {
+      pasteCount: parseNullableNumber(summary?.paste_count, { min: 0 }),
+      pastedChars: parseNullableNumber(summary?.total_pasted_chars, { min: 0 }),
+      tabSwitchCount: parseNullableNumber(summary?.tab_switch_count, {
+        min: 0,
+      }),
+      backspaceCount: parseNullableNumber(summary?.backspace_count, {
+        min: 0,
+      }),
+    });
   }
 
   const summaries = students.flatMap((student) =>
     problems.map((problem) => {
       const key = `${student.id}:${problem.id}`;
       const attempts = submissionsByBucket.get(key) ?? [];
+      const selectedSubmission = selectRepresentativeSubmission(attempts);
+      const topMatchStudentName = selectedSubmission?.topMatchSubmissionId
+        ? topMatchStudentNames.get(selectedSubmission.topMatchSubmissionId) ??
+          "Unknown student"
+        : null;
 
       return {
         studentId: student.id,
         problemId: problem.id,
         attemptsCount: attempts.length,
-        selectedSubmission: selectRepresentativeSubmission(attempts),
+        selectedSubmission,
+        topMatchStudentName,
+        telemetrySummary: telemetryByKey.get(key) ?? null,
       };
     }),
   );

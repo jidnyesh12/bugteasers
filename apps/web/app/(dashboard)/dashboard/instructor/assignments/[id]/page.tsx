@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -60,6 +60,38 @@ const submissionStatusLabels: Record<SubmissionStatus, string> = {
   error: "Error",
 };
 
+const plagiarismStatusStyles = {
+  pending: "flat-badge-blue",
+  clean: "flat-badge-green",
+  review: "flat-badge-amber",
+  high: "flat-badge-red",
+};
+
+const getPlagiarismStatus = (
+  score: number | null | undefined,
+  isAiMatch: boolean | null | undefined,
+) => {
+  if (score === null || score === undefined) {
+    return { label: "Pending", style: plagiarismStatusStyles.pending };
+  }
+
+  if (score >= 70) {
+    return {
+      label: isAiMatch ? "AI Match" : "Review Needed",
+      style: plagiarismStatusStyles.high,
+    };
+  }
+
+  if (score >= 30) {
+    return {
+      label: "Review Needed",
+      style: plagiarismStatusStyles.review,
+    };
+  }
+
+  return { label: "Clean", style: plagiarismStatusStyles.clean };
+};
+
 export default function AssignmentDetailsPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -72,6 +104,9 @@ export default function AssignmentDetailsPage() {
   const [selectedClassrooms, setSelectedClassrooms] = useState<string[]>([]);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showReopenModal, setShowReopenModal] = useState(false);
+  const [expandedStudentId, setExpandedStudentId] = useState<string | null>(
+    null,
+  );
 
   const { data: assignment, isFetching: isLoading } =
     useQuery<AssignmentDetails>({
@@ -209,13 +244,16 @@ export default function AssignmentDetailsPage() {
   const confirmCloseAssignment = async () => {
     try {
       const result = await closeAssignmentAsync(params.id);
-      
+
       if (!result.success) {
         toast(result.error || "Failed to close assignment", "error");
         return;
       }
-      
-      toast("Assignment closed. Analysis started. New submissions are now blocked.", "success");
+
+      toast(
+        "Assignment closed. Analysis started. New submissions are now blocked.",
+        "success",
+      );
       setShowCloseModal(false);
       await Promise.all([
         queryClient.invalidateQueries({
@@ -277,6 +315,44 @@ export default function AssignmentDetailsPage() {
 
     return lookup;
   }, [submissionOverview?.summaries]);
+
+  const studentPlagiarismLookup = useMemo(() => {
+    const lookup = new Map<
+      string,
+      {
+        score: number | null;
+        isAiMatch: boolean | null;
+        topMatchStudentName: string | null;
+      }
+    >();
+
+    for (const summary of submissionOverview?.summaries ?? []) {
+      const studentEntry = lookup.get(summary.studentId);
+      const score = summary.selectedSubmission?.maxPlagiarismScore ?? null;
+      const isAiMatch = summary.selectedSubmission?.isAiMatch ?? null;
+      const topMatchStudentName = summary.topMatchStudentName ?? null;
+
+      if (!studentEntry || (score ?? 0) > (studentEntry.score ?? 0)) {
+        lookup.set(summary.studentId, {
+          score,
+          isAiMatch,
+          topMatchStudentName,
+        });
+      }
+    }
+
+    return lookup;
+  }, [submissionOverview?.summaries]);
+
+  const forensicAnalysisReady = useMemo(
+    () =>
+      submissionOverview?.summaries?.some(
+        (summary) =>
+          summary.selectedSubmission?.maxPlagiarismScore !== null ||
+          summary.telemetrySummary != null,
+      ) ?? false,
+    [submissionOverview?.summaries],
+  );
 
   const isAssignmentClosed = Boolean(assignment?.closed_at);
   const submissionStudents = useMemo(
@@ -610,66 +686,253 @@ export default function AssignmentDetailsPage() {
               assignment yet.
             </p>
           ) : (
-            <div className="w-full max-w-full overflow-x-auto overscroll-x-contain border border-[var(--border-primary)] rounded-xl">
-              <table
-                className="w-full min-w-full table-auto text-left text-sm"
-                style={{ minWidth: `${submissionsTableMinWidthPercent}%` }}
-              >
-                <thead className="bg-[var(--bg-secondary)] border-b border-[var(--border-primary)]">
-                  <tr>
-                    <th className="px-4 py-3 font-bold text-[var(--text-secondary)] whitespace-nowrap">
-                      Student
-                    </th>
-                    <th className="px-4 py-3 font-bold text-[var(--text-secondary)] whitespace-nowrap">
-                      Total Score
-                    </th>
-                    {submissionProblems.map((problem) => (
-                      <th
-                        key={problem.id}
-                        className="px-4 py-3 font-bold text-[var(--text-secondary)] whitespace-nowrap"
-                        title={problem.title}
-                      >
-                        {problem.title}
+            <>
+              {isAssignmentClosed && !forensicAnalysisReady && (
+                <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
+                  Plagiarism and telemetry analysis are still being processed.
+                  Results will appear here once the background job completes.
+                </div>
+              )}
+              <div className="w-full max-w-full overflow-x-auto overscroll-x-contain border border-[var(--border-primary)] rounded-xl">
+                <table
+                  className="w-full min-w-full table-auto text-left text-sm"
+                  style={{ minWidth: `${submissionsTableMinWidthPercent}%` }}
+                >
+                  <thead className="bg-[var(--bg-secondary)] border-b border-[var(--border-primary)]">
+                    <tr>
+                      <th className="px-4 py-3 font-bold text-[var(--text-secondary)] whitespace-nowrap">
+                        Student
                       </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--border-primary)]">
-                  {submissionStudents.map((student) => (
-                    <tr key={student.id} className="align-top">
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-[var(--text-primary)]">
-                          {student.fullName}
-                        </p>
-                        <p className="text-xs text-[var(--text-muted)]">
-                          {student.email}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="font-semibold text-[var(--text-primary)]">
-                          {studentTotalScoreLookup.get(student.id) ??
-                            "No score"}
-                        </span>
-                      </td>
-                      {submissionProblems.map((problem) => {
-                        const summary = submissionSummaryLookup.get(
-                          `${student.id}:${problem.id}`,
-                        );
-
-                        return (
-                          <td
-                            key={`${student.id}:${problem.id}`}
-                            className="px-4 py-3"
-                          >
-                            {renderSubmissionCell(summary)}
-                          </td>
-                        );
-                      })}
+                      <th className="px-4 py-3 font-bold text-[var(--text-secondary)] whitespace-nowrap">
+                        Total Score
+                      </th>
+                      <th className="px-4 py-3 font-bold text-[var(--text-secondary)] whitespace-nowrap">
+                        Forensic Status
+                      </th>
+                      {submissionProblems.map((problem) => (
+                        <th
+                          key={problem.id}
+                          className="px-4 py-3 font-bold text-[var(--text-secondary)] whitespace-nowrap"
+                          title={problem.title}
+                        >
+                          {problem.title}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-primary)]">
+                    {submissionStudents.map((student) => {
+                      const studentPlagiarism = studentPlagiarismLookup.get(
+                        student.id,
+                      );
+                      const plagiarismBadge = getPlagiarismStatus(
+                        studentPlagiarism?.score ?? null,
+                        studentPlagiarism?.isAiMatch ?? null,
+                      );
+
+                      return (
+                        <Fragment key={student.id}>
+                          <tr
+                            className="align-top cursor-pointer hover:bg-[var(--bg-secondary)]"
+                            onClick={() =>
+                              setExpandedStudentId((current) =>
+                                current === student.id ? null : student.id,
+                              )
+                            }
+                            aria-expanded={expandedStudentId === student.id}
+                          >
+                            <td className="px-4 py-3">
+                              <p className="font-semibold text-[var(--text-primary)]">
+                                {student.fullName}
+                              </p>
+                              <p className="text-xs text-[var(--text-muted)]">
+                                {student.email}
+                              </p>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="font-semibold text-[var(--text-primary)]">
+                                {studentTotalScoreLookup.get(student.id) ??
+                                  "No score"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span
+                                className={`flat-badge ${plagiarismBadge.style}`}
+                              >
+                                {plagiarismBadge.label}
+                              </span>
+                            </td>
+                            {submissionProblems.map((problem) => {
+                              const summary = submissionSummaryLookup.get(
+                                `${student.id}:${problem.id}`,
+                              );
+
+                              return (
+                                <td
+                                  key={`${student.id}:${problem.id}`}
+                                  className="px-4 py-3"
+                                >
+                                  {renderSubmissionCell(summary)}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                          {expandedStudentId === student.id && (
+                            <tr className="bg-[var(--bg-secondary)]">
+                              <td
+                                colSpan={3 + submissionProblems.length}
+                                className="px-4 py-4"
+                              >
+                                <div className="space-y-4">
+                                  {submissionProblems.map((problem) => {
+                                    const summary = submissionSummaryLookup.get(
+                                      `${student.id}:${problem.id}`,
+                                    );
+                                    const submission =
+                                      summary?.selectedSubmission;
+                                    const statusReview =
+                                      submission?.maxPlagiarismScore ?? null;
+                                    const summaryLabel = statusReview
+                                      ? `${Math.round(statusReview)}% similarity`
+                                      : "No plagiarism data";
+
+                                    return (
+                                      <div
+                                        key={`${student.id}:${problem.id}:detail`}
+                                        className="rounded-2xl border border-[var(--border-primary)] bg-white p-4"
+                                      >
+                                        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                                          <div>
+                                            <p className="text-sm font-semibold text-[var(--text-primary)]">
+                                              {problem.title}
+                                            </p>
+                                            <p className="text-xs text-[var(--text-muted)]">
+                                              {summary?.attemptsCount ?? 0}{" "}
+                                              attempt
+                                              {summary?.attemptsCount === 1
+                                                ? ""
+                                                : "s"}{" "}
+                                              · {summaryLabel}
+                                            </p>
+                                          </div>
+                                          <span
+                                            className={`flat-badge ${
+                                              getPlagiarismStatus(
+                                                submission?.maxPlagiarismScore ??
+                                                  null,
+                                                submission?.isAiMatch ?? null,
+                                              ).style
+                                            }`}
+                                          >
+                                            {
+                                              getPlagiarismStatus(
+                                                submission?.maxPlagiarismScore ??
+                                                  null,
+                                                submission?.isAiMatch ?? null,
+                                              ).label
+                                            }
+                                          </span>
+                                        </div>
+
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                          <div className="space-y-3">
+                                            <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                                              Plagiarism Context
+                                            </h4>
+                                            {submission?.maxPlagiarismScore !=
+                                            null ? (
+                                              <div className="text-sm text-[var(--text-primary)]">
+                                                <p>
+                                                  Similarity:{" "}
+                                                  <span className="font-semibold">
+                                                    {Math.round(
+                                                      submission.maxPlagiarismScore,
+                                                    )}
+                                                    %
+                                                  </span>
+                                                </p>
+                                                <p>
+                                                  Match:{" "}
+                                                  <span className="font-semibold">
+                                                    {submission.topMatchSubmissionId
+                                                      ? (studentPlagiarismLookup.get(
+                                                          student.id,
+                                                        )
+                                                          ?.topMatchStudentName ??
+                                                        "Unknown")
+                                                      : "No top-match student"}
+                                                  </span>
+                                                </p>
+                                              </div>
+                                            ) : (
+                                              <p className="text-sm text-[var(--text-muted)]">
+                                                No plagiarism or match details
+                                                available for this problem.
+                                              </p>
+                                            )}
+                                          </div>
+                                          <div className="space-y-3">
+                                            <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                                              Telemetry Breakdown
+                                            </h4>
+                                            {summary?.telemetrySummary ? (
+                                              <div className="grid gap-3 text-sm">
+                                                <div className="rounded-xl bg-[var(--bg-secondary)] p-3">
+                                                  <p className="text-[var(--text-secondary)] text-[11px] uppercase tracking-[0.18em] mb-1">
+                                                    Paste Events
+                                                  </p>
+                                                  <p className="font-semibold">
+                                                    {summary.telemetrySummary
+                                                      .pasteCount ?? 0}{" "}
+                                                    paste event
+                                                    {summary.telemetrySummary
+                                                      .pasteCount === 1
+                                                      ? ""
+                                                      : "s"}
+                                                  </p>
+                                                  <p className="text-[var(--text-muted)] text-xs">
+                                                    {summary.telemetrySummary
+                                                      .pastedChars ?? 0}{" "}
+                                                    chars pasted
+                                                  </p>
+                                                </div>
+                                                <div className="rounded-xl bg-[var(--bg-secondary)] p-3">
+                                                  <p className="text-[var(--text-secondary)] text-[11px] uppercase tracking-[0.18em] mb-1">
+                                                    Editing Behavior
+                                                  </p>
+                                                  <p className="font-semibold">
+                                                    {summary.telemetrySummary
+                                                      .tabSwitchCount ?? 0}{" "}
+                                                    tab switches
+                                                  </p>
+                                                  <p className="text-[var(--text-muted)] text-xs">
+                                                    {summary.telemetrySummary
+                                                      .backspaceCount ?? 0}{" "}
+                                                    backspaces
+                                                  </p>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <p className="text-sm text-[var(--text-muted)]">
+                                                No telemetry data available.
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -774,7 +1037,9 @@ export default function AssignmentDetailsPage() {
                   Close Assignment
                 </h2>
                 <p className="text-sm text-[var(--text-secondary)]">
-                  Students will no longer be able to submit solutions for this assignment. This action will also trigger an analysis of all submissions.
+                  Students will no longer be able to submit solutions for this
+                  assignment. This action will also trigger an analysis of all
+                  submissions.
                 </p>
               </div>
             </div>
@@ -830,7 +1095,8 @@ export default function AssignmentDetailsPage() {
                   Reopen Assignment
                 </h2>
                 <p className="text-sm text-[var(--text-secondary)]">
-                  Students will be able to submit solutions again. Any previous submissions will remain intact.
+                  Students will be able to submit solutions again. Any previous
+                  submissions will remain intact.
                 </p>
               </div>
             </div>
