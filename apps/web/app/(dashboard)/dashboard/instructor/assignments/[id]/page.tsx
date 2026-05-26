@@ -25,6 +25,7 @@ import type {
 } from "@/lib/submissions/types";
 
 import { MarkdownRenderer } from "@/components/markdown-renderer";
+import { ReadOnlyCodeViewer } from "@/components/read-only-code-viewer";
 
 interface Problem {
   id: string;
@@ -917,6 +918,27 @@ export default function AssignmentDetailsPage() {
                                                 No telemetry data available.
                                               </p>
                                             )}
+                                            <div>
+                                              <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)] mt-3">
+                                                Submitted Code
+                                              </h4>
+                                              {submission?.code ? (
+                                                <div className="mt-2">
+                                                  <ReadOnlyCodeViewer
+                                                    code={submission.code}
+                                                    language={
+                                                      (submission.language as any) ||
+                                                      ("javascript" as any)
+                                                    }
+                                                    maxHeight="360px"
+                                                  />
+                                                </div>
+                                              ) : (
+                                                <p className="text-sm text-[var(--text-muted)] mt-2">
+                                                  No submitted code available for this problem.
+                                                </p>
+                                              )}
+                                            </div>
                                           </div>
                                         </div>
                                       </div>
