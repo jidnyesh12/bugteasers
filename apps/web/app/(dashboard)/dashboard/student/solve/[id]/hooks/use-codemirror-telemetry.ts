@@ -264,7 +264,7 @@ export function useCodeMirrorTelemetry(options: UseCodeMirrorTelemetryOptions) {
         historyCount: mergedEvents.history.length,
       });
       
-      const { error, data, status } = await supabase.from('telemetry').upsert(
+      const { error, status } = await supabase.from('telemetry').upsert(
         {
           student_id: studentId,
           problem_id: problemId,

@@ -96,7 +96,6 @@ async function generateAST(codeString, language = 'javascript') {
         throw new TypeError('generateAST requires a string of code');
     }
     
-    console.log(`🌲 [AST-CORE] Parsing ${language} code into AST using WASM...`);
     const p = await initParser(language);
     const tree = p.parse(codeString);
     return tree;

@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
+import type { SupportedLanguage } from "@/lib/execution/types";
 import { useRouter, useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -688,6 +689,13 @@ export default function AssignmentDetailsPage() {
             </p>
           ) : (
             <>
+              <div className="mb-4 rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4 text-sm text-[var(--text-secondary)]">
+                Click a student row to open the plagiarism and submission
+                details. You can review the plagiarism context, telemetry
+                summary, and submitted code there. Note: The analysis runs
+                as a background process and may take a few hours to
+                complete depending on the number of submissions.
+              </div>
               {isAssignmentClosed && !forensicAnalysisReady && (
                 <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
                   Plagiarism and telemetry analysis are still being processed.
@@ -707,9 +715,6 @@ export default function AssignmentDetailsPage() {
                       <th className="px-4 py-3 font-bold text-[var(--text-secondary)] whitespace-nowrap">
                         Total Score
                       </th>
-                      <th className="px-4 py-3 font-bold text-[var(--text-secondary)] whitespace-nowrap">
-                        Forensic Status
-                      </th>
                       {submissionProblems.map((problem) => (
                         <th
                           key={problem.id}
@@ -723,14 +728,6 @@ export default function AssignmentDetailsPage() {
                   </thead>
                   <tbody className="divide-y divide-[var(--border-primary)]">
                     {submissionStudents.map((student) => {
-                      const studentPlagiarism = studentPlagiarismLookup.get(
-                        student.id,
-                      );
-                      const plagiarismBadge = getPlagiarismStatus(
-                        studentPlagiarism?.score ?? null,
-                        studentPlagiarism?.isAiMatch ?? null,
-                      );
-
                       return (
                         <Fragment key={student.id}>
                           <tr
@@ -756,13 +753,6 @@ export default function AssignmentDetailsPage() {
                                   "No score"}
                               </span>
                             </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <span
-                                className={`flat-badge ${plagiarismBadge.style}`}
-                              >
-                                {plagiarismBadge.label}
-                              </span>
-                            </td>
                             {submissionProblems.map((problem) => {
                               const summary = submissionSummaryLookup.get(
                                 `${student.id}:${problem.id}`,
@@ -781,7 +771,7 @@ export default function AssignmentDetailsPage() {
                           {expandedStudentId === student.id && (
                             <tr className="bg-[var(--bg-secondary)]">
                               <td
-                                colSpan={3 + submissionProblems.length}
+                                colSpan={2 + submissionProblems.length}
                                 className="px-4 py-4"
                               >
                                 <div className="space-y-4">
@@ -835,6 +825,7 @@ export default function AssignmentDetailsPage() {
                                           </span>
                                         </div>
 
+                                        {isAssignmentClosed ? (
                                         <div className="grid gap-4 md:grid-cols-2">
                                           <div className="space-y-3">
                                             <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
@@ -927,8 +918,8 @@ export default function AssignmentDetailsPage() {
                                                   <ReadOnlyCodeViewer
                                                     code={submission.code}
                                                     language={
-                                                      (submission.language as any) ||
-                                                      ("javascript" as any)
+                                                      (submission.language as SupportedLanguage) ||
+                                                      ("cpp" as SupportedLanguage)
                                                     }
                                                     maxHeight="360px"
                                                   />
@@ -942,6 +933,15 @@ export default function AssignmentDetailsPage() {
                                             </div>
                                           </div>
                                         </div>
+                                        ) : (
+                                          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700 flex items-center gap-3">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                            </svg>
+                                            <span>Close the assignment to generate the plagiarism and telemetry report.</span>
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })}
