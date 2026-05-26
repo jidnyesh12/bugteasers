@@ -935,7 +935,8 @@ export default function AssignmentDetailsPage() {
                                                 </div>
                                               ) : (
                                                 <p className="text-sm text-[var(--text-muted)] mt-2">
-                                                  No submitted code available for this problem.
+                                                  No submitted code available
+                                                  for this problem.
                                                 </p>
                                               )}
                                             </div>
