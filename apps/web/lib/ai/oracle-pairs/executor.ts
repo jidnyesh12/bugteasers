@@ -2,6 +2,7 @@ import { PistonClientImpl } from "../../execution/client";
 import { isPistonInfrastructureError } from "../../execution/errors";
 import type { ExecutionResult, SupportedLanguage, ModelAnswer } from "./types";
 import { TemplateDslError } from "../template-dsl/errors";
+import { DEFAULT_MAX_OUTPUT_BYTES } from "../template-dsl/types";
 
 /**
  * Code executor configuration
@@ -16,7 +17,7 @@ export interface ExecutorConfig {
 
 export const DEFAULT_EXECUTOR_CONFIG: ExecutorConfig = {
   timeout: 5000,
-  maxOutputLength: 1_000_000,
+  maxOutputLength: DEFAULT_MAX_OUTPUT_BYTES,
   sandboxed: true,
   captureStderr: true,
   seedRNG: true,
@@ -181,9 +182,18 @@ export async function executeCode(
       status = "error";
     }
 
-    let output = response.run.stdout || response.run.output || "";
-    if (output.length > config.maxOutputLength) {
-      output = output.substring(0, config.maxOutputLength);
+    const output = response.run.stdout || response.run.output || "";
+    if (
+      response.run.status === "OL" ||
+      output.length > config.maxOutputLength
+    ) {
+      return {
+        output: "",
+        exitCode: 1,
+        stderr: `Output limit exceeded (more than ${config.maxOutputLength} characters)`,
+        duration,
+        status: "error",
+      };
     }
 
     return {
