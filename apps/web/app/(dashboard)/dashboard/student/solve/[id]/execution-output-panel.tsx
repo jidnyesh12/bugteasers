@@ -16,6 +16,7 @@ import {
   type OutputMeta,
 } from "./execution-output-utils";
 import { SOLVE_EDITOR_LAYOUT_BOUNDS } from "@/lib/state/stores";
+import { OUTPUT_PREVIEW_LIMIT } from "@/lib/execution/output-preview";
 
 const MIN_OUTPUT_PANEL_HEIGHT =
   SOLVE_EDITOR_LAYOUT_BOUNDS.outputPanel.minHeightPx;
@@ -426,6 +427,13 @@ export function ExecutionOutputPanel({
                 <pre className="rounded border border-[#3e3e42] bg-[#252526] p-3 text-[12px] leading-5 font-mono text-gray-100 whitespace-pre-wrap">
                   {selectedCase?.expected || "No expected output available."}
                 </pre>
+                {selectedCase?.outputsTruncated && (
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    Outputs are shortened to the first{" "}
+                    {OUTPUT_PREVIEW_LIMIT.toLocaleString()} characters. The
+                    verdict compares them in full.
+                  </p>
+                )}
               </div>
             </>
           ) : (
