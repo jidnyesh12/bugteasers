@@ -8,7 +8,9 @@
   "packageManager": "pnpm@10.15.1",
   "pnpm": {
     "onlyBuiltDependencies": [
-      "tree-sitter"
+      "msw",
+      "sharp",
+      "unrs-resolver"
     ]
   }
 }
