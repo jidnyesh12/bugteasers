@@ -1,6 +1,7 @@
+import { OUTPUT_PREVIEW_LIMIT } from "@/lib/execution/output-preview";
 import type { GeneratedProblem, GeneratedTestCase } from "./types";
 
-export const PREVIEW_OUTPUT_LIMIT = 2_000;
+export const PREVIEW_OUTPUT_LIMIT = OUTPUT_PREVIEW_LIMIT;
 
 export class PreviewRestoreError extends Error {
   constructor(message: string) {

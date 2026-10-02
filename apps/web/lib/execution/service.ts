@@ -18,6 +18,7 @@ import type {
 import { ExecutionDatabaseError, ExecutionValidationError } from "./errors";
 import { createExecutionLogger, type ExecutionLogger } from "./logging";
 import { createConcurrencyLimiter } from "./concurrency";
+import { shortenTestResult } from "./output-preview";
 import {
   resolveRunMemoryLimitBytes,
   resolveRunTimeoutMs,
@@ -324,7 +325,7 @@ export class ExecutionServiceImpl implements ExecutionService {
           pointsAvailable: testCase.points,
           error: compilationError,
         })),
-      ];
+      ].map(shortenTestResult);
     }
 
     const limit = createConcurrencyLimiter(this.maxConcurrency);
@@ -336,7 +337,7 @@ export class ExecutionServiceImpl implements ExecutionService {
       ),
     );
 
-    return [firstResult, ...remainingResults];
+    return [firstResult, ...remainingResults].map(shortenTestResult);
   }
 
   // Save submission to database

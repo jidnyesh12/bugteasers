@@ -101,6 +101,7 @@ export interface TestResult {
   pointsEarned: number;
   pointsAvailable: number;
   error?: string;
+  outputsTruncated?: boolean;
 }
 
 export interface ScoreResult {
