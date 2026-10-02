@@ -110,7 +110,7 @@ export function AiHintsSection({
       {!canGetMoreHints && hints.length >= 3 && !error && (
         <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl">
           <p className="text-sm text-purple-800 font-medium mb-1">
-            You've used all 3 AI hints for this problem
+            You&apos;ve used all 3 AI hints for this problem
           </p>
           <p className="text-xs text-purple-700">
             Review your hints above or check the Problem Hints below for additional guidance.
