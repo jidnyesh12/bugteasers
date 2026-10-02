@@ -17,6 +17,9 @@ import type {
 } from "./types";
 import { ExecutionDatabaseError, ExecutionValidationError } from "./errors";
 import { createExecutionLogger, type ExecutionLogger } from "./logging";
+import { createConcurrencyLimiter } from "./concurrency";
+import { resolveRunTimeoutMs } from "./languages";
+import { PISTON_MAX_CONCURRENCY } from "@/lib/env";
 import {
   materializeTestCaseInputTemplate,
   validateTestCaseInputTemplate,
@@ -27,6 +30,7 @@ interface ExecutionServiceConfig {
   evaluator: TestCaseEvaluator;
   supabase: SupabaseClient;
   logger?: ExecutionLogger;
+  maxConcurrency?: number;
 }
 
 export class ExecutionServiceImpl implements ExecutionService {
@@ -34,12 +38,14 @@ export class ExecutionServiceImpl implements ExecutionService {
   private readonly evaluator: TestCaseEvaluator;
   private readonly supabase: SupabaseClient;
   private readonly logger: ExecutionLogger;
+  private readonly maxConcurrency: number;
 
   constructor(config: ExecutionServiceConfig) {
     this.pistonClient = config.pistonClient;
     this.evaluator = config.evaluator;
     this.supabase = config.supabase;
     this.logger = config.logger ?? createExecutionLogger();
+    this.maxConcurrency = config.maxConcurrency ?? PISTON_MAX_CONCURRENCY;
   }
 
   // Run mode: execute code against sample test cases only, no database records
@@ -60,6 +66,7 @@ export class ExecutionServiceImpl implements ExecutionService {
         request.code,
         request.language,
         testCases,
+        request.timeLimitMs,
       );
 
       // Calculate score
@@ -110,6 +117,7 @@ export class ExecutionServiceImpl implements ExecutionService {
         request.code,
         request.language,
         testCases,
+        request.timeLimitMs,
       );
 
       // Calculate score
@@ -248,6 +256,7 @@ export class ExecutionServiceImpl implements ExecutionService {
     code: string,
     language: SupportedLanguage,
     testCases: TestCase[],
+    timeLimitMs?: number | null,
   ): Promise<TestResult[]> {
     let pistonLanguage;
     try {
@@ -259,15 +268,38 @@ export class ExecutionServiceImpl implements ExecutionService {
       );
     }
 
-    const results: TestResult[] = [];
+    const runTimeout = resolveRunTimeoutMs(language, timeLimitMs);
 
-    // Check for compilation error on first execution
-    let compilationError: string | null = null;
+    const execute = async (testCase: TestCase) => {
+      const executionRequest: ExecutionRequest = {
+        language: pistonLanguage,
+        version: "*",
+        files: [{ content: code }],
+        stdin: testCase.input,
+        ...(runTimeout !== undefined ? { run_timeout: runTimeout } : {}),
+      };
 
-    for (const testCase of testCases) {
-      // If we already have a compilation error, mark remaining tests as failed
-      if (compilationError) {
-        results.push({
+      return this.pistonClient.execute(executionRequest);
+    };
+
+    const [firstTestCase, ...remainingTestCases] = testCases;
+    if (!firstTestCase) {
+      return [];
+    }
+
+    const firstResponse = await execute(firstTestCase);
+    const firstResult = this.evaluator.evaluateTestCase(
+      firstResponse,
+      firstTestCase,
+    );
+
+    if (firstResponse.compile && firstResponse.compile.code !== 0) {
+      const compilationError =
+        firstResponse.compile.stderr || "Compilation failed";
+
+      return [
+        firstResult,
+        ...remainingTestCases.map((testCase) => ({
           testCaseId: testCase.id,
           passed: false,
           actualOutput: "",
@@ -275,36 +307,20 @@ export class ExecutionServiceImpl implements ExecutionService {
           pointsEarned: 0,
           pointsAvailable: testCase.points,
           error: compilationError,
-        });
-        continue;
-      }
-
-      // Execute code with test case input
-      const executionRequest: ExecutionRequest = {
-        language: pistonLanguage,
-        version: "*",
-        files: [{ content: code }],
-        stdin: testCase.input,
-      };
-
-      const executionResponse =
-        await this.pistonClient.execute(executionRequest);
-
-      // Check for compilation error
-      if (executionResponse.compile && executionResponse.compile.code !== 0) {
-        compilationError =
-          executionResponse.compile.stderr || "Compilation failed";
-      }
-
-      // Evaluate test case
-      const result = this.evaluator.evaluateTestCase(
-        executionResponse,
-        testCase,
-      );
-      results.push(result);
+        })),
+      ];
     }
 
-    return results;
+    const limit = createConcurrencyLimiter(this.maxConcurrency);
+    const remainingResults = await Promise.all(
+      remainingTestCases.map((testCase) =>
+        limit(async () =>
+          this.evaluator.evaluateTestCase(await execute(testCase), testCase),
+        ),
+      ),
+    );
+
+    return [firstResult, ...remainingResults];
   }
 
   // Save submission to database

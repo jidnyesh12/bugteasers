@@ -52,7 +52,7 @@ export async function POST(
 
     const payload = validateSubmitPayload(await parseJsonBody(request));
 
-    await assertExecutionAccess({
+    const limits = await assertExecutionAccess({
       supabase,
       problemId,
       userId: session.user.id,
@@ -82,6 +82,7 @@ export async function POST(
         language: payload.language,
         problemId,
         assignmentId: payload.assignmentId,
+        timeLimitMs: limits?.timeLimitMs,
       },
       session.user.id,
     );

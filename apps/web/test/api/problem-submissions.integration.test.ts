@@ -77,7 +77,7 @@ describe("GET /api/problems/[id]/submissions", () => {
       user: { id: "student-1", email: "test@example.com", role: "student" },
       expires: "2099-01-01",
     });
-    vi.mocked(assertExecutionAccess).mockResolvedValue(undefined);
+    vi.mocked(assertExecutionAccess).mockResolvedValue({ timeLimitMs: null });
 
     const query = createSubmissionQueryMock({
       data: [
@@ -169,7 +169,7 @@ describe("GET /api/problems/[id]/submissions", () => {
       user: { id: "student-1", email: "test@example.com", role: "student" },
       expires: "2099-01-01",
     });
-    vi.mocked(assertExecutionAccess).mockResolvedValue(undefined);
+    vi.mocked(assertExecutionAccess).mockResolvedValue({ timeLimitMs: null });
 
     const query = createSubmissionQueryMock({ data: [], error: null });
     vi.mocked(supabase.from).mockReturnValue(
@@ -231,7 +231,7 @@ describe("GET /api/problems/[id]/submissions", () => {
       user: { id: "student-1", email: "test@example.com", role: "student" },
       expires: "2099-01-01",
     });
-    vi.mocked(assertExecutionAccess).mockResolvedValue(undefined);
+    vi.mocked(assertExecutionAccess).mockResolvedValue({ timeLimitMs: null });
 
     const query = createSubmissionQueryMock({
       data: null,

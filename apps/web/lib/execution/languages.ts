@@ -27,6 +27,34 @@ export const EXECUTION_FILE_EXTENSIONS: Readonly<
   c: "c",
 };
 
+export const RUN_TIMEOUT_MULTIPLIER: Readonly<
+  Record<SupportedLanguage, number>
+> = {
+  c: 1,
+  cpp: 1,
+  java: 2,
+  python: 3,
+};
+
+export const MIN_RUN_TIMEOUT_MS = 500;
+export const MAX_RUN_TIMEOUT_MS = 10_000;
+
+export function resolveRunTimeoutMs(
+  language: SupportedLanguage,
+  timeLimitMs: number | null | undefined,
+): number | undefined {
+  if (
+    typeof timeLimitMs !== "number" ||
+    !Number.isFinite(timeLimitMs) ||
+    timeLimitMs <= 0
+  ) {
+    return undefined;
+  }
+
+  const scaled = Math.round(timeLimitMs * RUN_TIMEOUT_MULTIPLIER[language]);
+  return Math.min(Math.max(scaled, MIN_RUN_TIMEOUT_MS), MAX_RUN_TIMEOUT_MS);
+}
+
 const LANGUAGE_ALIASES: Readonly<Record<string, SupportedLanguage>> = {
   "c++": "cpp",
 };
