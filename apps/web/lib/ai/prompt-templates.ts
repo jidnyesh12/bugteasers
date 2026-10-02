@@ -3,8 +3,14 @@
 import { SUPPORTED_EXECUTION_LANGUAGES } from "@/lib/execution/languages";
 import type { SupportedLanguage } from "@/lib/execution/types";
 import type { RetryHistoryEntry } from "./types";
+import { MAX_COLLECTION_SIZE } from "./template-dsl/types";
+import { TESTCASE_MAX_COLLECTION_LENGTH } from "@/lib/env";
 
 const SUPPORTED_SOLVE_LANGUAGES_TEXT = SUPPORTED_EXECUTION_LANGUAGES.join(", ");
+const MAX_COLLECTION_LENGTH = Math.min(
+  TESTCASE_MAX_COLLECTION_LENGTH,
+  MAX_COLLECTION_SIZE,
+);
 
 export const SYSTEM_PROMPT = [
   "You are an expert coding problem creator for an educational platform.",
@@ -118,11 +124,11 @@ export function buildProblemGenerationPrompt(
     '     "version": 1,',
     '     "seed": "optional-seed-fragment",',
     '     "variables": {',
-    '       "n": {"type":"int","min":1,"max":100000},',
-    '       "arr": {"type":"int_array","length":{"ref":"n"},"min":1,"max":100000},',
+    `       "n": {"type":"int","min":1,"max":${MAX_COLLECTION_LENGTH}},`,
+    '       "arr": {"type":"int_array","length":{"ref":"n"},"min":1,"max":1000000000},',
     '       "queries": {"type":"const","value":[[1,5],[2,10,20]]},',
     '       "perm": {"type":"permutation","n":{"ref":"n"}},',
-    '       "g": {"type":"graph","nodes":{"ref":"n"},"edges":200000,"connected":true,"weighted":false}',
+    `       "g": {"type":"graph","nodes":{"ref":"n"},"edges":${MAX_COLLECTION_LENGTH},"connected":true,"weighted":false}`,
     "     },",
     '     "output": [',
     '       {"type":"line","values":[{"ref":"n"}]},',
@@ -142,7 +148,7 @@ export function buildProblemGenerationPrompt(
     '     Example: {"type":"string","length":10,"charset":"lower"}',
     "   - int_array: Array of random integers",
     '     Example: {"type":"int_array","length":{"ref":"n"},"min":1,"max":100}',
-    "     CRITICAL: limit lengths to max 2000 to prevent execution buffer overflow! Dont give upto 10^5!",
+    `     CRITICAL: every length, count, node or edge total must be at most ${MAX_COLLECTION_LENGTH}. Use the largest sizes only in a few stress tests.`,
     "   - matrix: 2D array of random integers (for random generation only)",
     '     Example: {"type":"matrix","rows":{"ref":"n"},"cols":{"ref":"m"},"min":0,"max":1}',
     "   - permutation: Random permutation of integers",
@@ -213,7 +219,7 @@ export function buildProblemGenerationPrompt(
     '          "input_template": {',
     '            "version": 1,',
     '            "seed": "optional-seed-fragment",',
-    '           "variables": { "n": { "type": "int", "min": 1, "max": 2000 } },',
+    `           "variables": { "n": { "type": "int", "min": 1, "max": ${MAX_COLLECTION_LENGTH} } },`,
     '            "output": [{ "type": "line", "values": [{ "ref": "n" }] }]',
     "          },",
     '          "is_sample": "boolean",',

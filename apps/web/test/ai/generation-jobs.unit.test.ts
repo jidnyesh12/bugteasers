@@ -59,6 +59,7 @@ vi.mock("@/lib/env", () => ({
   PISTON_MAX_CONCURRENCY: 4,
   TESTCASE_FANOUT_CANDIDATES: 8,
   TESTCASE_FANOUT_KEEP: 3,
+  TESTCASE_MAX_COLLECTION_LENGTH: 100_000,
 }));
 
 vi.mock("@/lib/execution/evaluator", () => ({
