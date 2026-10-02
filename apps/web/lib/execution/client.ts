@@ -17,6 +17,7 @@ import {
   ExecutionTimeoutError,
 } from "./types";
 import {
+  PISTON_API_KEY,
   PISTON_API_URL,
   DEFAULT_EXECUTION_TIMEOUT,
   DEFAULT_MAX_RETRIES,
@@ -50,9 +51,14 @@ export class PistonInfrastructureError extends Error {
 // Default configuration for Piston client
 const DEFAULT_CONFIG: PistonClientConfig = {
   apiUrl: PISTON_API_URL,
+  apiKey: PISTON_API_KEY,
   timeout: DEFAULT_EXECUTION_TIMEOUT,
   maxRetries: DEFAULT_MAX_RETRIES,
 };
+
+function isTransientStatus(statusCode: number): boolean {
+  return statusCode === 429 || statusCode < 400 || statusCode >= 500;
+}
 
 // Piston API client implementation using native fetch
 export class PistonClientImpl implements PistonClient {
@@ -60,6 +66,12 @@ export class PistonClientImpl implements PistonClient {
 
   constructor(config?: Partial<PistonClientConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  private authHeaders(): Record<string, string> {
+    return this.config.apiKey
+      ? { Authorization: `Bearer ${this.config.apiKey}` }
+      : {};
   }
 
   // Execute code via Piston API with retry logic
@@ -78,6 +90,7 @@ export class PistonClientImpl implements PistonClient {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...this.authHeaders(),
           },
           body: JSON.stringify(request),
           signal: controller.signal,
@@ -141,7 +154,7 @@ export class PistonClientImpl implements PistonClient {
 
         // Infrastructure errors from Piston (50x, HTML responses) — retry with backoff
         if (error instanceof PistonInfrastructureError) {
-          if (isLastAttempt) {
+          if (isLastAttempt || !isTransientStatus(error.statusCode)) {
             throw error; // Bubble up as-is — the orchestrator must NOT treat this as a code error
           }
 
@@ -158,9 +171,10 @@ export class PistonClientImpl implements PistonClient {
         // Handle network errors - retry
         if (error instanceof TypeError && error.message.includes("fetch")) {
           if (isLastAttempt) {
-            throw new Error(`Network error: ${error.message}`, {
-              cause: error,
-            });
+            throw new PistonInfrastructureError(
+              0,
+              `Network error: ${error.message}`,
+            );
           }
 
           // Exponential backoff: 1s, 2s, 4s
@@ -194,6 +208,7 @@ export class PistonClientImpl implements PistonClient {
 
       const response = await fetch(url, {
         method: "GET",
+        headers: this.authHeaders(),
         signal: controller.signal,
       });
 

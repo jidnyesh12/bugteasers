@@ -48,6 +48,7 @@ export interface PistonClient {
 
 export interface PistonClientConfig {
   apiUrl: string;
+  apiKey?: string;
   timeout: number;
   maxRetries: number;
 }
