@@ -3,7 +3,12 @@
   "private": true,
   "scripts": {
     "dev": "pnpm -r --parallel run dev",
-    "build": "pnpm -r run build"
+    "dev:web": "pnpm --filter @bugteasers/web dev",
+    "dev:worker": "pnpm --filter @bugteasers/worker dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm --filter @bugteasers/web lint",
+    "type-check": "pnpm --filter @bugteasers/web type-check",
+    "test": "pnpm --filter @bugteasers/web test:run && pnpm --filter @bugteasers/ast-core test"
   },
   "packageManager": "pnpm@10.15.1",
   "pnpm": {
