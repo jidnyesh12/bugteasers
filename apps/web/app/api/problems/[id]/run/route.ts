@@ -75,6 +75,7 @@ export async function POST(
       language: payload.language,
       problemId,
       timeLimitMs: limits?.timeLimitMs,
+      memoryLimitMb: limits?.memoryLimitMb,
     });
 
     return NextResponse.json(result, { status: 200 });

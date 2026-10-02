@@ -18,7 +18,10 @@ import type {
 import { ExecutionDatabaseError, ExecutionValidationError } from "./errors";
 import { createExecutionLogger, type ExecutionLogger } from "./logging";
 import { createConcurrencyLimiter } from "./concurrency";
-import { resolveRunTimeoutMs } from "./languages";
+import {
+  resolveRunMemoryLimitBytes,
+  resolveRunTimeoutMs,
+} from "./languages";
 import { PISTON_MAX_CONCURRENCY } from "@/lib/env";
 import {
   materializeTestCaseInputTemplate,
@@ -66,7 +69,10 @@ export class ExecutionServiceImpl implements ExecutionService {
         request.code,
         request.language,
         testCases,
-        request.timeLimitMs,
+        {
+          timeLimitMs: request.timeLimitMs,
+          memoryLimitMb: request.memoryLimitMb,
+        },
       );
 
       // Calculate score
@@ -117,7 +123,10 @@ export class ExecutionServiceImpl implements ExecutionService {
         request.code,
         request.language,
         testCases,
-        request.timeLimitMs,
+        {
+          timeLimitMs: request.timeLimitMs,
+          memoryLimitMb: request.memoryLimitMb,
+        },
       );
 
       // Calculate score
@@ -256,7 +265,7 @@ export class ExecutionServiceImpl implements ExecutionService {
     code: string,
     language: SupportedLanguage,
     testCases: TestCase[],
-    timeLimitMs?: number | null,
+    limits: { timeLimitMs?: number | null; memoryLimitMb?: number | null } = {},
   ): Promise<TestResult[]> {
     let pistonLanguage;
     try {
@@ -268,7 +277,11 @@ export class ExecutionServiceImpl implements ExecutionService {
       );
     }
 
-    const runTimeout = resolveRunTimeoutMs(language, timeLimitMs);
+    const runTimeout = resolveRunTimeoutMs(language, limits.timeLimitMs);
+    const runMemoryLimit = resolveRunMemoryLimitBytes(
+      language,
+      limits.memoryLimitMb,
+    );
 
     const execute = async (testCase: TestCase) => {
       const executionRequest: ExecutionRequest = {
@@ -277,6 +290,9 @@ export class ExecutionServiceImpl implements ExecutionService {
         files: [{ content: code }],
         stdin: testCase.input,
         ...(runTimeout !== undefined ? { run_timeout: runTimeout } : {}),
+        ...(runMemoryLimit !== undefined
+          ? { run_memory_limit: runMemoryLimit }
+          : {}),
       };
 
       return this.pistonClient.execute(executionRequest);

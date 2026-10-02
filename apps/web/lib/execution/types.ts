@@ -126,6 +126,7 @@ export interface RunRequest {
   language: SupportedLanguage;
   problemId: string;
   timeLimitMs?: number | null;
+  memoryLimitMb?: number | null;
 }
 
 export interface SubmitRequest {
@@ -134,6 +135,7 @@ export interface SubmitRequest {
   problemId: string;
   assignmentId?: string;
   timeLimitMs?: number | null;
+  memoryLimitMb?: number | null;
 }
 
 export interface RunResponse {

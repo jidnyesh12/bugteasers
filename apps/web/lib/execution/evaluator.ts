@@ -9,6 +9,8 @@ import type {
   ExecutionResult,
 } from "./types";
 
+const OUT_OF_MEMORY_EXIT_CODE = 137;
+
 export function describeRunFailure(run: ExecutionResult): string {
   switch (run.status) {
     case "TO":
@@ -16,6 +18,11 @@ export function describeRunFailure(run: ExecutionResult): string {
     case "OL":
     case "EL":
       return "Output limit exceeded";
+    case "RE":
+      if (run.code === OUT_OF_MEMORY_EXIT_CODE) {
+        return "Memory limit exceeded";
+      }
+      return run.stderr || run.message || "Runtime error";
     default:
       return run.stderr || run.message || "Runtime error";
   }

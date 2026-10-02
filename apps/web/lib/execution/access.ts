@@ -28,6 +28,11 @@ function hasAssignmentClosed(closedAt: string | null): boolean {
 
 export interface ProblemExecutionLimits {
   timeLimitMs: number | null;
+  memoryLimitMb: number | null;
+}
+
+function finiteOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 export async function assertProblemExists(
@@ -36,7 +41,7 @@ export async function assertProblemExists(
 ): Promise<ProblemExecutionLimits> {
   const { data, error } = await supabase
     .from("problems")
-    .select("id, time_limit")
+    .select("id, time_limit, memory_limit")
     .eq("id", problemId)
     .single();
 
@@ -56,12 +61,10 @@ export async function assertProblemExists(
     throw new ExecutionNotFoundError("Problem not found");
   }
 
-  const timeLimit = (data as { time_limit?: unknown }).time_limit;
+  const limits = data as { time_limit?: unknown; memory_limit?: unknown };
   return {
-    timeLimitMs:
-      typeof timeLimit === "number" && Number.isFinite(timeLimit)
-        ? timeLimit
-        : null,
+    timeLimitMs: finiteOrNull(limits.time_limit),
+    memoryLimitMb: finiteOrNull(limits.memory_limit),
   };
 }
 

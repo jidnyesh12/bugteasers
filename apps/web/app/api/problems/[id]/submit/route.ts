@@ -85,6 +85,7 @@ export async function POST(
         problemId,
         assignmentId: payload.assignmentId,
         timeLimitMs: limits?.timeLimitMs,
+        memoryLimitMb: limits?.memoryLimitMb,
       },
       session.user.id,
     );
