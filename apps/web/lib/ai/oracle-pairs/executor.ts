@@ -165,6 +165,16 @@ export async function executeCode(
       };
     }
 
+    if (response.run.status === "TO") {
+      return {
+        output: "",
+        exitCode: 1,
+        stderr: response.run.message || "Time limit exceeded",
+        duration,
+        status: "timeout",
+      };
+    }
+
     const runCode =
       typeof response.run.code === "number" ? response.run.code : 1;
     if (runCode !== 0) {
