@@ -41,10 +41,42 @@ function getRequiredUrlEnv(key: string): string {
   return value;
 }
 
+function getPositiveIntEnv(key: string, fallback: number): number {
+  const raw = process.env[key];
+  if (raw === undefined || raw.trim() === "") {
+    return fallback;
+  }
+
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(
+      `Invalid environment variable ${key}: must be a positive integer`,
+    );
+  }
+
+  return value;
+}
+
 // Piston API configuration
 export const PISTON_API_URL = getRequiredUrlEnv("PISTON_API_URL");
+export const PISTON_API_KEY = process.env.PISTON_API_KEY || "";
 export const PISTON_TIMEOUT_MS = 30000;
 export const PISTON_MAX_RETRIES = 3;
+export const PISTON_MAX_CONCURRENCY = getPositiveIntEnv(
+  "PISTON_MAX_CONCURRENCY",
+  4,
+);
+
+// Generated test case configuration
+export const TESTCASE_FANOUT_CANDIDATES = getPositiveIntEnv(
+  "TESTCASE_FANOUT_CANDIDATES",
+  8,
+);
+export const TESTCASE_FANOUT_KEEP = getPositiveIntEnv("TESTCASE_FANOUT_KEEP", 3);
+export const TESTCASE_MAX_COLLECTION_LENGTH = getPositiveIntEnv(
+  "TESTCASE_MAX_COLLECTION_LENGTH",
+  100_000,
+);
 
 // Supabase configuration
 export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
