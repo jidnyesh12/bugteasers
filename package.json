@@ -10,7 +10,10 @@
     "type-check": "pnpm --filter @bugteasers/web type-check",
     "test": "pnpm --filter @bugteasers/web test:run && pnpm --filter @bugteasers/ast-core test"
   },
-  "packageManager": "pnpm@10.15.1",
+  "packageManager": "pnpm@10.34.6",
+  "engines": {
+    "node": "24.x"
+  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "msw",
