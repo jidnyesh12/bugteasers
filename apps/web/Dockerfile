@@ -1,5 +1,5 @@
-FROM node:22-bookworm-slim AS build
-RUN corepack enable
+FROM node:24-trixie-slim AS build
+RUN npm install --global corepack@latest && corepack enable
 WORKDIR /repo
 COPY . .
 RUN pnpm install --frozen-lockfile --filter "@bugteasers/web..."
@@ -15,7 +15,7 @@ RUN PISTON_API_URL=http://piston.invalid \
     NEXTAUTH_SECRET=build \
     pnpm --filter @bugteasers/web build
 
-FROM node:22-bookworm-slim
+FROM node:24-trixie-slim
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
