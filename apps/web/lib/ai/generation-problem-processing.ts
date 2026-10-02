@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { TestCaseEvaluatorImpl } from "@/lib/execution/evaluator";
 import { isPistonInfrastructureError } from "@/lib/execution/errors";
+import { resolveRunMemoryLimitBytes } from "@/lib/execution/languages";
 import {
   createConcurrencyLimiter,
   type ConcurrencyLimiter,
@@ -191,11 +192,16 @@ function errorTypeFor(reason: ReferenceFailureReason): OracleErrorType {
   }
 }
 
+interface ReferenceLimits {
+  timeoutMs: number;
+  memoryLimitBytes?: number;
+}
+
 async function runReference(
   input: string,
   solutionCode: string,
   caseSeed: string,
-  runTimeout: number,
+  limits: ReferenceLimits,
   schedule: ConcurrencyLimiter,
 ): Promise<ReferenceRun> {
   try {
@@ -212,7 +218,8 @@ async function runReference(
     const validationResult = await schedule(() =>
       validateOraclePair(oraclePair, {
         ...DEFAULT_VALIDATOR_CONFIG,
-        timeout: runTimeout,
+        timeout: limits.timeoutMs,
+        memoryLimitBytes: limits.memoryLimitBytes,
         maxDifferentialOracles: 1,
         confidenceThreshold: 0.8,
       }),
@@ -242,7 +249,7 @@ async function runReference(
       return {
         ok: false,
         reason: "timeout",
-        detail: `Execution timed out after ${runTimeout}ms`,
+        detail: `Execution timed out after ${limits.timeoutMs}ms`,
       };
     }
 
@@ -296,7 +303,7 @@ async function executeTestCaseAgainstOracle(
   problemIndex: number,
   testCaseIndex: number,
   caseSeed: string,
-  runTimeout: number,
+  limits: ReferenceLimits,
   evaluator: TestCaseEvaluatorImpl,
   schedule: ConcurrencyLimiter,
 ): Promise<ExecutedTestCaseResult | ExecutedTestCaseFailure> {
@@ -352,7 +359,7 @@ async function executeTestCaseAgainstOracle(
     expandedInput,
     solutionCode,
     caseSeed,
-    runTimeout,
+    limits,
     schedule,
   );
 
@@ -400,7 +407,7 @@ async function expandHiddenTemplateCase(params: {
   problemIndex: number;
   caseIndex: number;
   solutionCode: string;
-  runTimeout: number;
+  limits: ReferenceLimits;
   evaluator: TestCaseEvaluatorImpl;
   schedule: ConcurrencyLimiter;
   candidateCount: number;
@@ -439,7 +446,7 @@ async function expandHiddenTemplateCase(params: {
       candidate.input,
       params.solutionCode,
       candidate.seed,
-      params.runTimeout,
+      params.limits,
       params.schedule,
     );
 
@@ -498,10 +505,13 @@ export async function validateProblemsAgainstModel(
   ) {
     const problem = problems[problemIndex];
     const solutionCode = stripCppComments(problem.solution_code);
-    const runTimeout = Math.min(
-      Math.max(problem.time_limit || 2000, 500),
-      10_000,
-    );
+    const limits: ReferenceLimits = {
+      timeoutMs: Math.min(Math.max(problem.time_limit || 2000, 500), 10_000),
+      memoryLimitBytes: resolveRunMemoryLimitBytes(
+        MODEL_ANSWER_LANGUAGE,
+        problem.memory_limit,
+      ),
+    };
 
     const caseSeedFor = (testCase: GeneratedTestCase, index: number) =>
       testCase.generation_seed && testCase.generation_seed.trim().length > 0
@@ -515,7 +525,7 @@ export async function validateProblemsAgainstModel(
         problemIndex,
         index,
         caseSeedFor(testCase, index),
-        runTimeout,
+        limits,
         evaluator,
         schedule,
       );
@@ -642,7 +652,7 @@ export async function validateProblemsAgainstModel(
           problemIndex,
           caseIndex: tcIndex,
           solutionCode,
-          runTimeout,
+          limits,
           evaluator,
           schedule,
           candidateCount,

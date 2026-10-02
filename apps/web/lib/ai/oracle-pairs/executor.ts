@@ -13,7 +13,10 @@ export interface ExecutorConfig {
   sandboxed: boolean;
   captureStderr: boolean;
   seedRNG: boolean;
+  memoryLimitBytes?: number;
 }
+
+const DEFAULT_RUN_MEMORY_LIMIT_BYTES = 256 * 1024 * 1024;
 
 export const DEFAULT_EXECUTOR_CONFIG: ExecutorConfig = {
   timeout: 5000,
@@ -133,7 +136,8 @@ export async function executeCode(
       // Run timeout is tight to catch infinite loops quickly.
       compile_timeout: 10_000,
       run_timeout: Math.min(config.timeout, 5_000),
-      run_memory_limit: 256 * 1024 * 1024,
+      run_memory_limit:
+        config.memoryLimitBytes ?? DEFAULT_RUN_MEMORY_LIMIT_BYTES,
     });
 
     const duration = Date.now() - startTime;

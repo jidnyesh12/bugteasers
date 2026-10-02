@@ -23,6 +23,7 @@ export interface ValidatorConfig {
   confidenceThreshold: number; // 0-1: when to escalate vs auto-repair
   outputMaxLength: number; // max characters to compare
   strictDeterminism: boolean; // fail on non-determinism
+  memoryLimitBytes?: number;
 }
 
 export const DEFAULT_VALIDATOR_CONFIG: ValidatorConfig = {
@@ -305,6 +306,7 @@ export async function validateOraclePair(
       {
         ...DEFAULT_EXECUTOR_CONFIG,
         timeout: config.timeout,
+        memoryLimitBytes: config.memoryLimitBytes,
         // Never inject RNG seeding into the model answer — the AI's solution code
         // is self-contained (reads stdin, writes stdout). prepareCodeForExecution
         // was prepending srand() at C++ global scope, causing compile errors.
