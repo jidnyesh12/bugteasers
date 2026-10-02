@@ -370,7 +370,11 @@ async function runAllTests() {
         console.log('\n🎉 All tests passed! Package is ready.\n');
     } else {
         console.log('\n⚠️  Some tests failed. Review output above.\n');
+        process.exitCode = 1;
     }
 }
 
-runAllTests().catch(console.error);
+runAllTests().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+});
