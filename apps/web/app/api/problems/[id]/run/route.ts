@@ -10,6 +10,8 @@ import { mapExecutionErrorToHttp } from "@/lib/execution/error-mapping";
 import { createExecutionLogger } from "@/lib/execution/logging";
 import { checkExecutionRateLimit } from "@/lib/execution/rate-limiter";
 import { assertExecutionAccess } from "@/lib/execution/access";
+
+export const maxDuration = 300;
 import {
   parseJsonBody,
   validateRunPayload,

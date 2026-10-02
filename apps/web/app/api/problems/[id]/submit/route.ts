@@ -18,6 +18,8 @@ import {
   validateSubmitPayload,
 } from "@/lib/execution/request-validation";
 
+export const maxDuration = 300;
+
 const logger = createExecutionLogger();
 
 export async function POST(
