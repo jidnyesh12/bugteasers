@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_RUN_MEMORY_MB,
   MAX_RUN_TIMEOUT_MS,
   MIN_RUN_TIMEOUT_MS,
+  resolveRunMemoryLimitBytes,
   resolveRunTimeoutMs,
 } from "@/lib/execution/languages";
+
+const MB = 1024 * 1024;
 import { describeRunFailure } from "@/lib/execution/evaluator";
 
 describe("resolveRunTimeoutMs", () => {
@@ -30,7 +34,42 @@ describe("resolveRunTimeoutMs", () => {
   });
 });
 
+describe("resolveRunMemoryLimitBytes", () => {
+  it("uses the problem memory limit for compiled languages", () => {
+    expect(resolveRunMemoryLimitBytes("cpp", 256)).toBe(256 * MB);
+    expect(resolveRunMemoryLimitBytes("c", 64)).toBe(64 * MB);
+  });
+
+  it("adds room for the runtime of managed languages", () => {
+    expect(resolveRunMemoryLimitBytes("java", 256)).toBe(320 * MB);
+    expect(resolveRunMemoryLimitBytes("python", 256)).toBe(272 * MB);
+  });
+
+  it("clamps to the sandbox ceiling", () => {
+    expect(resolveRunMemoryLimitBytes("java", 4096)).toBe(MAX_RUN_MEMORY_MB * MB);
+  });
+
+  it("leaves the sandbox default without a usable limit", () => {
+    expect(resolveRunMemoryLimitBytes("cpp", null)).toBeUndefined();
+    expect(resolveRunMemoryLimitBytes("cpp", 0)).toBeUndefined();
+  });
+});
+
 describe("describeRunFailure", () => {
+  it("names a program killed for using too much memory", () => {
+    expect(
+      describeRunFailure({
+        stdout: "",
+        stderr: "",
+        code: 137,
+        signal: null,
+        output: "",
+        status: "RE",
+        message: "Exited with error status 137",
+      }),
+    ).toBe("Memory limit exceeded");
+  });
+
   const base = { stdout: "", stderr: "", code: 1, signal: null, output: "" };
 
   it("names a time limit kill", () => {

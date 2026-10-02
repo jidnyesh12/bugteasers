@@ -136,6 +136,24 @@ describe("ExecutionServiceImpl test case scheduling", () => {
     expect(sent).toEqual([3000, 3000]);
   });
 
+  it("sends the problem memory limit with room for the runtime", async () => {
+    const { service, pistonClient } = buildService(
+      async (request) => response(request.stdin),
+      1,
+      1,
+    );
+
+    await service.runCode({
+      code: "print(input())",
+      language: "python",
+      problemId: "problem-1",
+      memoryLimitMb: 256,
+    });
+
+    const [request] = vi.mocked(pistonClient.execute).mock.calls[0];
+    expect(request.run_memory_limit).toBe(272 * 1024 * 1024);
+  });
+
   it("leaves run_timeout unset without a problem time limit", async () => {
     const { service, pistonClient } = buildService(
       async (request) => response(request.stdin),
