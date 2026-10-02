@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { TestCaseEvaluatorImpl } from "@/lib/execution/evaluator";
-import { PistonInfrastructureError } from "@/lib/execution/client";
+import { isPistonInfrastructureError } from "@/lib/execution/errors";
 import {
   hasUnresolvedPlaceholder,
   hashTemplateSpec,
@@ -308,7 +308,7 @@ async function executeTestCaseAgainstOracle(
     };
   } catch (error) {
     // ── Infrastructure errors (Piston 503, HTML pages) → DO NOT REPAIR ──
-    if (error instanceof PistonInfrastructureError) {
+    if (isPistonInfrastructureError(error)) {
       return {
         ok: false,
         failure: {

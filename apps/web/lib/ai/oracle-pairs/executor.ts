@@ -1,4 +1,5 @@
 import { PistonClientImpl } from "../../execution/client";
+import { isPistonInfrastructureError } from "../../execution/errors";
 import type { ExecutionResult, SupportedLanguage, ModelAnswer } from "./types";
 import { TemplateDslError } from "../template-dsl/errors";
 
@@ -185,6 +186,10 @@ export async function executeCode(
       status,
     };
   } catch (error) {
+    if (isPistonInfrastructureError(error)) {
+      throw error;
+    }
+
     const duration = Date.now() - startTime;
     let status: "success" | "timeout" | "error" = "error";
     const stderr = error instanceof Error ? error.message : String(error);

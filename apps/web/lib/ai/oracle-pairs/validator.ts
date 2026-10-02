@@ -12,6 +12,7 @@ import { ConstraintLevel } from "./types";
 import type { DSLConstraint } from "./types";
 import type { TestCaseInputTemplate } from "../template-dsl/types";
 import { ConstraintRegistry } from "./constraints";
+import { isPistonInfrastructureError } from "../../execution/errors";
 
 /**
  * Validator configuration
@@ -332,6 +333,10 @@ export async function validateOraclePair(
       });
     }
   } catch (error) {
+    if (isPistonInfrastructureError(error)) {
+      throw error;
+    }
+
     modelAnswerStatus = "runtime_error";
     diagnostics.executionErrors.push({
       type: "EXECUTION_FAILED",
