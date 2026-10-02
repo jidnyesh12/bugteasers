@@ -1,0 +1,38 @@
+name: bugteasers
+
+services:
+  piston:
+    build: ./infra/piston
+    privileged: true
+    ports:
+      - "127.0.0.1:2000:2000"
+    volumes:
+      - piston-packages:/piston/packages
+    restart: unless-stopped
+
+  piston-runtimes:
+    image: curlimages/curl:8.11.1
+    depends_on:
+      piston:
+        condition: service_healthy
+    environment:
+      PISTON_URL: http://piston:2000
+    volumes:
+      - ./infra/piston/install-runtimes.sh:/install-runtimes.sh:ro
+    entrypoint: ["sh", "/install-runtimes.sh"]
+    restart: "no"
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+
+volumes:
+  piston-packages:
