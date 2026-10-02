@@ -2,7 +2,7 @@
   "name": "bugteasers-monorepo",
   "private": true,
   "scripts": {
-    "dev": "pnpm -r --parallel run dev",
+    "dev": "pnpm -r --parallel --no-bail run dev",
     "dev:web": "pnpm --filter @bugteasers/web dev",
     "dev:worker": "pnpm --filter @bugteasers/worker dev",
     "build": "pnpm -r run build",
