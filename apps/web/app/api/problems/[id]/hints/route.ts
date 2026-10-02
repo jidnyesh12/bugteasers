@@ -100,7 +100,7 @@ export async function POST(
     }
 
     // 5. Get current usage to determine hint level
-    const usage = await getOrCreateHintUsage(
+    await getOrCreateHintUsage(
       studentId,
       problemId,
       assignmentId,

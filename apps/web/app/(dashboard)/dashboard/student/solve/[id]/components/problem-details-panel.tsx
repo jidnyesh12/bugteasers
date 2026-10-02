@@ -4,7 +4,6 @@ import { useState } from "react";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import type { Problem } from "../solve-types";
 import type { ProblemSubmissionDisplayItem } from "@/lib/submissions/view-types";
-import type { ExecutionPanelResult } from "../hooks/use-problem-execution";
 import { SubmissionsTabContent } from "./submissions-tab-content";
 import { AiHintsSection } from "./ai-hints-section";
 

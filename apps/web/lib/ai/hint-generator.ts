@@ -3,7 +3,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GEMINI_API_KEY } from "@/lib/env";
 import type { HintGenerationContext } from "./hint-types";
-import { HINT_LEVEL_GUIDELINES, HINT_GENERATION_RULES } from "./hint-config";
+import { HINT_LEVEL_GUIDELINES } from "./hint-config";
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -106,7 +106,6 @@ function buildHintPrompt(params: {
     executionResults,
     previousHints,
     hintLevel,
-    guideline,
   } = params;
 
   const lines: string[] = [];
