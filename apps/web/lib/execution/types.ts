@@ -24,6 +24,8 @@ export interface ExecutionResult {
   code: number;
   signal: string | null;
   output: string;
+  status?: string | null;
+  message?: string | null;
 }
 
 export interface ExecutionResponse {
@@ -123,6 +125,7 @@ export interface RunRequest {
   code: string;
   language: SupportedLanguage;
   problemId: string;
+  timeLimitMs?: number | null;
 }
 
 export interface SubmitRequest {
@@ -130,6 +133,7 @@ export interface SubmitRequest {
   language: SupportedLanguage;
   problemId: string;
   assignmentId?: string;
+  timeLimitMs?: number | null;
 }
 
 export interface RunResponse {

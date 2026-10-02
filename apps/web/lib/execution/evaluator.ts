@@ -6,7 +6,20 @@ import type {
   TestCase,
   TestResult,
   ScoreResult,
+  ExecutionResult,
 } from "./types";
+
+export function describeRunFailure(run: ExecutionResult): string {
+  switch (run.status) {
+    case "TO":
+      return "Time limit exceeded";
+    case "OL":
+    case "EL":
+      return "Output limit exceeded";
+    default:
+      return run.stderr || run.message || "Runtime error";
+  }
+}
 
 export class TestCaseEvaluatorImpl implements TestCaseEvaluator {
   // Normalize output by standardizing whitespace and line endings
@@ -49,7 +62,7 @@ export class TestCaseEvaluatorImpl implements TestCaseEvaluator {
         expectedOutput: testCase.expectedOutput,
         pointsEarned: 0,
         pointsAvailable: testCase.points,
-        error: executionResponse.run.stderr || "Runtime error",
+        error: describeRunFailure(executionResponse.run),
       };
     }
 
