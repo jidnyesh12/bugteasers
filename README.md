@@ -187,6 +187,10 @@ pnpm dev
 
 This starts the web app on [http://localhost:3000](http://localhost:3000) and the worker. If the worker cannot reach Postgres or RabbitMQ it exits with an error and the web app keeps running.
 
+### Without a Gemini key
+
+`pnpm fake-gemini` starts a local stand-in for the Gemini API on port 8790. Set `GEMINI_API_KEY` to any value and `GEMINI_BASE_URL=http://localhost:8790` in `apps/web/.env`, and generation, repair and hints run through the real code paths. The stand-in always returns the maximum-subarray problem from the paper, with a reference solution that fails on all-negative arrays, so every generation also goes through one repair.
+
 ### First steps in the app
 
 1. Register an instructor at `/register?role=instructor`, create a classroom and note its join code.
@@ -205,6 +209,7 @@ This starts the web app on [http://localhost:3000](http://localhost:3000) and th
 | `pnpm lint` | ESLint |
 | `pnpm type-check` | TypeScript, no emit |
 | `pnpm test` | Vitest suite for the web app, then the ast-core checks |
+| `pnpm fake-gemini` | Local stand-in for the Gemini API (see [Without a Gemini key](#without-a-gemini-key)) |
 | `docker compose up -d` | Piston, its runtimes and RabbitMQ for local development |
 
 ## Testing
@@ -237,6 +242,8 @@ CI (`.github/workflows/ci.yml`) runs lint, type-check, tests and the production 
 | `PISTON_API_URL` | yes | Piston, or the Caddy gateway in front of it |
 | `PISTON_API_KEY` | with Caddy | Sent as `Authorization: Bearer <key>` |
 | `GEMINI_API_KEY` | for AI features | Problem generation and hints |
+| `GEMINI_MODEL` | no (`gemini-3-flash-preview`) | Model for generation, repair and hints. `gemini-3.8-flash` is the current stable model |
+| `GEMINI_BASE_URL` | no | Alternative Gemini endpoint, such as a proxy or `pnpm fake-gemini` |
 | `RABBITMQ_URL` | for plagiarism | Broker the worker listens on |
 | `PISTON_MAX_CONCURRENCY` | no (4) | Sandbox runs at once per request |
 | `TESTCASE_FANOUT_CANDIDATES` | no (8) | Seeds tried per hidden template |
