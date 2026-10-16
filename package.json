@@ -8,7 +8,8 @@
     "build": "pnpm -r run build",
     "lint": "pnpm --filter @bugteasers/web lint",
     "type-check": "pnpm --filter @bugteasers/web type-check",
-    "test": "pnpm --filter @bugteasers/web test:run && pnpm --filter @bugteasers/ast-core test"
+    "test": "pnpm --filter @bugteasers/web test:run && pnpm --filter @bugteasers/ast-core test",
+    "fake-gemini": "pnpm --filter @bugteasers/web fake-gemini"
   },
   "packageManager": "pnpm@10.34.6",
   "engines": {
