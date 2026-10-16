@@ -1,12 +1,9 @@
 // AI-powered hint generation using Google Gemini
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_API_KEY } from "@/lib/env";
+import { getGeminiModel } from "./gemini";
+import { GEMINI_MODEL } from "@/lib/env";
 import type { HintGenerationContext } from "./hint-types";
-import { HINT_LEVEL_GUIDELINES, HINT_GENERATION_RULES } from "./hint-config";
-
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+import { HINT_LEVEL_GUIDELINES } from "./hint-config";
 
 /**
  * Generate a contextual hint for a student
@@ -37,18 +34,13 @@ export async function generateContextualHint(
   });
 
   // Try multiple models in order of preference
-  const modelsToTry = [
-    "gemini-2.5-flash",
-    "gemini-3-flash-preview", 
-    "gemini-1.5-flash",
-    "gemini-1.5-pro"
-  ];
+  const modelsToTry = [GEMINI_MODEL, "gemini-2.5-flash"];
 
   let lastError: Error | null = null;
 
   for (const modelName of modelsToTry) {
     try {
-      const model = genAI.getGenerativeModel({ model: modelName });
+      const model = getGeminiModel(modelName);
       const result = await model.generateContent(prompt);
       const hint = result.response.text().trim();
 
@@ -106,7 +98,6 @@ function buildHintPrompt(params: {
     executionResults,
     previousHints,
     hintLevel,
-    guideline,
   } = params;
 
   const lines: string[] = [];
@@ -304,23 +295,16 @@ export async function generateHintWithRotation(
   context: HintGenerationContext,
   apiKeys: string[],
 ): Promise<string> {
-  const modelsToTry = [
-    "gemini-2.5-flash",
-    "gemini-3-flash-preview",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro"
-  ];
+  const modelsToTry = [GEMINI_MODEL, "gemini-2.5-flash"];
 
   let lastError: Error | null = null;
 
   // Try each API key
   for (let i = 0; i < apiKeys.length; i++) {
-    const genAI = new GoogleGenerativeAI(apiKeys[i]);
-
     // Try each model with this API key
     for (const modelName of modelsToTry) {
       try {
-        const model = genAI.getGenerativeModel({ model: modelName });
+        const model = getGeminiModel(modelName, apiKeys[i]);
 
         const guideline = HINT_LEVEL_GUIDELINES[context.hintLevel as keyof typeof HINT_LEVEL_GUIDELINES];
         const prompt = buildHintPrompt({

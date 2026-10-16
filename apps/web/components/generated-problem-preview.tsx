@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { GeneratedProblem } from "@/lib/ai/types";
+import { PREVIEW_OUTPUT_LIMIT } from "@/lib/ai/generated-problem-preview";
 import { EXECUTION_LANGUAGE_LABELS } from "@/lib/execution/languages";
 import { detectSupportedLanguageFromCode } from "@/lib/execution/language-detection";
 import { ReadOnlyCodeViewer } from "@/components/read-only-code-viewer";
@@ -489,15 +490,22 @@ export default function GeneratedProblemPreview({
                     <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">
                       Input
                     </p>
-                    <textarea
-                      value={tc.input_data}
-                      onChange={(e) =>
-                        updateTestCase(i, "input_data", e.target.value)
-                      }
-                      placeholder="Input data"
-                      rows={2}
-                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-primary)] bg-white font-mono placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] resize-y whitespace-pre overflow-x-auto"
-                    />
+                    {tc.input_template && !tc.input_data ? (
+                      <p className="px-3 py-2 text-xs rounded-lg border border-dashed border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]">
+                        Generated from its template each time it runs.
+                      </p>
+                    ) : (
+                      <textarea
+                        value={tc.input_data}
+                        onChange={(e) =>
+                          updateTestCase(i, "input_data", e.target.value)
+                        }
+                        readOnly={Boolean(tc.input_template)}
+                        placeholder="Input data"
+                        rows={2}
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-primary)] bg-white font-mono placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] resize-y whitespace-pre overflow-x-auto"
+                      />
+                    )}
                   </div>
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">
@@ -508,10 +516,17 @@ export default function GeneratedProblemPreview({
                       onChange={(e) =>
                         updateTestCase(i, "expected_output", e.target.value)
                       }
+                      readOnly={Boolean(tc.expected_output_truncated)}
                       placeholder="Expected output"
                       rows={2}
                       className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-primary)] bg-white font-mono placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-primary)] resize-y whitespace-pre overflow-x-auto"
                     />
+                    {tc.expected_output_truncated && (
+                      <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+                        Showing the first {PREVIEW_OUTPUT_LIMIT.toLocaleString()}{" "}
+                        characters. The full output is saved with the problem.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

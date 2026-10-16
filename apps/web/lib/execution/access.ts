@@ -26,13 +26,22 @@ function hasAssignmentClosed(closedAt: string | null): boolean {
   return Number.isFinite(closedAtMillis) && closedAtMillis <= Date.now();
 }
 
+export interface ProblemExecutionLimits {
+  timeLimitMs: number | null;
+  memoryLimitMb: number | null;
+}
+
+function finiteOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 export async function assertProblemExists(
   supabase: SupabaseClient,
   problemId: string,
-): Promise<void> {
+): Promise<ProblemExecutionLimits> {
   const { data, error } = await supabase
     .from("problems")
-    .select("id")
+    .select("id, time_limit, memory_limit")
     .eq("id", problemId)
     .single();
 
@@ -51,18 +60,24 @@ export async function assertProblemExists(
   if (!data) {
     throw new ExecutionNotFoundError("Problem not found");
   }
+
+  const limits = data as { time_limit?: unknown; memory_limit?: unknown };
+  return {
+    timeLimitMs: finiteOrNull(limits.time_limit),
+    memoryLimitMb: finiteOrNull(limits.memory_limit),
+  };
 }
 
 export async function assertExecutionAccess(
   options: ExecutionAccessOptions,
-): Promise<void> {
+): Promise<ProblemExecutionLimits> {
   const { supabase, problemId, userId, userRole, assignmentId } = options;
 
-  await assertProblemExists(supabase, problemId);
+  const limits = await assertProblemExists(supabase, problemId);
 
   // Assignment-scoped submission checks apply to students only.
   if (!assignmentId || userRole !== "student") {
-    return;
+    return limits;
   }
 
   const { data: assignmentProblems, error: assignmentProblemsError } =
@@ -135,6 +150,8 @@ export async function assertExecutionAccess(
   if (!hasEnrollment) {
     throw new ExecutionForbiddenError("Access denied");
   }
+
+  return limits;
 }
 
 export async function assertAssignmentOpenForSubmission(options: {

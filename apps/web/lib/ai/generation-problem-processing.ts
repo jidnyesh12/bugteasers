@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import { TestCaseEvaluatorImpl } from "@/lib/execution/evaluator";
-import { PistonInfrastructureError } from "@/lib/execution/client";
+import { isPistonInfrastructureError } from "@/lib/execution/errors";
+import { resolveRunMemoryLimitBytes } from "@/lib/execution/languages";
+import {
+  createConcurrencyLimiter,
+  type ConcurrencyLimiter,
+} from "@/lib/execution/concurrency";
 import {
   hasUnresolvedPlaceholder,
   hashTemplateSpec,
@@ -15,6 +20,12 @@ import {
   validateOraclePair,
   DEFAULT_VALIDATOR_CONFIG,
 } from "@/lib/ai/oracle-pairs/validator";
+import { deriveCaseSeed } from "./case-seeds";
+import {
+  hashInput,
+  materializeFanoutCandidates,
+  orderBySizeSpread,
+} from "./hidden-case-fanout";
 import type { GeneratedProblem, GeneratedTestCase } from "./types";
 
 // Constants
@@ -24,6 +35,10 @@ const MODEL_ANSWER_LANGUAGE = "cpp" as const;
 
 /** Sentinel value placed by the LLM in hidden test cases. */
 const AUTO_EXPECTED_OUTPUT_SENTINEL = "__AUTO_EXPECTED_OUTPUT__";
+
+export const DEFAULT_FANOUT_CANDIDATES = 8;
+export const DEFAULT_FANOUT_KEEP = 3;
+export const DEFAULT_VALIDATION_CONCURRENCY = 4;
 
 // Error Types
 
@@ -64,6 +79,12 @@ export interface ValidationOutcome {
   failure?: OracleValidationFailure;
 }
 
+export interface ValidationOptions {
+  fanoutCandidates?: number;
+  fanoutKeep?: number;
+  concurrency?: number;
+}
+
 // Annotation helper
 
 export function annotateGeneratedProblems(
@@ -73,13 +94,13 @@ export function annotateGeneratedProblems(
 ): GeneratedProblem[] {
   const generatedAt = new Date().toISOString();
 
-  return problems.map((problem) => ({
+  return problems.map((problem, problemIndex) => ({
     ...problem,
     test_cases: problem.test_cases.map((testCase, index) => {
       const caseSeed =
         testCase.generation_seed && testCase.generation_seed.trim().length > 0
           ? testCase.generation_seed
-          : `${seed}:problem-${problem.title}:case-${index + 1}`;
+          : deriveCaseSeed(seed, problemIndex, index);
 
       const templateHash = testCase.input_template
         ? hashTemplateSpec(testCase.input_template)
@@ -124,17 +145,152 @@ function isAutoPlaceholder(expectedOutput: string): boolean {
   );
 }
 
+function resolvePositiveInteger(value: number | undefined, fallback: number) {
+  return typeof value === "number" && Number.isInteger(value) && value > 0
+    ? value
+    : fallback;
+}
+
 // Per-test-case Oracle Execution
 
 interface ExecutedTestCaseResult {
   ok: true;
   validatedTestCase: GeneratedTestCase;
   actualOutput: string;
+  executedInput: string;
 }
 
 interface ExecutedTestCaseFailure {
   ok: false;
   failure: OracleValidationFailure;
+}
+
+type ReferenceFailureReason =
+  | "compile"
+  | "runtime"
+  | "timeout"
+  | "exception"
+  | "infrastructure";
+
+type ReferenceRun =
+  | { ok: true; output: string }
+  | {
+      ok: false;
+      reason: ReferenceFailureReason;
+      detail: string;
+      statusCode?: number;
+    };
+
+function errorTypeFor(reason: ReferenceFailureReason): OracleErrorType {
+  switch (reason) {
+    case "compile":
+      return "compile_error";
+    case "infrastructure":
+      return "infrastructure_error";
+    default:
+      return "model_answer_error";
+  }
+}
+
+interface ReferenceLimits {
+  timeoutMs: number;
+  memoryLimitBytes?: number;
+}
+
+async function runReference(
+  input: string,
+  solutionCode: string,
+  caseSeed: string,
+  limits: ReferenceLimits,
+  schedule: ConcurrencyLimiter,
+): Promise<ReferenceRun> {
+  try {
+    const oraclePair = createOraclePair(
+      createTestCase(input, "", caseSeed, caseSeed, {}, 1),
+      createModelAnswer(
+        solutionCode,
+        MODEL_ANSWER_LANGUAGE,
+        caseSeed,
+        "gemini-3-flash",
+      ),
+    );
+
+    const validationResult = await schedule(() =>
+      validateOraclePair(oraclePair, {
+        ...DEFAULT_VALIDATOR_CONFIG,
+        timeout: limits.timeoutMs,
+        memoryLimitBytes: limits.memoryLimitBytes,
+        maxDifferentialOracles: 1,
+        confidenceThreshold: 0.8,
+      }),
+    );
+
+    if (validationResult.modelAnswerStatus === "syntax_error") {
+      return {
+        ok: false,
+        reason: "compile",
+        detail:
+          validationResult.diagnostics?.executionErrors?.[0] ||
+          "Compilation error",
+      };
+    }
+
+    if (validationResult.modelAnswerStatus === "runtime_error") {
+      return {
+        ok: false,
+        reason: "runtime",
+        detail:
+          validationResult.diagnostics?.executionErrors?.[0] ||
+          "Runtime error",
+      };
+    }
+
+    if (validationResult.modelAnswerStatus === "timeout") {
+      return {
+        ok: false,
+        reason: "timeout",
+        detail: `Execution timed out after ${limits.timeoutMs}ms`,
+      };
+    }
+
+    return { ok: true, output: validationResult.actualOutput || "" };
+  } catch (error) {
+    if (isPistonInfrastructureError(error)) {
+      return {
+        ok: false,
+        reason: "infrastructure",
+        detail: error.message,
+        statusCode: error.statusCode,
+      };
+    }
+
+    return {
+      ok: false,
+      reason: "exception",
+      detail:
+        error instanceof Error ? error.message : "Unknown execution failure",
+    };
+  }
+}
+
+function describeReferenceFailure(
+  run: Extract<ReferenceRun, { ok: false }>,
+): string {
+  switch (run.reason) {
+    case "compile":
+      return `compile error - ${run.detail}`;
+    case "runtime":
+      return `runtime error - ${run.detail}`;
+    case "timeout":
+      return "execution timed out";
+    case "exception":
+      return `execution failed - ${run.detail}`;
+    case "infrastructure":
+      return (
+        `Piston API infrastructure failure (HTTP ${run.statusCode}). ` +
+        "The execution sandbox is unavailable — this is not a code error."
+      );
+  }
 }
 
 /**
@@ -146,20 +302,16 @@ async function executeTestCaseAgainstOracle(
   solutionCode: string,
   problemIndex: number,
   testCaseIndex: number,
-  seedMaterial: string,
-  runTimeout: number,
+  caseSeed: string,
+  limits: ReferenceLimits,
   evaluator: TestCaseEvaluatorImpl,
+  schedule: ConcurrencyLimiter,
 ): Promise<ExecutedTestCaseResult | ExecutedTestCaseFailure> {
-  const referenceLanguage = MODEL_ANSWER_LANGUAGE;
-  const fallbackSeed =
-    testCase.generation_seed && testCase.generation_seed.trim().length > 0
-      ? testCase.generation_seed
-      : `${seedMaterial}:problem-${problemIndex + 1}:case-${testCaseIndex + 1}`;
+  const location = `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}`;
 
   // Phase 1: Materialization
   let expandedInput =
     typeof testCase.input_data === "string" ? testCase.input_data : "";
-  let persistedInput = expandedInput;
   let inputHash =
     typeof testCase.input_hash === "string" &&
     testCase.input_hash.trim().length > 0
@@ -168,22 +320,18 @@ async function executeTestCaseAgainstOracle(
 
   if (testCase.input_template) {
     try {
-      const materialized = materializeTestCaseInputTemplate(
+      expandedInput = materializeTestCaseInputTemplate(
         testCase.input_template,
-        {
-          seedMaterial: fallbackSeed,
-        },
-      );
-      expandedInput = materialized.inputData;
+        { seedMaterial: caseSeed },
+      ).inputData;
       inputHash = hashTemplateSpec(testCase.input_template);
-      persistedInput = expandedInput;
     } catch (error) {
       return {
         ok: false,
         failure: {
           errorType: "materialization_error",
           message:
-            `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: ` +
+            `${location}: ` +
             `template materialization failed - ${error instanceof Error ? error.message : "Unknown template error"}`,
           problemIndex,
           testCaseIndex,
@@ -198,9 +346,7 @@ async function executeTestCaseAgainstOracle(
       ok: false,
       failure: {
         errorType: "materialization_error",
-        message:
-          `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: ` +
-          "input_data is empty after template materialization.",
+        message: `${location}: input_data is empty after template materialization.`,
         problemIndex,
         testCaseIndex,
         failedCode: solutionCode,
@@ -209,136 +355,128 @@ async function executeTestCaseAgainstOracle(
   }
 
   // Phase 2: Sandbox Hand-off (Piston execution)
+  const run = await runReference(
+    expandedInput,
+    solutionCode,
+    caseSeed,
+    limits,
+    schedule,
+  );
+
+  // Phase 3: Failure Attribution
+  if (!run.ok) {
+    return {
+      ok: false,
+      failure: {
+        errorType: errorTypeFor(run.reason),
+        message: `${location}: ${describeReferenceFailure(run)}`,
+        problemIndex,
+        testCaseIndex,
+        ...(run.reason === "infrastructure"
+          ? {}
+          : { failedCode: solutionCode, inputData: expandedInput }),
+        stderr: run.detail,
+      },
+    };
+  }
+
   const expectedOutput =
     typeof testCase.expected_output === "string"
       ? testCase.expected_output
       : "";
-  const shouldAutoDeriveExpected = isAutoPlaceholder(expectedOutput);
+  const persistedInput =
+    testCase.input_template && !testCase.is_sample ? "" : expandedInput;
 
-  try {
-    const oraclePair = createOraclePair(
-      createTestCase(
-        expandedInput,
-        shouldAutoDeriveExpected ? "" : expectedOutput,
-        fallbackSeed,
-        fallbackSeed,
-        {},
-        1,
-      ),
-      createModelAnswer(
-        solutionCode,
-        referenceLanguage,
-        fallbackSeed,
-        "gemini-3-flash",
-      ),
-    );
+  return {
+    ok: true,
+    validatedTestCase: {
+      ...testCase,
+      input_data: persistedInput,
+      expected_output: expectedOutput,
+      generation_seed: caseSeed,
+      input_hash: inputHash,
+    },
+    actualOutput: evaluator.normalizeOutput(run.output),
+    executedInput: expandedInput,
+  };
+}
 
-    const validationResult = await validateOraclePair(oraclePair, {
-      ...DEFAULT_VALIDATOR_CONFIG,
-      timeout: runTimeout,
-      maxDifferentialOracles: 1,
-      confidenceThreshold: 0.8,
-    });
-
-    // Phase 3: Failure Attribution
-    if (validationResult.modelAnswerStatus === "syntax_error") {
-      const errMsg =
-        validationResult.diagnostics?.executionErrors?.[0] ||
-        "Compilation error";
-      return {
-        ok: false,
-        failure: {
-          errorType: "compile_error",
-          message: `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: compile error - ${errMsg}`,
-          problemIndex,
-          testCaseIndex,
-          failedCode: solutionCode,
-          stderr: errMsg,
-          inputData: expandedInput,
-        },
-      };
-    }
-
-    if (validationResult.modelAnswerStatus === "runtime_error") {
-      const errMsg =
-        validationResult.diagnostics?.executionErrors?.[0] || "Runtime error";
-      return {
-        ok: false,
-        failure: {
-          errorType: "model_answer_error",
-          message: `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: runtime error - ${errMsg}`,
-          problemIndex,
-          testCaseIndex,
-          failedCode: solutionCode,
-          stderr: errMsg,
-          inputData: expandedInput,
-        },
-      };
-    }
-
-    if (validationResult.modelAnswerStatus === "timeout") {
-      return {
-        ok: false,
-        failure: {
-          errorType: "model_answer_error",
-          message: `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: execution timed out`,
-          problemIndex,
-          testCaseIndex,
-          failedCode: solutionCode,
-          stderr: `Execution timed out after ${runTimeout}ms`,
-          inputData: expandedInput,
-        },
-      };
-    }
-
-    const normalizedActual = evaluator.normalizeOutput(
-      validationResult.actualOutput || "",
-    );
-
-    return {
-      ok: true,
-      validatedTestCase: {
-        ...testCase,
-        input_data: persistedInput,
-        expected_output: expectedOutput, // will be overwritten in Phase 4 where applicable
-        generation_seed: fallbackSeed,
-        input_hash: inputHash,
-      },
-      actualOutput: normalizedActual,
-    };
-  } catch (error) {
-    // ── Infrastructure errors (Piston 503, HTML pages) → DO NOT REPAIR ──
-    if (error instanceof PistonInfrastructureError) {
-      return {
-        ok: false,
-        failure: {
-          errorType: "infrastructure_error",
-          message:
-            `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: ` +
-            `Piston API infrastructure failure (HTTP ${error.statusCode}). ` +
-            `The execution sandbox is unavailable — this is not a code error.`,
-          problemIndex,
-          testCaseIndex,
-          stderr: error.message,
-        },
-      };
-    }
-
-    return {
-      ok: false,
-      failure: {
-        errorType: "model_answer_error",
-        message:
-          `Problem ${problemIndex + 1}, test case ${testCaseIndex + 1}: execution failed - ` +
-          `${error instanceof Error ? error.message : "Unknown execution failure"}`,
-        problemIndex,
-        testCaseIndex,
-        failedCode: solutionCode,
-        stderr: error instanceof Error ? error.message : undefined,
-        inputData: expandedInput,
-      },
-    };
+async function expandHiddenTemplateCase(params: {
+  original: GeneratedTestCase;
+  jobSeed: string;
+  problemIndex: number;
+  caseIndex: number;
+  solutionCode: string;
+  limits: ReferenceLimits;
+  evaluator: TestCaseEvaluatorImpl;
+  schedule: ConcurrencyLimiter;
+  candidateCount: number;
+  extraCount: number;
+  seenInputHashes: Set<string>;
+}): Promise<
+  { ok: true; cases: GeneratedTestCase[] } | { ok: false; failure: OracleValidationFailure }
+> {
+  const { original, extraCount, seenInputHashes } = params;
+  if (!original.input_template || extraCount <= 0) {
+    return { ok: true, cases: [] };
   }
+
+  const candidates = orderBySizeSpread(
+    materializeFanoutCandidates({
+      template: original.input_template,
+      jobSeed: params.jobSeed,
+      problemIndex: params.problemIndex,
+      caseIndex: params.caseIndex,
+      candidateCount: params.candidateCount,
+    }),
+  );
+
+  const cases: GeneratedTestCase[] = [];
+
+  for (const candidate of candidates) {
+    if (cases.length >= extraCount) {
+      break;
+    }
+    if (seenInputHashes.has(candidate.inputHash)) {
+      continue;
+    }
+    seenInputHashes.add(candidate.inputHash);
+
+    const run = await runReference(
+      candidate.input,
+      params.solutionCode,
+      candidate.seed,
+      params.limits,
+      params.schedule,
+    );
+
+    if (!run.ok) {
+      if (run.reason === "infrastructure") {
+        return {
+          ok: false,
+          failure: {
+            errorType: "infrastructure_error",
+            message: `Problem ${params.problemIndex + 1}, test case ${params.caseIndex + 1}: ${describeReferenceFailure(run)}`,
+            problemIndex: params.problemIndex,
+            testCaseIndex: params.caseIndex,
+            stderr: run.detail,
+          },
+        };
+      }
+      continue;
+    }
+
+    cases.push({
+      ...original,
+      input_data: "",
+      expected_output: params.evaluator.normalizeOutput(run.output),
+      is_sample: false,
+      generation_seed: candidate.seed,
+      input_hash: candidate.inputHash,
+    });
+  }
+
+  return { ok: true, cases };
 }
 
 // Main Validation Orchestrator - Two-Pass Execution Model
@@ -346,8 +484,18 @@ async function executeTestCaseAgainstOracle(
 export async function validateProblemsAgainstModel(
   problems: readonly GeneratedProblem[],
   seedMaterial: string,
+  options: ValidationOptions = {},
 ): Promise<ValidationOutcome> {
   const evaluator = new TestCaseEvaluatorImpl();
+  const schedule = createConcurrencyLimiter(
+    resolvePositiveInteger(options.concurrency, DEFAULT_VALIDATION_CONCURRENCY),
+  );
+  const candidateCount = resolvePositiveInteger(
+    options.fanoutCandidates,
+    DEFAULT_FANOUT_CANDIDATES,
+  );
+  const extraCount =
+    resolvePositiveInteger(options.fanoutKeep, DEFAULT_FANOUT_KEEP) - 1;
   const validatedProblems: GeneratedProblem[] = [];
 
   for (
@@ -357,10 +505,30 @@ export async function validateProblemsAgainstModel(
   ) {
     const problem = problems[problemIndex];
     const solutionCode = stripCppComments(problem.solution_code);
-    const runTimeout = Math.min(
-      Math.max(problem.time_limit || 2000, 500),
-      10_000,
-    );
+    const limits: ReferenceLimits = {
+      timeoutMs: Math.min(Math.max(problem.time_limit || 2000, 500), 10_000),
+      memoryLimitBytes: resolveRunMemoryLimitBytes(
+        MODEL_ANSWER_LANGUAGE,
+        problem.memory_limit,
+      ),
+    };
+
+    const caseSeedFor = (testCase: GeneratedTestCase, index: number) =>
+      testCase.generation_seed && testCase.generation_seed.trim().length > 0
+        ? testCase.generation_seed
+        : deriveCaseSeed(seedMaterial, problemIndex, index);
+
+    const execute = (testCase: GeneratedTestCase, index: number) =>
+      executeTestCaseAgainstOracle(
+        testCase,
+        solutionCode,
+        problemIndex,
+        index,
+        caseSeedFor(testCase, index),
+        limits,
+        evaluator,
+        schedule,
+      );
 
     // Partition test cases by is_sample
     const sampleIndices: number[] = [];
@@ -373,37 +541,40 @@ export async function validateProblemsAgainstModel(
       }
     }
 
-    // Accumulate validated test cases (ordered: samples first, then hidden)
     const validatedTestCases: GeneratedTestCase[] = new Array(
       problem.test_cases.length,
     );
+    const seenInputHashes = new Set<string>();
 
     // PASS 1: Sample test cases - verify AI-provided expected outputs
 
-    for (const tcIndex of sampleIndices) {
+    const sampleCases = sampleIndices.map((tcIndex) => {
       const testCase = problem.test_cases[tcIndex];
 
       // Map __AUTO_EXPECTED_OUTPUT__ to examples[i].output for sample cases
-      if (testCase.is_sample && isAutoPlaceholder(testCase.expected_output)) {
+      if (isAutoPlaceholder(testCase.expected_output)) {
         const materializedInput =
           typeof testCase.input_data === "string" ? testCase.input_data : "";
         const matchingExample = problem.examples.find(
           (ex) => ex.input === materializedInput,
         );
         if (matchingExample) {
-          testCase.expected_output = matchingExample.output;
+          return { ...testCase, expected_output: matchingExample.output };
         }
       }
 
-      const result = await executeTestCaseAgainstOracle(
-        testCase,
-        solutionCode,
-        problemIndex,
-        tcIndex,
-        seedMaterial,
-        runTimeout,
-        evaluator,
-      );
+      return testCase;
+    });
+
+    const sampleResults = await Promise.all(
+      sampleCases.map((testCase, position) =>
+        execute(testCase, sampleIndices[position]),
+      ),
+    );
+
+    for (let position = 0; position < sampleResults.length; position += 1) {
+      const result = sampleResults[position];
+      const tcIndex = sampleIndices[position];
 
       if (!result.ok) {
         return {
@@ -413,17 +584,15 @@ export async function validateProblemsAgainstModel(
         };
       }
 
-      // Normalize both expected and actual outputs for comparison
-      const providedExpected =
-        typeof testCase.expected_output === "string"
-          ? testCase.expected_output
-          : "";
       // Normalize BOTH expected and actual outputs to handle trailing newlines, whitespace differences
+      const providedExpected =
+        typeof sampleCases[position].expected_output === "string"
+          ? sampleCases[position].expected_output
+          : "";
       const normalizedExpected = evaluator.normalizeOutput(providedExpected);
       const normalizedActual = evaluator.normalizeOutput(result.actualOutput);
-      const isMatch = normalizedExpected === normalizedActual;
 
-      if (!isMatch) {
+      if (normalizedExpected !== normalizedActual) {
         return {
           ok: false,
           message:
@@ -438,12 +607,12 @@ export async function validateProblemsAgainstModel(
             failedCode: solutionCode,
             expectedOutput: normalizedExpected,
             actualOutput: normalizedActual,
-            inputData: result.validatedTestCase.input_data,
+            inputData: result.executedInput,
           },
         };
       }
 
-      // Sample case verified
+      seenInputHashes.add(hashInput(result.executedInput));
       validatedTestCases[tcIndex] = {
         ...result.validatedTestCase,
         expected_output: providedExpected,
@@ -451,18 +620,14 @@ export async function validateProblemsAgainstModel(
     }
 
     // PASS 2: Hidden test cases - derive expected outputs from Oracle execution
-    for (const tcIndex of hiddenIndices) {
-      const testCase = problem.test_cases[tcIndex];
+    const hiddenResults = await Promise.all(
+      hiddenIndices.map((tcIndex) =>
+        execute(problem.test_cases[tcIndex], tcIndex),
+      ),
+    );
 
-      const result = await executeTestCaseAgainstOracle(
-        testCase,
-        solutionCode,
-        problemIndex,
-        tcIndex,
-        seedMaterial,
-        runTimeout,
-        evaluator,
-      );
+    for (let position = 0; position < hiddenResults.length; position += 1) {
+      const result = hiddenResults[position];
 
       if (!result.ok) {
         return {
@@ -472,16 +637,50 @@ export async function validateProblemsAgainstModel(
         };
       }
 
-      // Derive expected output from Oracle execution
-      validatedTestCases[tcIndex] = {
+      seenInputHashes.add(hashInput(result.executedInput));
+      validatedTestCases[hiddenIndices[position]] = {
         ...result.validatedTestCase,
         expected_output: result.actualOutput,
       };
     }
 
+    const expansions = await Promise.all(
+      hiddenIndices.map((tcIndex) =>
+        expandHiddenTemplateCase({
+          original: validatedTestCases[tcIndex],
+          jobSeed: seedMaterial,
+          problemIndex,
+          caseIndex: tcIndex,
+          solutionCode,
+          limits,
+          evaluator,
+          schedule,
+          candidateCount,
+          extraCount,
+          seenInputHashes,
+        }),
+      ),
+    );
+
+    const extrasByIndex = new Map<number, GeneratedTestCase[]>();
+    for (let position = 0; position < expansions.length; position += 1) {
+      const expansion = expansions[position];
+      if (!expansion.ok) {
+        return {
+          ok: false,
+          message: expansion.failure.message,
+          failure: expansion.failure,
+        };
+      }
+      extrasByIndex.set(hiddenIndices[position], expansion.cases);
+    }
+
     validatedProblems.push({
       ...problem,
-      test_cases: validatedTestCases,
+      test_cases: validatedTestCases.flatMap((testCase, index) => [
+        testCase,
+        ...(extrasByIndex.get(index) ?? []),
+      ]),
     });
   }
 

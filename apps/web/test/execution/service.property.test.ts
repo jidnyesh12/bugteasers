@@ -61,8 +61,8 @@ describe("Run Mode Never Creates Database Records", () => {
     } as unknown as TestCaseEvaluator;
   });
 
-  it("should never create database records regardless of inputs", () => {
-    fc.assert(
+  it("should never create database records regardless of inputs", async () => {
+    await fc.assert(
       fc.asyncProperty(
         fc.string({ minLength: 1, maxLength: 500 }),
         fc.constantFrom<SupportedLanguage>("python", "java", "cpp", "c"),
@@ -172,8 +172,8 @@ describe("Run Mode Fetches Only Sample Test Cases", () => {
     } as unknown as TestCaseEvaluator;
   });
 
-  it("should only fetch test cases where is_sample is true", () => {
-    fc.assert(
+  it("should only fetch test cases where is_sample is true", async () => {
+    await fc.assert(
       fc.asyncProperty(
         fc.string({ minLength: 1, maxLength: 500 }),
         fc.constantFrom<SupportedLanguage>("python", "java", "cpp", "c"),
@@ -302,8 +302,8 @@ describe("Submit Mode Fetches All Test Cases", () => {
     } as unknown as TestCaseEvaluator;
   });
 
-  it("should fetch all test cases regardless of is_sample value", () => {
-    fc.assert(
+  it("should fetch all test cases regardless of is_sample value", async () => {
+    await fc.assert(
       fc.asyncProperty(
         fc.string({ minLength: 1, maxLength: 500 }),
         fc.constantFrom<SupportedLanguage>("python", "java", "cpp", "c"),
@@ -419,8 +419,8 @@ describe("Submit Mode Creates Submission Records", () => {
     } as unknown as TestCaseEvaluator;
   });
 
-  it("should always create submission record when execution succeeds", () => {
-    fc.assert(
+  it("should always create submission record when execution succeeds", async () => {
+    await fc.assert(
       fc.asyncProperty(
         fc.string({ minLength: 1, maxLength: 500 }),
         fc.constantFrom<SupportedLanguage>("python", "java", "cpp", "c"),
@@ -551,8 +551,8 @@ describe("Compilation Errors Propagate to All Test Cases", () => {
     } as unknown as TestCaseEvaluator;
   });
 
-  it("should mark all test cases as failed when compilation error occurs", () => {
-    fc.assert(
+  it("should mark all test cases as failed when compilation error occurs", async () => {
+    await fc.assert(
       fc.asyncProperty(
         fc.string({ minLength: 1, maxLength: 500 }),
         fc.constantFrom<SupportedLanguage>("python", "java", "cpp", "c"),
@@ -682,8 +682,8 @@ describe("Runtime Errors Do Not Stop Execution", () => {
     } as unknown as TestCaseEvaluator;
   });
 
-  it("should continue executing remaining test cases after runtime error", () => {
-    fc.assert(
+  it("should continue executing remaining test cases after runtime error", async () => {
+    await fc.assert(
       fc.asyncProperty(
         fc.string({ minLength: 1, maxLength: 500 }),
         fc.constantFrom<SupportedLanguage>("python", "java", "cpp", "c"),

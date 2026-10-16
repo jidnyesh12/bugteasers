@@ -66,6 +66,9 @@ describe("submission mapper utilities", () => {
       totalTestCount: 2,
       submittedAt: "2026-03-29T12:00:00.000Z",
       code: "print(1)",
+      maxPlagiarismScore: null,
+      topMatchSubmissionId: null,
+      isAiMatch: null,
     });
   });
 

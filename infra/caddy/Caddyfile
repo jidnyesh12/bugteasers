@@ -1,0 +1,18 @@
+{$PISTON_DOMAIN} {
+	request_body {
+		max_size 16MB
+	}
+
+	@authorized {
+		header Authorization "Bearer {$PISTON_API_KEY}"
+		path /api/v2/execute /api/v2/runtimes
+	}
+
+	handle @authorized {
+		reverse_proxy piston:2000
+	}
+
+	handle {
+		respond "Unauthorized" 401
+	}
+}

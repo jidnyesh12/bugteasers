@@ -1,0 +1,111 @@
+name: bugteasers
+
+x-rabbitmq-url: &rabbitmq-url ${COMPOSE_RABBITMQ_URL:-amqp://${RABBITMQ_USER:-bugteasers}:${RABBITMQ_PASSWORD:-bugteasers}@rabbitmq:5672}
+
+services:
+  piston:
+    build: ./infra/piston
+    privileged: true
+    ports:
+      - "127.0.0.1:2000:2000"
+    volumes:
+      - piston-packages:/piston/packages
+    restart: unless-stopped
+
+  piston-runtimes:
+    image: curlimages/curl:8.22.0
+    depends_on:
+      piston:
+        condition: service_healthy
+    environment:
+      PISTON_URL: http://piston:2000
+    volumes:
+      - ./infra/piston/install-runtimes.sh:/install-runtimes.sh:ro
+    entrypoint: ["sh", "/install-runtimes.sh"]
+    restart: "no"
+
+  rabbitmq:
+    image: rabbitmq:4.3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-bugteasers}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-bugteasers}
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.11-alpine
+    profiles: ["server"]
+    depends_on:
+      piston:
+        condition: service_healthy
+    environment:
+      PISTON_DOMAIN: ${PISTON_DOMAIN:-}
+      PISTON_API_KEY: ${PISTON_API_KEY:-}
+    command:
+      - sh
+      - -c
+      - >-
+        test -n "$$PISTON_DOMAIN" || { echo "PISTON_DOMAIN is not set" >&2; exit 1; };
+        test $${#PISTON_API_KEY} -ge 32 || { echo "PISTON_API_KEY must be at least 32 characters" >&2; exit 1; };
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    profiles: ["worker"]
+    env_file:
+      - path: apps/worker/.env
+        required: false
+    environment:
+      RABBITMQ_URL: *rabbitmq-url
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+    profiles: ["web"]
+    env_file:
+      - path: apps/web/.env
+        required: false
+    environment:
+      PISTON_API_URL: http://piston:2000
+      RABBITMQ_URL: *rabbitmq-url
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      piston:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  piston-packages:
+  rabbitmq-data:
+  caddy-data:
+  caddy-config:

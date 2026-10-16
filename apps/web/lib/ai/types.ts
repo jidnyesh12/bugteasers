@@ -23,6 +23,7 @@ export interface GeneratedTestCase {
   generation_seed?: string;
   is_generated?: boolean;
   input_hash?: string;
+  expected_output_truncated?: boolean;
 }
 
 export interface GeneratedProblem {
@@ -41,6 +42,7 @@ export interface GeneratedProblem {
   memory_limit: number; // MB
   solution_code: string; // Complete reference solution in one supported language
   test_cases: GeneratedTestCase[];
+  source_job_id?: string;
 }
 
 export interface ProblemGenerationResponse {

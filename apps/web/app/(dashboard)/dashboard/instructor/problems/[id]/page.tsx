@@ -18,6 +18,7 @@ import { queryKeys } from "@/lib/state/query";
 import { ReadOnlyCodeViewer } from "@/components/read-only-code-viewer";
 
 import { MarkdownRenderer } from "@/components/markdown-renderer";
+import { OUTPUT_PREVIEW_LIMIT } from "@/lib/execution/output-preview";
 
 interface TestCase {
   id: string;
@@ -25,6 +26,9 @@ interface TestCase {
   expected_output: string;
   is_sample: boolean;
   points: number;
+  generated_from_template?: boolean;
+  input_data_truncated?: boolean;
+  expected_output_truncated?: boolean;
 }
 
 interface ProblemDetail {
@@ -323,9 +327,21 @@ export default function ProblemDetailPage() {
                     <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">
                       Input
                     </p>
-                    <pre className="text-xs font-mono text-[var(--text-primary)] bg-white p-2.5 rounded-lg border border-[var(--border-primary)] whitespace-pre overflow-x-auto">
-                      {tc.input_data}
-                    </pre>
+                    {tc.generated_from_template && !tc.input_data ? (
+                      <p className="text-xs text-[var(--text-secondary)] bg-[var(--bg-secondary)] p-2.5 rounded-lg border border-dashed border-[var(--border-primary)]">
+                        Generated from its template each time it runs.
+                      </p>
+                    ) : (
+                      <pre className="text-xs font-mono text-[var(--text-primary)] bg-white p-2.5 rounded-lg border border-[var(--border-primary)] whitespace-pre overflow-x-auto">
+                        {tc.input_data}
+                      </pre>
+                    )}
+                    {tc.input_data_truncated && (
+                      <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+                        Showing the first {OUTPUT_PREVIEW_LIMIT.toLocaleString()}{" "}
+                        characters.
+                      </p>
+                    )}
                   </div>
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">
@@ -334,6 +350,12 @@ export default function ProblemDetailPage() {
                     <pre className="text-xs font-mono text-[var(--text-primary)] bg-white p-2.5 rounded-lg border border-[var(--border-primary)] whitespace-pre overflow-x-auto">
                       {tc.expected_output}
                     </pre>
+                    {tc.expected_output_truncated && (
+                      <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+                        Showing the first {OUTPUT_PREVIEW_LIMIT.toLocaleString()}{" "}
+                        characters.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

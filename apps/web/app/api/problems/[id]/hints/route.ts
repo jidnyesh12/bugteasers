@@ -15,6 +15,8 @@ import type {
 } from "@/lib/ai/hint-types";
 import { HINT_CONFIG, calculateHintsRemaining } from "@/lib/ai/hint-config";
 
+export const maxDuration = 300;
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -100,7 +102,7 @@ export async function POST(
     }
 
     // 5. Get current usage to determine hint level
-    const usage = await getOrCreateHintUsage(
+    await getOrCreateHintUsage(
       studentId,
       problemId,
       assignmentId,

@@ -10,6 +10,12 @@ import {
   SaveProblemValidationError,
   type SaveGeneratedTestCase,
 } from "@/lib/problems/save-testcases";
+import { getProblemGenerationJobForUser } from "@/lib/ai/generation-jobs";
+import {
+  hasTruncatedOutputs,
+  PreviewRestoreError,
+  restoreTruncatedOutputs,
+} from "@/lib/ai/generated-problem-preview";
 
 export async function POST(request: Request) {
   try {
@@ -37,7 +43,30 @@ export async function POST(request: Request) {
 
     const savedProblems = [];
 
-    for (const problem of problems) {
+    for (const submittedProblem of problems) {
+      let problem = submittedProblem;
+      if (hasTruncatedOutputs(problem)) {
+        const sourceJob =
+          typeof problem.source_job_id === "string"
+            ? await getProblemGenerationJobForUser(
+                problem.source_job_id,
+                session.user.id,
+              )
+            : null;
+
+        try {
+          problem = restoreTruncatedOutputs(
+            problem,
+            sourceJob?.problems ?? null,
+          );
+        } catch (error) {
+          if (error instanceof PreviewRestoreError) {
+            return NextResponse.json({ error: error.message }, { status: 400 });
+          }
+          throw error;
+        }
+      }
+
       let normalizedTestCases: SaveGeneratedTestCase[];
       try {
         normalizedTestCases = normalizeProblemTestCasesForSave({

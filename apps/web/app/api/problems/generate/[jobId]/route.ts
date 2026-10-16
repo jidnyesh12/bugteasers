@@ -6,6 +6,9 @@ import {
   progressProblemGenerationJob,
   cancelProblemGenerationJob,
 } from "@/lib/ai/generation-jobs";
+import { toPreviewProblems } from "@/lib/ai/generated-problem-preview";
+
+export const maxDuration = 300;
 
 export async function GET(
   _request: NextRequest,
@@ -38,7 +41,9 @@ export async function GET(
         jobId: finalJob.jobId,
         status: finalJob.status,
         progressMessage: finalJob.progressMessage,
-        problems: finalJob.problems,
+        problems: finalJob.problems
+          ? toPreviewProblems(finalJob.problems, finalJob.jobId)
+          : finalJob.problems,
         error: finalJob.errorMessage,
         retryCount: finalJob.retryCount,
         maxRetries: finalJob.maxRetries,

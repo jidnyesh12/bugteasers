@@ -1,5 +1,13 @@
 // Shared execution-domain error types.
 
+import type { PistonInfrastructureError } from "./client";
+
+export function isPistonInfrastructureError(
+  error: unknown,
+): error is PistonInfrastructureError {
+  return error instanceof Error && error.name === "PistonInfrastructureError";
+}
+
 export class ExecutionValidationError extends Error {
   readonly statusCode = 400;
 

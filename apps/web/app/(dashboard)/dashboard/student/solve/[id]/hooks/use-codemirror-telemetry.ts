@@ -208,6 +208,10 @@ export function useCodeMirrorTelemetry(options: UseCodeMirrorTelemetryOptions) {
 
   // Sync to database (with race condition protection)
   const syncToDatabase = useCallback(async (reason: string = 'interval') => {
+    if (!assignmentId) {
+      return;
+    }
+
     if (isLockedDownRef.current) {
       console.log('[telemetry] 🔒 Skipping sync - lockdown active');
       return;
@@ -330,7 +334,7 @@ export function useCodeMirrorTelemetry(options: UseCodeMirrorTelemetryOptions) {
       currentSessionKeyRef.current = sessionKey;
       
       // Fetch existing data for new session
-      if (!isAssignmentClosed && studentId && problemId) {
+      if (!isAssignmentClosed && studentId && problemId && assignmentId) {
         const fetchExisting = async () => {
           try {
             const { data, error } = await supabase

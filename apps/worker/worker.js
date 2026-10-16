@@ -136,7 +136,7 @@ async function handleStartAnalysis(assignmentId) {
         try {
           await sql`
             UPDATE problem_submissions
-            SET fingerprint = ${JSON.stringify(submission.fingerprint.map(String))}::jsonb
+            SET fingerprint = ${sql.json(submission.fingerprint.map(String))}
             WHERE id = ${submission.id}
           `;
         } catch (error) {
@@ -254,13 +254,13 @@ async function handleStartAnalysis(assignmentId) {
                 ${result.studentA.submissionId},
                 ${result.studentB.submissionId},
                 ${result.similarity},
-                ${JSON.stringify({
+                ${sql.json({
                   problemId: result.problemId,
                   problemTitle: result.problemTitle,
                   studentA: result.studentA,
                   studentB: result.studentB,
                   comparedAt: result.comparedAt
-                })}::jsonb
+                })}
               )
             `;
           } catch (error) {

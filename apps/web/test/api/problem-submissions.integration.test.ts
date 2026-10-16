@@ -77,7 +77,10 @@ describe("GET /api/problems/[id]/submissions", () => {
       user: { id: "student-1", email: "test@example.com", role: "student" },
       expires: "2099-01-01",
     });
-    vi.mocked(assertExecutionAccess).mockResolvedValue(undefined);
+    vi.mocked(assertExecutionAccess).mockResolvedValue({
+      timeLimitMs: null,
+      memoryLimitMb: null,
+    });
 
     const query = createSubmissionQueryMock({
       data: [
@@ -136,6 +139,9 @@ describe("GET /api/problems/[id]/submissions", () => {
       totalTestCount: 3,
       submittedAt: "2026-03-29T12:00:00.000Z",
       code: "print(1)",
+      maxPlagiarismScore: null,
+      topMatchSubmissionId: null,
+      isAiMatch: null,
     });
     expect(data.submissions[1]?.status).toBe("error");
     expect(data.submissions[1]?.passedCount).toBe(0);
@@ -166,7 +172,10 @@ describe("GET /api/problems/[id]/submissions", () => {
       user: { id: "student-1", email: "test@example.com", role: "student" },
       expires: "2099-01-01",
     });
-    vi.mocked(assertExecutionAccess).mockResolvedValue(undefined);
+    vi.mocked(assertExecutionAccess).mockResolvedValue({
+      timeLimitMs: null,
+      memoryLimitMb: null,
+    });
 
     const query = createSubmissionQueryMock({ data: [], error: null });
     vi.mocked(supabase.from).mockReturnValue(
@@ -228,7 +237,10 @@ describe("GET /api/problems/[id]/submissions", () => {
       user: { id: "student-1", email: "test@example.com", role: "student" },
       expires: "2099-01-01",
     });
-    vi.mocked(assertExecutionAccess).mockResolvedValue(undefined);
+    vi.mocked(assertExecutionAccess).mockResolvedValue({
+      timeLimitMs: null,
+      memoryLimitMb: null,
+    });
 
     const query = createSubmissionQueryMock({
       data: null,

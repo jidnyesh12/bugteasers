@@ -1,6 +1,8 @@
 import { PistonClientImpl } from "../../execution/client";
+import { isPistonInfrastructureError } from "../../execution/errors";
 import type { ExecutionResult, SupportedLanguage, ModelAnswer } from "./types";
 import { TemplateDslError } from "../template-dsl/errors";
+import { DEFAULT_MAX_OUTPUT_BYTES } from "../template-dsl/types";
 
 /**
  * Code executor configuration
@@ -11,11 +13,14 @@ export interface ExecutorConfig {
   sandboxed: boolean;
   captureStderr: boolean;
   seedRNG: boolean;
+  memoryLimitBytes?: number;
 }
+
+const DEFAULT_RUN_MEMORY_LIMIT_BYTES = 256 * 1024 * 1024;
 
 export const DEFAULT_EXECUTOR_CONFIG: ExecutorConfig = {
   timeout: 5000,
-  maxOutputLength: 1_000_000,
+  maxOutputLength: DEFAULT_MAX_OUTPUT_BYTES,
   sandboxed: true,
   captureStderr: true,
   seedRNG: true,
@@ -131,7 +136,8 @@ export async function executeCode(
       // Run timeout is tight to catch infinite loops quickly.
       compile_timeout: 10_000,
       run_timeout: Math.min(config.timeout, 5_000),
-      run_memory_limit: 256 * 1024 * 1024,
+      run_memory_limit:
+        config.memoryLimitBytes ?? DEFAULT_RUN_MEMORY_LIMIT_BYTES,
     });
 
     const duration = Date.now() - startTime;
@@ -164,15 +170,34 @@ export async function executeCode(
       };
     }
 
+    if (response.run.status === "TO") {
+      return {
+        output: "",
+        exitCode: 1,
+        stderr: response.run.message || "Time limit exceeded",
+        duration,
+        status: "timeout",
+      };
+    }
+
     const runCode =
       typeof response.run.code === "number" ? response.run.code : 1;
     if (runCode !== 0) {
       status = "error";
     }
 
-    let output = response.run.stdout || response.run.output || "";
-    if (output.length > config.maxOutputLength) {
-      output = output.substring(0, config.maxOutputLength);
+    const output = response.run.stdout || response.run.output || "";
+    if (
+      response.run.status === "OL" ||
+      output.length > config.maxOutputLength
+    ) {
+      return {
+        output: "",
+        exitCode: 1,
+        stderr: `Output limit exceeded (more than ${config.maxOutputLength} characters)`,
+        duration,
+        status: "error",
+      };
     }
 
     return {
@@ -185,6 +210,10 @@ export async function executeCode(
       status,
     };
   } catch (error) {
+    if (isPistonInfrastructureError(error)) {
+      throw error;
+    }
+
     const duration = Date.now() - startTime;
     let status: "success" | "timeout" | "error" = "error";
     const stderr = error instanceof Error ? error.message : String(error);

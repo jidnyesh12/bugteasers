@@ -24,6 +24,8 @@ export interface ExecutionResult {
   code: number;
   signal: string | null;
   output: string;
+  status?: string | null;
+  message?: string | null;
 }
 
 export interface ExecutionResponse {
@@ -48,6 +50,7 @@ export interface PistonClient {
 
 export interface PistonClientConfig {
   apiUrl: string;
+  apiKey?: string;
   timeout: number;
   maxRetries: number;
 }
@@ -98,6 +101,7 @@ export interface TestResult {
   pointsEarned: number;
   pointsAvailable: number;
   error?: string;
+  outputsTruncated?: boolean;
 }
 
 export interface ScoreResult {
@@ -122,6 +126,8 @@ export interface RunRequest {
   code: string;
   language: SupportedLanguage;
   problemId: string;
+  timeLimitMs?: number | null;
+  memoryLimitMb?: number | null;
 }
 
 export interface SubmitRequest {
@@ -129,6 +135,8 @@ export interface SubmitRequest {
   language: SupportedLanguage;
   problemId: string;
   assignmentId?: string;
+  timeLimitMs?: number | null;
+  memoryLimitMb?: number | null;
 }
 
 export interface RunResponse {

@@ -8,6 +8,7 @@ import {
   ProblemGenerationConcurrencyLimitError,
 } from "@/lib/ai/generation-jobs";
 import { ProblemGenerationRequest } from "@/lib/ai/types";
+import { toPreviewProblems } from "@/lib/ai/generated-problem-preview";
 import { GEMINI_API_KEY } from "@/lib/env";
 import {
   dedupeSupportedLanguages,
@@ -97,7 +98,9 @@ export async function POST(request: NextRequest) {
         jobId: job.jobId,
         status: job.status,
         progressMessage: job.progressMessage,
-        problems: job.problems,
+        problems: job.problems
+          ? toPreviewProblems(job.problems, job.jobId)
+          : job.problems,
         error: job.errorMessage,
       },
       { status: 202 },

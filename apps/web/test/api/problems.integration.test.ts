@@ -241,6 +241,8 @@ describe("POST /api/problems/[id]/run", () => {
       code: 'print("hello")',
       language: "python",
       problemId: "test-id",
+      timeLimitMs: null,
+      memoryLimitMb: null,
     });
   });
 
@@ -309,6 +311,8 @@ describe("POST /api/problems/[id]/run", () => {
       code: 'print("practice")',
       language: "python",
       problemId: "test-id",
+      timeLimitMs: null,
+      memoryLimitMb: null,
     });
     expect(vi.mocked(supabase.from)).not.toHaveBeenCalledWith("assignments");
   });
@@ -587,6 +591,8 @@ describe("POST /api/problems/[id]/submit", () => {
         code: 'print("hello")',
         language: "python",
         problemId: "test-id",
+        timeLimitMs: null,
+        memoryLimitMb: null,
       },
       "user-1",
     );
@@ -724,6 +730,8 @@ describe("POST /api/problems/[id]/submit", () => {
         language: "python",
         problemId: "test-id",
         assignmentId: "assignment-456",
+        timeLimitMs: null,
+        memoryLimitMb: null,
       },
       "user-1",
     );

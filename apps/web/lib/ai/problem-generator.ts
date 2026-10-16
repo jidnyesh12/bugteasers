@@ -1,6 +1,7 @@
 // AI Problem Generator using Google Gemini
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getGeminiModel } from "./gemini";
+import { GEMINI_MODEL } from "@/lib/env";
 import {
   ProblemGenerationRequest,
   ProblemGenerationResponse,
@@ -13,7 +14,6 @@ import {
   buildRetryContextSection,
   buildSolutionRepairPrompt,
 } from "./prompt-templates";
-import { GEMINI_API_KEY } from "@/lib/env";
 import { SUPPORTED_EXECUTION_LANGUAGES } from "@/lib/execution/languages";
 import {
   hasUnresolvedPlaceholder,
@@ -21,16 +21,13 @@ import {
 } from "@/lib/ai/template-dsl";
 
 // Initialize Gemini with API key
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 export async function generateProblems(
   request: ProblemGenerationRequest,
 ): Promise<ProblemGenerationResponse> {
   try {
     // Use Gemini 3 Flash
-    const model = genAI.getGenerativeModel({
-      model: "gemini-3-flash-preview",
-    });
+    const model = getGeminiModel();
 
     // Build the prompt
     const languages =
@@ -101,7 +98,7 @@ export async function generateProblems(
       problems: parsedResponse.problems,
       metadata: {
         generated_at: new Date().toISOString(),
-        model: "gemini-2.5-flash",
+        model: GEMINI_MODEL,
       },
     };
   } catch (error) {
@@ -116,9 +113,7 @@ export async function generateProblemsWithRetryContext(
   retryHistory: RetryHistoryEntry[],
 ): Promise<ProblemGenerationResponse> {
   try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-3-flash-preview",
-    });
+    const model = getGeminiModel();
 
     const languages =
       request.languages && request.languages.length > 0
@@ -185,7 +180,7 @@ export async function generateProblemsWithRetryContext(
       problems: parsedResponse.problems,
       metadata: {
         generated_at: new Date().toISOString(),
-        model: "gemini-2.5-flash",
+        model: GEMINI_MODEL,
       },
     };
   } catch (error) {
@@ -219,9 +214,7 @@ export async function repairProblemSolutionCode(
     );
   }
 
-  const model = genAI.getGenerativeModel({
-    model: "gemini-3-flash-preview",
-  });
+  const model = getGeminiModel();
 
   const repairPrompt = buildSolutionRepairPrompt(
     {
@@ -251,7 +244,7 @@ export async function repairProblemSolutionCode(
     problems: repairedProblems,
     metadata: {
       generated_at: new Date().toISOString(),
-      model: "gemini-2.5-flash",
+      model: GEMINI_MODEL,
     },
   };
 }
@@ -432,7 +425,7 @@ export async function regenerateProblemSection(
   problem: GeneratedProblem,
   section: "hints" | "test_cases" | "description",
 ): Promise<Partial<GeneratedProblem>> {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = getGeminiModel();
 
   const prompts = {
     hints: `Given this coding problem, generate 3-4 progressive hints that guide students without giving away the solution.

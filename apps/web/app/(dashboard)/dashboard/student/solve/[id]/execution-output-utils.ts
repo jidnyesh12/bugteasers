@@ -19,6 +19,7 @@ export interface OutputCaseRow {
   passed?: boolean;
   error?: string;
   pointsText?: string;
+  outputsTruncated?: boolean;
 }
 
 export interface OutputMeta {
@@ -75,6 +76,7 @@ export function buildOutputCaseRows(
       pointsText: result
         ? `${result.pointsEarned}/${result.pointsAvailable}`
         : undefined,
+      outputsTruncated: result?.outputsTruncated ?? false,
     };
   });
 }

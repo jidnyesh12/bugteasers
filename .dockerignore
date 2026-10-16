@@ -1,0 +1,11 @@
+.git
+.claude
+.vscode
+**/node_modules
+**/.next
+**/.env
+**/.env.*
+!**/.env.example
+*.tsbuildinfo
+next-env.d.ts
+coverage

@@ -18,6 +18,8 @@ import {
   validateSubmitPayload,
 } from "@/lib/execution/request-validation";
 
+export const maxDuration = 300;
+
 const logger = createExecutionLogger();
 
 export async function POST(
@@ -52,7 +54,7 @@ export async function POST(
 
     const payload = validateSubmitPayload(await parseJsonBody(request));
 
-    await assertExecutionAccess({
+    const limits = await assertExecutionAccess({
       supabase,
       problemId,
       userId: session.user.id,
@@ -82,6 +84,8 @@ export async function POST(
         language: payload.language,
         problemId,
         assignmentId: payload.assignmentId,
+        timeLimitMs: limits?.timeLimitMs,
+        memoryLimitMb: limits?.memoryLimitMb,
       },
       session.user.id,
     );

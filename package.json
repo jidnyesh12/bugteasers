@@ -2,13 +2,25 @@
   "name": "bugteasers-monorepo",
   "private": true,
   "scripts": {
-    "dev": "pnpm -r --parallel run dev",
-    "build": "pnpm -r run build"
+    "dev": "pnpm -r --parallel --no-bail run dev",
+    "dev:web": "pnpm --filter @bugteasers/web dev",
+    "dev:worker": "pnpm --filter @bugteasers/worker dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm --filter @bugteasers/web lint",
+    "type-check": "pnpm --filter @bugteasers/web type-check",
+    "test": "pnpm --filter @bugteasers/web test:run && pnpm --filter @bugteasers/ast-core test",
+    "fake-gemini": "pnpm --filter @bugteasers/web fake-gemini"
   },
-  "packageManager": "pnpm@10.15.1",
+  "packageManager": "pnpm@10.34.6",
+  "engines": {
+    "node": "24.x"
+  },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "tree-sitter"
+      "msw",
+      "sharp",
+      "unrs-resolver"
     ]
-  }
+  },
+  "license": "MIT"
 }

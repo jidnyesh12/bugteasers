@@ -5,8 +5,12 @@ import {
   SUPPORTED_EXECUTION_LANGUAGES,
 } from "@/lib/execution/languages";
 import type { SupportedLanguage } from "@/lib/execution/types";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GEMINI_API_KEY } from "@/lib/env";
+import { getGeminiModel } from "./gemini";
+import {
+  PISTON_MAX_CONCURRENCY,
+  TESTCASE_FANOUT_CANDIDATES,
+  TESTCASE_FANOUT_KEEP,
+} from "@/lib/env";
 import {
   generateProblems,
   generateProblemsWithRetryContext,
@@ -22,7 +26,10 @@ import {
   annotateGeneratedProblems,
   validateProblemsAgainstModel,
 } from "./generation-problem-processing";
-import type { OracleValidationFailure } from "./generation-problem-processing";
+import type {
+  OracleValidationFailure,
+  ValidationOptions,
+} from "./generation-problem-processing";
 import { SYSTEM_PROMPT, buildOracleRepairPrompt } from "./prompt-templates";
 
 const JOB_SELECT_FIELDS = [
@@ -62,6 +69,11 @@ const DEFAULT_MAX_RETRIES = 3;
 const MAX_ORACLE_REPAIR_ATTEMPTS = 3;
 
 const MAX_ACTIVE_GENERATION_JOBS_PER_USER = 2;
+const VALIDATION_OPTIONS: ValidationOptions = {
+  fanoutCandidates: TESTCASE_FANOUT_CANDIDATES,
+  fanoutKeep: TESTCASE_FANOUT_KEEP,
+  concurrency: PISTON_MAX_CONCURRENCY,
+};
 const STALE_JOB_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 // Keep lock expiry far above normal generation time while still allowing timely crash recovery.
 const PROCESSING_LOCK_TIMEOUT_MS = 20 * 60 * 1000;
@@ -789,8 +801,7 @@ async function handleOracleRepairLoop(
   let currentProblems = [...problems];
   let currentFailure = failure;
 
-  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+  const model = getGeminiModel();
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     // Locate the failing problem
@@ -854,6 +865,7 @@ async function handleOracleRepairLoop(
       const revalidation = await validateProblemsAgainstModel(
         currentProblems,
         requestSeed,
+        VALIDATION_OPTIONS,
       );
 
       if (revalidation.ok && revalidation.problems) {
@@ -891,6 +903,7 @@ async function runValidationStage(
     const validationResult = await validateProblemsAgainstModel(
       problems,
       requestSeed,
+      VALIDATION_OPTIONS,
     );
 
     // ── Happy path: validation passed ──
