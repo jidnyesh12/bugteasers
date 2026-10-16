@@ -1,6 +1,7 @@
 // AI Problem Generator using Google Gemini
 
 import { getGeminiModel } from "./gemini";
+import { GEMINI_MODEL } from "@/lib/env";
 import {
   ProblemGenerationRequest,
   ProblemGenerationResponse,
@@ -97,7 +98,7 @@ export async function generateProblems(
       problems: parsedResponse.problems,
       metadata: {
         generated_at: new Date().toISOString(),
-        model: "gemini-2.5-flash",
+        model: GEMINI_MODEL,
       },
     };
   } catch (error) {
@@ -179,7 +180,7 @@ export async function generateProblemsWithRetryContext(
       problems: parsedResponse.problems,
       metadata: {
         generated_at: new Date().toISOString(),
-        model: "gemini-2.5-flash",
+        model: GEMINI_MODEL,
       },
     };
   } catch (error) {
@@ -243,7 +244,7 @@ export async function repairProblemSolutionCode(
     problems: repairedProblems,
     metadata: {
       generated_at: new Date().toISOString(),
-      model: "gemini-2.5-flash",
+      model: GEMINI_MODEL,
     },
   };
 }
