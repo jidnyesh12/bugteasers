@@ -109,7 +109,7 @@ Variables can be `const`, `int`, `choice`, `string`, `int_array`, `matrix`, `per
 | Elements in one collection | 200,000 (the prompt asks for at most `TESTCASE_MAX_COLLECTION_LENGTH`, default 100,000) |
 | Generated stdin | 8 MiB |
 | Reference output | 8 MiB, longer output fails validation instead of being cut |
-| Reference run time | the problem's time limit, clamped to 0.5–10 s |
+| Reference run time | the problem's time limit, clamped to 0.5 to 10 s |
 | Request body to Piston | 16 MB |
 | Output shown in the UI and API | first 2,000 characters; verdicts always compare the full output |
 
