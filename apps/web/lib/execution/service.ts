@@ -19,6 +19,7 @@ import { ExecutionDatabaseError, ExecutionValidationError } from "./errors";
 import { createExecutionLogger, type ExecutionLogger } from "./logging";
 import { createConcurrencyLimiter } from "./concurrency";
 import { shortenTestResult } from "./output-preview";
+import { redactHiddenResult } from "./evaluator";
 import {
   resolveRunMemoryLimitBytes,
   resolveRunTimeoutMs,
@@ -66,7 +67,7 @@ export class ExecutionServiceImpl implements ExecutionService {
       const testCases = await this.fetchTestCases(request.problemId, true);
 
       // Execute code against each test case
-      const results = await this.executeTestCases(
+      const { results } = await this.executeTestCases(
         request.code,
         request.language,
         testCases,
@@ -120,7 +121,7 @@ export class ExecutionServiceImpl implements ExecutionService {
       const testCases = await this.fetchTestCases(request.problemId, false);
 
       // Execute code against each test case
-      const results = await this.executeTestCases(
+      const { results, compileFailed } = await this.executeTestCases(
         request.code,
         request.language,
         testCases,
@@ -153,7 +154,18 @@ export class ExecutionServiceImpl implements ExecutionService {
         status: score.status,
       });
 
-      return { submissionId, results, score };
+      const hiddenTestCaseIds = new Set(
+        testCases
+          .filter((testCase) => !testCase.isSample)
+          .map((testCase) => testCase.id),
+      );
+      const visibleResults = results.map((result) =>
+        hiddenTestCaseIds.has(result.testCaseId)
+          ? redactHiddenResult(result, compileFailed)
+          : result,
+      );
+
+      return { submissionId, results: visibleResults, score };
     } catch (error) {
       this.logger.logExecutionFailed(
         {
@@ -267,7 +279,7 @@ export class ExecutionServiceImpl implements ExecutionService {
     language: SupportedLanguage,
     testCases: TestCase[],
     limits: { timeLimitMs?: number | null; memoryLimitMb?: number | null } = {},
-  ): Promise<TestResult[]> {
+  ): Promise<{ results: TestResult[]; compileFailed: boolean }> {
     let pistonLanguage;
     try {
       pistonLanguage = this.pistonClient.mapLanguage(language);
@@ -301,7 +313,7 @@ export class ExecutionServiceImpl implements ExecutionService {
 
     const [firstTestCase, ...remainingTestCases] = testCases;
     if (!firstTestCase) {
-      return [];
+      return { results: [], compileFailed: false };
     }
 
     const firstResponse = await execute(firstTestCase);
@@ -314,18 +326,21 @@ export class ExecutionServiceImpl implements ExecutionService {
       const compilationError =
         firstResponse.compile.stderr || "Compilation failed";
 
-      return [
-        firstResult,
-        ...remainingTestCases.map((testCase) => ({
-          testCaseId: testCase.id,
-          passed: false,
-          actualOutput: "",
-          expectedOutput: testCase.expectedOutput,
-          pointsEarned: 0,
-          pointsAvailable: testCase.points,
-          error: compilationError,
-        })),
-      ].map(shortenTestResult);
+      return {
+        results: [
+          firstResult,
+          ...remainingTestCases.map((testCase) => ({
+            testCaseId: testCase.id,
+            passed: false,
+            actualOutput: "",
+            expectedOutput: testCase.expectedOutput,
+            pointsEarned: 0,
+            pointsAvailable: testCase.points,
+            error: compilationError,
+          })),
+        ].map(shortenTestResult),
+        compileFailed: true,
+      };
     }
 
     const limit = createConcurrencyLimiter(this.maxConcurrency);
@@ -337,7 +352,10 @@ export class ExecutionServiceImpl implements ExecutionService {
       ),
     );
 
-    return [firstResult, ...remainingResults].map(shortenTestResult);
+    return {
+      results: [firstResult, ...remainingResults].map(shortenTestResult),
+      compileFailed: false,
+    };
   }
 
   // Save submission to database

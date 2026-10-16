@@ -11,21 +11,48 @@ import type {
 
 const OUT_OF_MEMORY_EXIT_CODE = 137;
 
+export const RUN_FAILURE = {
+  timeLimit: "Time limit exceeded",
+  memoryLimit: "Memory limit exceeded",
+  outputLimit: "Output limit exceeded",
+  runtime: "Runtime error",
+} as const;
+
 export function describeRunFailure(run: ExecutionResult): string {
   switch (run.status) {
     case "TO":
-      return "Time limit exceeded";
+      return RUN_FAILURE.timeLimit;
     case "OL":
     case "EL":
-      return "Output limit exceeded";
+      return RUN_FAILURE.outputLimit;
     case "RE":
       if (run.code === OUT_OF_MEMORY_EXIT_CODE) {
-        return "Memory limit exceeded";
+        return RUN_FAILURE.memoryLimit;
       }
-      return run.stderr || run.message || "Runtime error";
+      return run.stderr || run.message || RUN_FAILURE.runtime;
     default:
-      return run.stderr || run.message || "Runtime error";
+      return run.stderr || run.message || RUN_FAILURE.runtime;
   }
+}
+
+const HIDDEN_SAFE_ERRORS = new Set<string>(Object.values(RUN_FAILURE));
+
+export function redactHiddenResult(
+  result: TestResult,
+  keepError: boolean,
+): TestResult {
+  return {
+    ...result,
+    actualOutput: "",
+    expectedOutput: "",
+    outputsTruncated: undefined,
+    error:
+      keepError ||
+      result.error === undefined ||
+      HIDDEN_SAFE_ERRORS.has(result.error)
+        ? result.error
+        : RUN_FAILURE.runtime,
+  };
 }
 
 export class TestCaseEvaluatorImpl implements TestCaseEvaluator {
