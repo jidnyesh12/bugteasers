@@ -56,6 +56,8 @@ vi.mock("@google/generative-ai", () => ({
 
 vi.mock("@/lib/env", () => ({
   GEMINI_API_KEY: "test-api-key",
+  GEMINI_MODEL: "test-model",
+  GEMINI_BASE_URL: "",
   PISTON_MAX_CONCURRENCY: 4,
   TESTCASE_FANOUT_CANDIDATES: 8,
   TESTCASE_FANOUT_KEEP: 3,

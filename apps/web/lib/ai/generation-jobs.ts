@@ -5,9 +5,8 @@ import {
   SUPPORTED_EXECUTION_LANGUAGES,
 } from "@/lib/execution/languages";
 import type { SupportedLanguage } from "@/lib/execution/types";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getGeminiModel } from "./gemini";
 import {
-  GEMINI_API_KEY,
   PISTON_MAX_CONCURRENCY,
   TESTCASE_FANOUT_CANDIDATES,
   TESTCASE_FANOUT_KEEP,
@@ -802,8 +801,7 @@ async function handleOracleRepairLoop(
   let currentProblems = [...problems];
   let currentFailure = failure;
 
-  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+  const model = getGeminiModel();
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     // Locate the failing problem
