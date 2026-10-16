@@ -20,5 +20,6 @@
       "sharp",
       "unrs-resolver"
     ]
-  }
+  },
+  "license": "MIT"
 }

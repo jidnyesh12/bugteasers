@@ -378,4 +378,4 @@ Built at the Department of Computer Engineering, MIT Academy of Engineering, Pun
 
 ## License
 
-No license has been chosen yet, so the code is not licensed for reuse. Add a `LICENSE` file to change that.
+[MIT](LICENSE) © 2026 Aditya Kotkar, Jidnyesh Suryawanshi, Shivam Hippalgave and Sakshi Deshmukh.

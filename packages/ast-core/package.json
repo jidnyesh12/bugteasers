@@ -7,5 +7,6 @@
   },
   "dependencies": {
     "web-tree-sitter": "^0.22.6"
-  }
+  },
+  "license": "MIT"
 }
